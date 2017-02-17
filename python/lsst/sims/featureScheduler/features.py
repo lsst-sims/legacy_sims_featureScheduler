@@ -8,7 +8,8 @@ from lsst.sims.utils import flat_sed_m5
 
 class BaseFeature(object):
     def __init__(self, **kwargs):
-        pass
+        # self.feature should be a float, bool, or healpix size numpy array
+        self.feature = None
 
     def add_observation(self, observation, **kwargs):
         pass
@@ -16,6 +17,8 @@ class BaseFeature(object):
     def update_conditions(self, conditions, **kwargs):
         pass
 
+    def __call__(self):
+        return self.feature
 
 class N_observations(BaseFeature):
     """
@@ -31,7 +34,7 @@ class N_observations(BaseFeature):
         self.feature = np.zeros(hp.nside2npix(nside), dtype=float)
         self.filtername = filtername
 
-    def update_observation(self, observation, indx=None):
+    def add_observation(self, observation, indx=None):
         """
         Parameters
         ----------
@@ -57,7 +60,7 @@ class Coadded_depth(BaseFeature):
         # Starting at limiting mag of zero should be fine.
         self.feature = np.zeros(hp.nside2npix(nside), dtype=float)
 
-    def update_observation(self, observation, indx=None):
+    def add_observation(self, observation, indx=None):
         """
         
         """
@@ -89,7 +92,7 @@ class Last_observed(BaseFeature):
         self.filtername = filtername
         self.feature = np.zeros(hp.nside2npix(nside), dtype=float)
 
-    def update_observation(self, observation, indx=None):
+    def add_observation(self, observation, indx=None):
         if observation.filter == self.filtername:
             self.feature[indx] = observation.mjd
 
@@ -103,7 +106,7 @@ class N_obs_night(BaseFeature):
         self.feature = np.zeros(hp.nside2npix(nside), dtype=int)
         self.night = -1
 
-    def update_observation(self, observation, indx=None):
+    def add_observation(self, observation, indx=None):
         if observation.filter == self.filtername:
             if observation.night != self.night:
                 self.feature *= 0
@@ -120,6 +123,11 @@ class N_obs_reference(BaseFeature):
         self.ra = ra
         self.dec = dec
 
+class DD_feasability(BaseFeature):
+    """
+    For the DD fields, we can pre-compute hour-angles for MJD, then do a lookup to check visibility
+    """
+
 
 
 class Rotator_angle(BaseFeature):
@@ -135,7 +143,7 @@ class Rotator_angle(BaseFeature):
         self.feature = np.zeros((hp.nside2npix(nside), 360./binsize), dtype=float)
         self.bins = np.arange(0, 360+binsize, binsize)
 
-    def update_observation(self, observation, indx=None):
+    def add_observation(self, observation, indx=None):
         if observation.filter == self.filtername:
             # I think this is how to broadcast things properly.
             self.feature[indx, :] += np.histogram(observation.rotSkyPos, bins=self.bins)[0]
