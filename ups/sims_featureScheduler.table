@@ -1,0 +1,7 @@
+setupRequired(base)
+setupRequired(numpy)
+setupRequired(sims_utils)
+setupRequired(sims_coordUtils)
+
+envPrepend(PYTHONPATH, ${PRODUCT_DIR}/python)
+envPrepend(PATH, ${PRODUCT_DIR}/bin)
