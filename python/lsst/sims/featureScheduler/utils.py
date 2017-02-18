@@ -2,6 +2,8 @@ import numpy as np
 import healpy as hp
 from scipy.spatial import cKDTree as kdtree
 from lsst.sims.utils import _hpid2RaDec
+from astropy.coordinates import SkyCoord
+from astropy import units as u
 
 
 def empty_observation():
@@ -55,5 +57,54 @@ class hp_in_lsst_fov(object):
         ra dec in radians
         """
         x, y, z = treexyz(ra, dec)
-        indices = self.tree.query_ball_point((x,y,z), self.radius)
+        indices = self.tree.query_ball_point((x, y, z), self.radius)
         return indices
+
+
+def ra_dec_hp_map(nside=32):
+    ra, dec = _hpid2RaDec(nside, np.arange(hp.nside2npix(nside)))
+    return ra, dec
+
+
+def WFD_healpixels(nside=32, dec_min=-60., dec_max=0.):
+    """
+    Define a wide fast deep region.
+    """
+    ra, dec = ra_dec_hp_map(nside=nside)
+    result = np.zeros(ra.size)
+    good = np.where((dec > np.radians(dec_min)) & (dec <= np.radians(dec_max)))
+    result[good] += 1
+    return 1
+
+
+def SCP_healpixels(nside=32, dec_max=-60.):
+    ra, dec = ra_dec_hp_map(nside=nside)
+    result = np.zeros(ra.size)
+    good = np.where(dec < np.radians(dec_max))
+    result[good] += 1
+    return 1
+
+
+def NES_healpixels(nside=32, width=15., dec_min=0.):
+    ra, dec = ra_dec_hp_map(nside=nside)
+    result = np.zeros(ra.size)
+    coord = SkyCoord(ra=ra*u.rad, dec=dec*u.rad)
+    eclip_lat = coord.barycentrictrueecliptic.lat.radian
+    good = np.where(np.abs(eclip_lat) <= np.radians(width) & (dec > dec_min))
+    result[good] += 1
+    return result
+
+def galactic_plane_healpixels(nside=32, center_width=10., end_width=4., gal_long1=70., gal_long2=270.):
+    # XXX--this is not right yet
+    ra, dec = ra_dec_hp_map(nside=nside)
+    result = np.zeros(ra.size)
+    coord = SkyCoord(ra=ra*u.rad,dec=dec*u.rad)
+    g_long, g_lat = coord.galactic.l.radian, coord.galactic.b.radian
+    lat_limit = (np.radians(center_width)-np.radians(end_width))/(np.radians(360.-gal_long2))*g_long+np.radians(center_width)
+    good = np.where((g_long >= gal_long2) & (np.abs(g_lat) <= lat_limit))
+    result[good] += 1
+    lat_limit = -(np.radians(center_width)-np.radians(end_width))/(np.radians(gal_long1))*g_long+np.radians(center_width)
+    good = np.where((g_long <= gal_long1) & (np.abs(g_lat) <= lat_limit))
+    result[good] += 1
+    return result
+

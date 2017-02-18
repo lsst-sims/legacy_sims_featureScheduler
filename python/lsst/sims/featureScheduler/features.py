@@ -73,11 +73,12 @@ class Coadded_depth(BaseFeature):
             self.feature[indx] = 1.25 * np.log10(10.**(0.8*self.feature[indx]) + 10.**(0.8*m5))
 
 
-class Target_n_observations(BaseFeature):
+class Target_frac_observations(BaseFeature):
     """
     
     """
-    def __init__(self, filtername='r', nside=32):
+    def __init__(self, filtername='r', nside=32, WFD_min=, WFD_max=, 
+                 NES_width=20., ):
         self.filtername = filtername
         self.feature = np.zeros(hp.nside2npix(nside), dtype=int)
 
