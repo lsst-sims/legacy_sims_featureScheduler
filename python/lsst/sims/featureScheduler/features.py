@@ -6,21 +6,36 @@ from lsst.sims.utils import flat_sed_m5
 
 # Hm, may want to pump up to nside=64.
 
+
 class BaseFeature(object):
+    """
+    Base class for features. If a feature never cahnges, it can be a subclass of this.
+    """
     def __init__(self, **kwargs):
         # self.feature should be a float, bool, or healpix size numpy array
         self.feature = None
 
-    def add_observation(self, observation, **kwargs):
-        pass
-
-    def update_conditions(self, conditions, **kwargs):
-        pass
-
     def __call__(self):
         return self.feature
 
-class N_observations(BaseFeature):
+
+class BaseSurveyFeature(object):
+    """
+    feature that tracks progreess of the survey. Takes observations and updates self.feature
+    """
+    def add_observation(self, observation, **kwargs):
+        pass
+
+
+class BaseConditionsFeature(object):
+    """
+    Feature based on the current conditions (e.g., mjd, cloud cover, skybrightness map, etc.)
+    """
+    def update_conditions(self, conditions, **kwargs):
+        pass
+
+
+class N_observations(BaseSurveyFeature):
     """
     Track the number of observations that have been made accross the sky
     """
@@ -49,7 +64,7 @@ class N_observations(BaseFeature):
             self.feature[indx] += 1
 
 
-class Coadded_depth(BaseFeature):
+class Coadded_depth(BaseSurveyFeature):
     def __init__(self, filtername='r', nside=32):
         """
         Track the co-added depth that has been reached accross the sky
@@ -85,7 +100,7 @@ class Target_frac_observations(BaseFeature):
         # OK, here's where we define the WFD area, NES, SCP, and Galactic plane
 
 
-class Last_observed(BaseFeature):
+class Last_observed(BaseSurveyFeature):
     """
     Track when a pixel was last observed.
     """
@@ -98,7 +113,7 @@ class Last_observed(BaseFeature):
             self.feature[indx] = observation.mjd
 
 
-class N_obs_night(BaseFeature):
+class N_obs_night(BaseSurveyFeature):
     """
     Track how many times something has been observed in a night
     """
@@ -114,7 +129,7 @@ class N_obs_night(BaseFeature):
             self.feature[indx] += 1
 
 
-class N_obs_reference(BaseFeature):
+class N_obs_reference(BaseSurveyFeature):
     """
     Since we want to track everything by fraction, we need to declare a special spot on the sky as the
     reference point and track it independently
@@ -124,14 +139,15 @@ class N_obs_reference(BaseFeature):
         self.ra = ra
         self.dec = dec
 
-class DD_feasability(BaseFeature):
+
+class DD_feasability(BaseConditionsFeature):
     """
     For the DD fields, we can pre-compute hour-angles for MJD, then do a lookup to check visibility
     """
 
 
 
-class Rotator_angle(BaseFeature):
+class Rotator_angle(BaseSurveyFeature):
     """
     Track what rotation angles things are observed with
     """

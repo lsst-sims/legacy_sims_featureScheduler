@@ -1,6 +1,9 @@
 import numpy as np
-from lsst.sims.utils import haversine
+from lsst.sims.utils import haversine, _hpid2RaDec
 import lsst.sims.sky_brightness_pre as sb
+import healpy as hp
+
+sec2days = 1./(3600.*24.)
 
 
 class Speed_observatory(object):
@@ -9,18 +12,27 @@ class Speed_observatory(object):
     current conditions.
     """
     def __init__(self, mjd_start=0., ang_speed=5.,
-                 readtime=2., settle=2., filtername=None, f_change_time=120.):
+                 readtime=2., settle=2., filtername=None, f_change_time=120.,
+                 nside=32):
         """
         
         """
         self.mjd = mjd_start
         self.ang_speed = np.radians(ang_speed)
         self.settle = settle
-        self.filtername = None
         self.f_change_time = f_change_time
 
         # Load up the sky brightness model
         self.sky = sb.SkyBrightnessPre()
+
+        # Start out parked
+        self.ra = None
+        self.dec = None
+        self.filtername = None
+
+        # Set up all sky coordinates
+        hpids = np.arange(hp.nisde2npix(nside))
+        self.ra_all_sky, self.dec_all_sky = _hpid2RaDec(nside, hpids)
 
     def slew_time(self, ra, dec):
         """
@@ -37,6 +49,9 @@ class Speed_observatory(object):
         result = {}
         result['mjd'] = self.mjd
         result['sky'] = self.sky.returnMags(self.ra_all_sky, self.dec_all_sky, self.mjd)
+        result['m5_percentile']
+        return result
+
 
     def check_mjd(self, mjd):
         """
@@ -70,8 +85,8 @@ class Speed_observatory(object):
         check_result, jump_mjd = self.check_mjd(self.mjd + total_time)
         if check_result:
             # time the shutter should open
-            observation['mjd'] = self.mjd + st + ft + self.settle
-            self.mjd += total_time
+            observation['mjd'] = self.mjd + (st + ft + self.settle) * sec2days
+            self.mjd += total_time*sec2days
             self.ra = observation['ra']
             self.dec = observation['dec']
             self.filtername = observation['filter']
