@@ -94,17 +94,26 @@ def NES_healpixels(nside=32, width=15., dec_min=0.):
     result[good] += 1
     return result
 
-def galactic_plane_healpixels(nside=32, center_width=10., end_width=4., gal_long1=70., gal_long2=270.):
+def galactic_plane_healpixels(nside=32, center_width=10., end_width=4., gal_long1=70., gal_long2=290.):
     # XXX--this is not right yet
     ra, dec = ra_dec_hp_map(nside=nside)
     result = np.zeros(ra.size)
-    coord = SkyCoord(ra=ra*u.rad,dec=dec*u.rad)
+    coord = SkyCoord(ra=ra*u.rad, dec=dec*u.rad)
     g_long, g_lat = coord.galactic.l.radian, coord.galactic.b.radian
-    lat_limit = (np.radians(center_width)-np.radians(end_width))/(np.radians(360.-gal_long2))*g_long+np.radians(center_width)
-    good = np.where((g_long >= gal_long2) & (np.abs(g_lat) <= lat_limit))
+    good = np.where((g_long < np.radians(gal_long1)) & (np.abs(g_lat) < np.radians(center_width)))
     result[good] += 1
-    lat_limit = -(np.radians(center_width)-np.radians(end_width))/(np.radians(gal_long1))*g_long+np.radians(center_width)
-    good = np.where((g_long <= gal_long1) & (np.abs(g_lat) <= lat_limit))
+    good = np.where((g_long > np.radians(gal_long2)) & (np.abs(g_lat) < np.radians(center_width)))
     result[good] += 1
+    # Add tapers
+    slope = -(np.radians(center_width)-np.radians(end_width))/(np.radians(gal_long1))
+    lat_limit = slope*g_long+np.radians(center_width)
+    outside = np.where((g_long < np.radians(gal_long1)) & (np.abs(g_lat) > np.abs(lat_limit)))
+    result[outside] = 0
+    slope = (np.radians(center_width)-np.radians(end_width))/(np.radians(360. - gal_long2))
+    b = np.radians(center_width)-np.radians(360.)*slope
+    lat_limit = slope*g_long+b
+    outside = np.where((g_long > np.radians(gal_long2)) & (np.abs(g_lat) > np.abs(lat_limit)))
+    result[outside] = 0
+
     return result
 
