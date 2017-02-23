@@ -2,7 +2,6 @@ import numpy as np
 from utils import empty_observation
 
 
-
 class BaseSurvey(object):
     def __init__(self, basis_functions, extra_features=None):
         """

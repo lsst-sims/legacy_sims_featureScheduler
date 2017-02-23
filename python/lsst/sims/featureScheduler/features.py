@@ -88,18 +88,6 @@ class Coadded_depth(BaseSurveyFeature):
             self.feature[indx] = 1.25 * np.log10(10.**(0.8*self.feature[indx]) + 10.**(0.8*m5))
 
 
-class Target_frac_observations(BaseFeature):
-    """
-    
-    """
-    def __init__(self, filtername='r', nside=32, WFD_min=, WFD_max=, 
-                 NES_width=20., ):
-        self.filtername = filtername
-        self.feature = np.zeros(hp.nside2npix(nside), dtype=int)
-
-        # OK, here's where we define the WFD area, NES, SCP, and Galactic plane
-
-
 class Last_observed(BaseSurveyFeature):
     """
     Track when a pixel was last observed.
@@ -109,13 +97,14 @@ class Last_observed(BaseSurveyFeature):
         self.feature = np.zeros(hp.nside2npix(nside), dtype=float)
 
     def add_observation(self, observation, indx=None):
-        if observation.filter == self.filtername:
+        if (self.filtername is None) | (observation.filter == self.filtername):
             self.feature[indx] = observation.mjd
 
 
 class N_obs_night(BaseSurveyFeature):
     """
     Track how many times something has been observed in a night
+    (Note, even if there are two, it might not be a good pair)
     """
     def __init__(self, filtername='r', nside=32):
         self.filtername = filtername
@@ -127,6 +116,30 @@ class N_obs_night(BaseSurveyFeature):
             if observation.night != self.night:
                 self.feature *= 0
             self.feature[indx] += 1
+
+
+class Pair_in_night(BaseSurveyFeature):
+    """
+    I think this makes sense to do as a complicated feature.
+    """
+    def __init__(self, nside=32, gap_min=15., gap_max=40.):
+        """
+        Parameters
+        ----------
+        gap_min : float (15.)
+            The minimum time gap to consider a successful pair in minutes
+        gap_max : float (40.)
+        """
+        self.feature = np.zeros(hp.nside2npix(nside), dtype=float)
+        self.last_observed = Last_observed(filtername=None)
+        self.gap_min = gap_min / (24.*60)  # Days
+        self.gap_max = gap_max / (24.*60)  # Days
+
+    def add_observation(self, observation, indx=None):
+        tdiff = observation['mjd'] - self.last_observed[indx]
+        good = np.where((tdiff >= self.gap_min) & (tdiff <= self.gap_max))
+        self.feature[indx][good] += 1
+        self.last_observed.add_observation(observation)
 
 
 class N_obs_reference(BaseSurveyFeature):
