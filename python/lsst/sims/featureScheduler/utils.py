@@ -72,9 +72,9 @@ def WFD_healpixels(nside=32, dec_min=-60., dec_max=0.):
     """
     ra, dec = ra_dec_hp_map(nside=nside)
     result = np.zeros(ra.size)
-    good = np.where((dec > np.radians(dec_min)) & (dec <= np.radians(dec_max)))
+    good = np.where((dec >= np.radians(dec_min)) & (dec <= np.radians(dec_max)))
     result[good] += 1
-    return 1
+    return result
 
 
 def SCP_healpixels(nside=32, dec_max=-60.):
@@ -82,17 +82,24 @@ def SCP_healpixels(nside=32, dec_max=-60.):
     result = np.zeros(ra.size)
     good = np.where(dec < np.radians(dec_max))
     result[good] += 1
-    return 1
+    return result
 
 
-def NES_healpixels(nside=32, width=15., dec_min=0.):
+def NES_healpixels(nside=32, width=15, dec_min=0., fill_gap=True):
     ra, dec = ra_dec_hp_map(nside=nside)
     result = np.zeros(ra.size)
     coord = SkyCoord(ra=ra*u.rad, dec=dec*u.rad)
     eclip_lat = coord.barycentrictrueecliptic.lat.radian
-    good = np.where(np.abs(eclip_lat) <= np.radians(width) & (dec > dec_min))
+    good = np.where((np.abs(eclip_lat) <= np.radians(width)) & (dec > dec_min))
     result[good] += 1
+
+    if fill_gap:
+        good = np.where((dec > np.radians(dec_min)) & (ra < np.radians(180)) &
+                        (dec < np.radians(width)))
+        result[good] = 1
+
     return result
+
 
 def galactic_plane_healpixels(nside=32, center_width=10., end_width=4., gal_long1=70., gal_long2=290.):
     # XXX--this is not right yet
@@ -116,4 +123,32 @@ def galactic_plane_healpixels(nside=32, center_width=10., end_width=4., gal_long
     result[outside] = 0
 
     return result
+
+
+def generate_goal_map(nside=32, NES_fraction = .3, WFD_fraction = 1., SCP_fraction=0.4,
+                      GP_fraction = 0.2,
+                      NES_width=15., NES_dec_min=0., NES_fill=True,
+                      SCP_dec_max=-60., gp_center_width=10.,
+                      gp_end_width=4., gp_long1=70., gp_long2=290.,
+                      wfd_dec_min=-60., wfd_dec_max=0.):
+    """
+    Handy function that will put together a target map in the proper order.
+    """
+    result = np.zeros(hp.nside2npix(nside), dtype=float)
+    result += NES_fraction*NES_healpixels(nside=nside, width=NES_width,
+                                          dec_min=NES_dec_min, fill_gap=NES_fill)
+    wfd = WFD_healpixels(nside=nside, dec_min=wfd_dec_min, dec_max=wfd_dec_max)
+    result[np.where(wfd != 0)] = 0
+    result += WFD_fraction*wfd
+    scp = SCP_healpixels(nside=nside, dec_max=SCP_dec_max)
+    result[np.where(scp != 0)] = 0
+    result += SCP_fraction*scp
+    gp = galactic_plane_healpixels(nside=nside, center_width=gp_center_width,
+                                   end_width=gp_end_width, gal_long1=gp_long1,
+                                   gal_long2=gp_long2)
+    result[np.where(gp != 0)] = 0
+    result += GP_fraction*gp
+    return result
+
+
 
