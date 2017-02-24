@@ -153,6 +153,24 @@ class N_obs_reference(BaseSurveyFeature):
         self.dec = dec
 
 
+class M5Depth_percentile(BaseConditionsFeature):
+    """
+    Given current conditions, return the 5-sigma limiting depth percentile map
+    for a filter.
+    """
+    def __init__(self, filtername='r'):
+        self.filtername = filtername
+        self.feature = None
+
+    def update_conditions(self, conditions):
+        """
+        Parameters
+        ----------
+        conditions : dict
+            Keys should include airmass, sky_brightness, seeing.
+        """
+        
+
 class DD_feasability(BaseConditionsFeature):
     """
     For the DD fields, we can pre-compute hour-angles for MJD, then do a lookup to check visibility
