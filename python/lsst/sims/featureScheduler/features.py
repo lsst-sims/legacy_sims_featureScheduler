@@ -1,6 +1,7 @@
 import numpy as np
 import healpy as hp
 from lsst.sims.utils import flat_sed_m5
+from lsst.sims.sky_brightness_pre import M5percentiles
 
 # XXX-shit, should I have added _feature to all of the names here? 
 
@@ -120,9 +121,9 @@ class N_obs_night(BaseSurveyFeature):
 
 class Pair_in_night(BaseSurveyFeature):
     """
-    I think this makes sense to do as a complicated feature.
+    I think this makes sense to do as a complicated feature?
     """
-    def __init__(self, nside=32, gap_min=15., gap_max=40.):
+    def __init__(self, nside=32, gap_min=15., gap_max=45.):
         """
         Parameters
         ----------
@@ -158,9 +159,12 @@ class M5Depth_percentile(BaseConditionsFeature):
     Given current conditions, return the 5-sigma limiting depth percentile map
     for a filter.
     """
-    def __init__(self, filtername='r'):
+    def __init__(self, filtername='r', expTime=30., nside=32):
         self.filtername = filtername
         self.feature = None
+        self.expTime = expTime
+        self.nside = nside
+        self.m5p = M5percentiles()
 
     def update_conditions(self, conditions):
         """
@@ -169,7 +173,15 @@ class M5Depth_percentile(BaseConditionsFeature):
         conditions : dict
             Keys should include airmass, sky_brightness, seeing.
         """
-        
+        m5 = np.empty(conditions['skybrightness'][self.filtername].size)
+        m5.fill(hp.UNSEEN)
+        good = np.where(conditions['skybrightness'][self.filtername] != hp.UNSEEN)
+        m5[good] = flat_sed_m5(conditions['filter'], conditions['skybrightness'][self.filtername][good],
+                               self.expTime, conditions['airmass'][good])
+
+        self.feature = self.m5p.m5map2percentile(m5)
+        self.feature = hp.ud_grade(self.feature, nside_out=self.nside)
+
 
 class DD_feasability(BaseConditionsFeature):
     """

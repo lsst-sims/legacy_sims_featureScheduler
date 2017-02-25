@@ -2,7 +2,6 @@ import numpy as np
 import features
 import utils
 import healpy as hp
-from lsst.sims.sky_brightness_pre import M5percentiles
 
 
 class Base_basis_function(object):
@@ -88,7 +87,10 @@ class Visit_repeat_basis_function(Base_basis_function):
     Basis function to reward re-visiting an area on the sky.
     """
     def __init__(self):
+        # Use the   N_obs_night, and Pair_in_night features to decide if
+        # there should be a boost in reward for observing something. 
         pass
+
 
 
 class Depth_percentile_basis_function(Base_basis_function):
