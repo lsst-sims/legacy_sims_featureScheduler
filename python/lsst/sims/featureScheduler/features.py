@@ -1,6 +1,6 @@
 import numpy as np
 import healpy as hp
-from lsst.sims.utils import flat_sed_m5
+from lsst.sims.utils import flat_sed_m5, raDec2Hpid
 from lsst.sims.sky_brightness_pre import M5percentiles
 
 # XXX-shit, should I have added _feature to all of the names here? 
@@ -40,15 +40,18 @@ class N_observations(BaseSurveyFeature):
     """
     Track the number of observations that have been made accross the sky
     """
-    def __init__(self, filtername=None, nside=32):
+    def __init__(self, filtername=None, nside=32, mask_indx=None):
         """
         Parameters
         ----------
         nside : int (32)
             The nside of the healpixel map to use
+        mask_indx : list of ints (None)
+            List of healpixel indices to mask and interpolate over
         """
         self.feature = np.zeros(hp.nside2npix(nside), dtype=float)
         self.filtername = filtername
+        self.mask_indx = mask_indx
 
     def add_observation(self, observation, indx=None):
         """
@@ -58,11 +61,19 @@ class N_observations(BaseSurveyFeature):
             The indices of the healpixel map that have been observed by observation
         """
         if indx is None:
-            # Find the hepixels that were observed by the pointing
+            # Find the healpixels that were observed by the pointing
             pass
 
         if (self.filtername is None) | (self.filtername == observation.filter):
             self.feature[indx] += 1
+
+        if self.mask_indx is not None:
+            overlap = np.intersect1d(indx, self.mask_indx)
+            if overlap.size > 0:
+                # interpolate over those pixels that are DD fields.
+                # XXX.  Do I need to kdtree this? Maybe make a dict on init
+                # to lookup the N closest non-masked pixels, then do weighted average.
+                pass
 
 
 class Coadded_depth(BaseSurveyFeature):
@@ -108,6 +119,14 @@ class N_obs_night(BaseSurveyFeature):
     (Note, even if there are two, it might not be a good pair)
     """
     def __init__(self, filtername='r', nside=32):
+        """
+        Parameters
+        ----------
+        filtername : string ('r')
+            Filter to track.
+        nside : int (32)
+            Scale of the healpix map
+        """
         self.filtername = filtername
         self.feature = np.zeros(hp.nside2npix(nside), dtype=int)
         self.night = -1
@@ -137,7 +156,7 @@ class Pair_in_night(BaseSurveyFeature):
         self.gap_max = gap_max / (24.*60)  # Days
 
     def add_observation(self, observation, indx=None):
-        tdiff = observation['mjd'] - self.last_observed[indx]
+        tdiff = observation['mjd'] - self.last_observed.feature[indx]
         good = np.where((tdiff >= self.gap_min) & (tdiff <= self.gap_max))
         self.feature[indx][good] += 1
         self.last_observed.add_observation(observation)
@@ -149,9 +168,16 @@ class N_obs_reference(BaseSurveyFeature):
     reference point and track it independently
     """
     def __init__(self, filtername='r', ra=0., dec=-30., nside=32):
+        self.feature = 0
         self.filtername = filtername
         self.ra = ra
         self.dec = dec
+        # look up the healpix id of the point
+        self.indx = raDec2Hpid(nside, ra, dec)
+
+    def add_observation(self, observation, indx=None):
+        if self.indx in indx:
+            self.feature += 1
 
 
 class M5Depth_percentile(BaseConditionsFeature):
@@ -187,7 +213,6 @@ class DD_feasability(BaseConditionsFeature):
     """
     For the DD fields, we can pre-compute hour-angles for MJD, then do a lookup to check visibility
     """
-
 
 
 class Rotator_angle(BaseSurveyFeature):

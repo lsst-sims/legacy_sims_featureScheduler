@@ -84,13 +84,30 @@ class Target_map_basis_function(Base_basis_function):
 
 class Visit_repeat_basis_function(Base_basis_function):
     """
-    Basis function to reward re-visiting an area on the sky.
+    Basis function to reward re-visiting an area on the sky. Looking for Solar System objects.
     """
-    def __init__(self):
-        # Use the   N_obs_night, and Pair_in_night features to decide if
-        # there should be a boost in reward for observing something. 
-        pass
+    def __init__(self, survey_features=None, gap_min=15., gap_max=45., nside=32, npairs=1.):
 
+        self.gap_min = gap_min/60./24.
+        self.gap_max = gap_max/60./24.
+        self.npairs = 1.
+
+        if survey_features is None:
+            self.survey_features = {}
+            self.survey_features['Pair_in_night'] = features.Pair_in_night()
+            self.survey_features['Last_observed'] = features.Last_observed()
+            self.condition_features['Conditions'] = features.Conditions()
+        super(Target_map_basis_function, self).__init__(survey_features=self.survey_features,
+                                                        condition_features=self.condition_features)
+
+    def __call__(self, indx=None):
+        result = np.empty(hp.nside2npix(self.nside), dtype=float)
+        result.fill(hp.UNSEEN)
+        diff = self.survey_features['Conditions']['mjd'] - self.survey_features['Last_observed'][indx]
+        good = np.where((diff > self.gap_min) & (diff < self.gap_max) &
+                        (self.survey_features['Pair_in_night'][indx] < self.npairs))
+        result[indx][good] = 1.
+        return result
 
 
 class Depth_percentile_basis_function(Base_basis_function):
