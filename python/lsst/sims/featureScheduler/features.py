@@ -1,11 +1,12 @@
 import numpy as np
 import healpy as hp
-from lsst.sims.utils import flat_sed_m5, raDec2Hpid
-from lsst.sims.sky_brightness_pre import M5percentiles
+import utils
+from lsst.sims.utils import m5_flat_sed, raDec2Hpid
+from lsst.sims.skybrightness_pre import M5percentiles
 
 # XXX-shit, should I have added _feature to all of the names here? 
 
-# Hm, may want to pump up to nside=64.
+default_nside = utils.set_default_nside()
 
 
 class BaseFeature(object):
@@ -40,7 +41,7 @@ class N_observations(BaseSurveyFeature):
     """
     Track the number of observations that have been made accross the sky
     """
-    def __init__(self, filtername=None, nside=32, mask_indx=None):
+    def __init__(self, filtername=None, nside=default_nside, mask_indx=None):
         """
         Parameters
         ----------
@@ -77,7 +78,7 @@ class N_observations(BaseSurveyFeature):
 
 
 class Coadded_depth(BaseSurveyFeature):
-    def __init__(self, filtername='r', nside=32):
+    def __init__(self, filtername='r', nside=default_nside):
         """
         Track the co-added depth that has been reached accross the sky
         Parameters
@@ -95,7 +96,7 @@ class Coadded_depth(BaseSurveyFeature):
             # Find the hepixels that were observed by the pointing
             pass
         if observation.filter == self.filtername:
-            m5 = flat_sed_m5(observation.filter, observation.skybrightness, observation.expTime,
+            m5 = m5_flat_sed(observation.filter, observation.skybrightness, observation.expTime,
                              observation.airmass)
             self.feature[indx] = 1.25 * np.log10(10.**(0.8*self.feature[indx]) + 10.**(0.8*m5))
 
@@ -104,7 +105,7 @@ class Last_observed(BaseSurveyFeature):
     """
     Track when a pixel was last observed.
     """
-    def __init__(self, filtername='r', nside=32):
+    def __init__(self, filtername='r', nside=default_nside):
         self.filtername = filtername
         self.feature = np.zeros(hp.nside2npix(nside), dtype=float)
 
@@ -118,7 +119,7 @@ class N_obs_night(BaseSurveyFeature):
     Track how many times something has been observed in a night
     (Note, even if there are two, it might not be a good pair)
     """
-    def __init__(self, filtername='r', nside=32):
+    def __init__(self, filtername='r', nside=default_nside):
         """
         Parameters
         ----------
@@ -142,7 +143,7 @@ class Pair_in_night(BaseSurveyFeature):
     """
     I think this makes sense to do as a complicated feature?
     """
-    def __init__(self, nside=32, gap_min=15., gap_max=45.):
+    def __init__(self, nside=default_nside, gap_min=15., gap_max=45.):
         """
         Parameters
         ----------
@@ -167,7 +168,7 @@ class N_obs_reference(BaseSurveyFeature):
     Since we want to track everything by fraction, we need to declare a special spot on the sky as the
     reference point and track it independently
     """
-    def __init__(self, filtername='r', ra=0., dec=-30., nside=32):
+    def __init__(self, filtername='r', ra=0., dec=-30., nside=default_nside):
         self.feature = 0
         self.filtername = filtername
         self.ra = ra
@@ -185,7 +186,7 @@ class M5Depth_percentile(BaseConditionsFeature):
     Given current conditions, return the 5-sigma limiting depth percentile map
     for a filter.
     """
-    def __init__(self, filtername='r', expTime=30., nside=32):
+    def __init__(self, filtername='r', expTime=30., nside=default_nside):
         self.filtername = filtername
         self.feature = None
         self.expTime = expTime
@@ -202,11 +203,16 @@ class M5Depth_percentile(BaseConditionsFeature):
         m5 = np.empty(conditions['skybrightness'][self.filtername].size)
         m5.fill(hp.UNSEEN)
         good = np.where(conditions['skybrightness'][self.filtername] != hp.UNSEEN)
-        m5[good] = flat_sed_m5(conditions['filter'], conditions['skybrightness'][self.filtername][good],
+        m5[good] = m5_flat_sed(conditions['filter'], conditions['skybrightness'][self.filtername][good],
                                self.expTime, conditions['airmass'][good])
 
         self.feature = self.m5p.m5map2percentile(m5)
         self.feature = hp.ud_grade(self.feature, nside_out=self.nside)
+
+
+class Current_mjd(BaseConditionsFeature):
+    def update_conditions(self, conditions):
+        self.feature = conditions['mjd']
 
 
 class DD_feasability(BaseConditionsFeature):
@@ -219,7 +225,7 @@ class Rotator_angle(BaseSurveyFeature):
     """
     Track what rotation angles things are observed with
     """
-    def __init__(self, filtername='r', binsize=10., nside=32):
+    def __init__(self, filtername='r', binsize=10., nside=default_nside):
         """
 
         """

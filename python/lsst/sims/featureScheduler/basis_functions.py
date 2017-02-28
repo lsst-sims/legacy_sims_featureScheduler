@@ -4,6 +4,9 @@ import utils
 import healpy as hp
 
 
+default_nside = utils.set_default_nside()
+
+
 class Base_basis_function(object):
     """
     Class that takes features and computes a reward fucntion
@@ -41,7 +44,7 @@ class Target_map_basis_function(Base_basis_function):
     """
     Generate a map that rewards survey areas falling behind.
     """
-    def __init__(self, filtername='r', nside=32, target_map=None, softening=1., survey_features=None,
+    def __init__(self, filtername='r', nside=default_nside, target_map=None, softening=1., survey_features=None,
                  condition_features=None):
         """
         Parameters
@@ -86,7 +89,7 @@ class Visit_repeat_basis_function(Base_basis_function):
     """
     Basis function to reward re-visiting an area on the sky. Looking for Solar System objects.
     """
-    def __init__(self, survey_features=None, gap_min=15., gap_max=45., nside=32, npairs=1.):
+    def __init__(self, survey_features=None, gap_min=15., gap_max=45., nside=default_nside, npairs=1.):
 
         self.gap_min = gap_min/60./24.
         self.gap_max = gap_max/60./24.
@@ -114,10 +117,13 @@ class Depth_percentile_basis_function(Base_basis_function):
     """
     Return a healpix map of the reward function based on 5-sigma limiting depth
     """
-    def __init__(self, survey_features=None, condition_features=None, filtername='r', nside=32):
+    def __init__(self, survey_features=None, condition_features=None, filtername='r', nside=default_nside):
         self.filtername = filtername
         self.nside = nside
-        # Need conditions of sky brightness in filter, seeing_map, airmass_map.
+        if condition_features is None:
+            self.condition_features = {}
+            self.condition_features['M5Depth_percentile'] = features.M5Depth_percentile(filtername=filtername)
+
 
     def __call__(self, indx=None):
 
@@ -125,5 +131,6 @@ class Depth_percentile_basis_function(Base_basis_function):
         result.fill(hp.UNSEEN)
         if indx is None:
             indx = np.arange(result.size)
-
+        result[indx] = self.condition_features['M5Depth_percentile'][indx]
+        return result
 

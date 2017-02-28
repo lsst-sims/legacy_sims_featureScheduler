@@ -2,6 +2,7 @@ setupRequired(base)
 setupRequired(numpy)
 setupRequired(sims_utils)
 setupRequired(sims_coordUtils)
+setupRequired(sims_skybrightness_pre)
 
 envPrepend(PYTHONPATH, ${PRODUCT_DIR}/python)
 envPrepend(PATH, ${PRODUCT_DIR}/bin)

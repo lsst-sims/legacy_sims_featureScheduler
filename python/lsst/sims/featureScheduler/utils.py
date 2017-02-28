@@ -6,6 +6,13 @@ from astropy.coordinates import SkyCoord
 from astropy import units as u
 
 
+default_nside = 64
+
+
+def set_default_nside():
+    return default_nside
+
+
 def empty_observation():
     """
     Return a numpy array that could be a handy observation record
@@ -26,7 +33,7 @@ def treexyz(ra, dec):
     return x, y, z
 
 
-def hp_kd_tree(nside=32, leafsize=100):
+def hp_kd_tree(nside=default_nside, leafsize=100):
     hpid = np.arange(hp.nside2npix(nside))
     ra, dec = _hpid2RaDec(nside, hpid)
     x, y, z = treexyz(ra, dec)
@@ -48,7 +55,7 @@ def rad_length(radius=1.75):
 
 
 class hp_in_lsst_fov(object):
-    def __init__(self, nside=32, fov_radius=1.75):
+    def __init__(self, nside=default_nside, fov_radius=1.75):
         self.tree = hp_kd_tree()
         self.radius = rad_length(fov_radius)
 
@@ -61,12 +68,12 @@ class hp_in_lsst_fov(object):
         return indices
 
 
-def ra_dec_hp_map(nside=32):
+def ra_dec_hp_map(nside=default_nside):
     ra, dec = _hpid2RaDec(nside, np.arange(hp.nside2npix(nside)))
     return ra, dec
 
 
-def WFD_healpixels(nside=32, dec_min=-60., dec_max=0.):
+def WFD_healpixels(nside=default_nside, dec_min=-60., dec_max=0.):
     """
     Define a wide fast deep region.
     """
@@ -77,7 +84,7 @@ def WFD_healpixels(nside=32, dec_min=-60., dec_max=0.):
     return result
 
 
-def SCP_healpixels(nside=32, dec_max=-60.):
+def SCP_healpixels(nside=default_nside, dec_max=-60.):
     ra, dec = ra_dec_hp_map(nside=nside)
     result = np.zeros(ra.size)
     good = np.where(dec < np.radians(dec_max))
@@ -85,7 +92,7 @@ def SCP_healpixels(nside=32, dec_max=-60.):
     return result
 
 
-def NES_healpixels(nside=32, width=15, dec_min=0., fill_gap=True):
+def NES_healpixels(nside=default_nside, width=15, dec_min=0., fill_gap=True):
     ra, dec = ra_dec_hp_map(nside=nside)
     result = np.zeros(ra.size)
     coord = SkyCoord(ra=ra*u.rad, dec=dec*u.rad)
@@ -101,7 +108,7 @@ def NES_healpixels(nside=32, width=15, dec_min=0., fill_gap=True):
     return result
 
 
-def galactic_plane_healpixels(nside=32, center_width=10., end_width=4., gal_long1=70., gal_long2=290.):
+def galactic_plane_healpixels(nside=default_nside, center_width=10., end_width=4., gal_long1=70., gal_long2=290.):
     # XXX--this is not right yet
     ra, dec = ra_dec_hp_map(nside=nside)
     result = np.zeros(ra.size)
@@ -125,7 +132,7 @@ def galactic_plane_healpixels(nside=32, center_width=10., end_width=4., gal_long
     return result
 
 
-def generate_goal_map(nside=32, NES_fraction = .3, WFD_fraction = 1., SCP_fraction=0.4,
+def generate_goal_map(nside=default_nside, NES_fraction = .3, WFD_fraction = 1., SCP_fraction=0.4,
                       GP_fraction = 0.2,
                       NES_width=15., NES_dec_min=0., NES_fill=True,
                       SCP_dec_max=-60., gp_center_width=10.,
@@ -151,4 +158,37 @@ def generate_goal_map(nside=32, NES_fraction = .3, WFD_fraction = 1., SCP_fracti
     return result
 
 
+def standard_goals(nside=default_nside):
+    """
+    A quick fucntion to generate the "standard" goal maps.
+    """
+    result = {}
+    result['u'] = generate_goal_map(nside=nside, NES_fraction=0.,
+                                    WFD_fraction=0.31, SCP_fraction=0.15,
+                                    GP_fraction=0.15)
+    result['g'] = generate_goal_map(nside=nside, NES_fraction=0.2,
+                                    WFD_fraction=0.44, SCP_fraction=0.15,
+                                    GP_fraction=0.15)
+    result['r'] = generate_goal_map(nside=nside, NES_fraction=0.46,
+                                    WFD_fraction=1.0, SCP_fraction=0.15,
+                                    GP_fraction=0.15)
+    result['i'] = generate_goal_map(nside=nside, NES_fraction=0.46,
+                                    WFD_fraction=1.0, SCP_fraction=0.15,
+                                    GP_fraction=0.15)
+    result['z'] = generate_goal_map(nside=nside, NES_fraction=0.4,
+                                    WFD_fraction=0.9, SCP_fraction=0.15,
+                                    GP_fraction=0.15)
+    result['y'] = generate_goal_map(nside=nside, NES_fraction=0.,
+                                    WFD_fraction=0.9, SCP_fraction=0.15,
+                                    GP_fraction=0.15)
+
+    return result
+
+# OK, Let's just look at minion_1016 to get an idea:
+# region, u, g, r, i, z, y,
+# NES, 0, 40, 92, 92, 80., 0.
+# SCP, 30, 30, 30, 30, 30, 30
+# WFD, 62, 88, 200, 200, 180, 180
+# GP, 30, 30, 30, 30, 30, 30
+# DD, 4940, 1911, 3855, 3818, 4930, 3742
 

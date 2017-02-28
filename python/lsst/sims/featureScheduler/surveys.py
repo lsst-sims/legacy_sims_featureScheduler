@@ -1,5 +1,8 @@
 import numpy as np
-from utils import empty_observation
+from utils import empty_observation, set_default_nside
+from lsst.sims.utils import _hpid2RaDec
+
+default_nside = set_default_nside()
 
 
 class BaseSurvey(object):
@@ -16,26 +19,26 @@ class BaseSurvey(object):
 
         # XXX-Check that input is a list of features
         self.basis_functions = basis_functions
-        self.cost = None
+        self.reward = None
         if extra_features is None:
             self.extra_features = []
         else:
             self.extra_features = extra_features
-        self.cost_checked = False
+        self.reward_checked = False
 
     def add_observation(self, observation, **kwargs):
         for bf in self.basis_functions:
             bf.add_observation(observation, **kwargs)
         for feature in self.extra_features:
             feature.add_observation(observation, **kwargs)
-        self.cost_checked = False
+        self.reward_checked = False
 
     def update_conditions(self, conditions, **kwargs):
         for bf in self.basis_functions:
             bf.update_conditions(conditions, **kwargs)
         for feature in self.extra_features:
             feature.update_conditions(conditions, **kwargs)
-        self.cost_checked = False
+        self.reward_checked = False
 
     def _check_feasability(self):
         """
@@ -43,23 +46,23 @@ class BaseSurvey(object):
         """
         return True
 
-    def calc_cost_function(self):
-        self.cost_checked = True
+    def calc_reward_function(self):
+        self.reward_checked = True
         if self._check_feasability():
-            self.cost = 0
+            self.reward = 0
             for bf in self.basis_functions:
-                self.cost += bf.cost()
-                if np.isinf(np.max(self.cost)):
-                    self.cost = np.inf
+                self.reward += bf.reward()
+                if np.isinf(np.max(self.reward)):
+                    self.reward = np.inf
         else:
-            self.cost = np.inf
-        return self.cost
+            self.reward = np.inf
+        return self.reward
 
     def return_observations(self):
-        # If the cost function hasn't been updated with the
+        # If the reward function hasn't been updated with the
         # latest info, calculate it
-        if not self.cost_checked:
-            cost = self.calc_cost_function()
+        if not self.reward_checked:
+            reward = self.calc_reward_function()
         obs = empty_observation()
         return obs
 
@@ -71,19 +74,27 @@ class Simple_greedy_survey(BaseSurvey):
     XXX-Healpixels are NOT "evenly distributed" on the sky. Using them as pointing centers
     will result in features in the coadded depth power spectrum (I think).
     """
-    def __init__(self, basis_functions, extra_features=None):
+    def __init__(self, basis_functions, extra_features=None, filtername='r'):
         super(Simple_greedy_survey, self).__init__(basis_functions=basis_functions,
                                                    extra_features=extra_features)
+        self.filtername = filtername
 
     def return_observations(self):
         """
         Just point at the highest reward healpix
         """
-        if not self.cost_checked:
-            cost = self.calc_cost_function()
+        if not self.reward_checked:
+            reward = self.calc_reward_function()
         obs = empty_observation()
-
-        
+        # Just find the best one
+        best = np.min(np.where(reward == reward.max())[0])
+        ra, dec = _hpid2RaDec(best)
+        obs['RA'] = ra
+        obs['dec'] = dec
+        obs['filtername'] = self.filtername
+        obs['nexp'] = 2.
+        obs['exptime'] = 30.
+        return obs
 
 
 class Deep_drill_survey(BaseSurvey):
@@ -123,5 +134,5 @@ class Deep_drill_survey(BaseSurvey):
         return result
 
 
-class Raster_survey(BaseSurvey):
+# class Raster_survey(BaseSurvey):
 
