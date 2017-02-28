@@ -1,4 +1,5 @@
 import numpy as np
+import numpy.ma as ma
 import healpy as hp
 import utils
 from lsst.sims.utils import m5_flat_sed, raDec2Hpid
@@ -14,7 +15,7 @@ class BaseFeature(object):
     Base class for features. If a feature never cahnges, it can be a subclass of this.
     """
     def __init__(self, **kwargs):
-        # self.feature should be a float, bool, or healpix size numpy array
+        # self.feature should be a float, bool, or healpix size numpy array, or numpy masked array
         self.feature = None
 
     def __call__(self):
@@ -96,8 +97,9 @@ class Coadded_depth(BaseSurveyFeature):
             # Find the hepixels that were observed by the pointing
             pass
         if observation.filter == self.filtername:
-            m5 = m5_flat_sed(observation.filter, observation.skybrightness, observation.expTime,
-                             observation.airmass)
+            m5 = m5_flat_sed(observation['filter'], observation['skybrightness'],
+                             observation['FWHMeff'], observation['expTime'],
+                             observation['airmass'])
             self.feature[indx] = 1.25 * np.log10(10.**(0.8*self.feature[indx]) + 10.**(0.8*m5))
 
 
@@ -200,10 +202,11 @@ class M5Depth_percentile(BaseConditionsFeature):
         conditions : dict
             Keys should include airmass, sky_brightness, seeing.
         """
-        m5 = np.empty(conditions['skybrightness'][self.filtername].size)
-        m5.fill(hp.UNSEEN)
+        m5 = ma.zeros(conditions['skybrightness'][self.filtername].size, fill_value=hp.UNSEEN)
+        m5.mask = [False]*m5.size
+        m5.mask[np.where(conditions['skybrightness'][self.filtername] == hp.UNSEEN)] = True
         good = np.where(conditions['skybrightness'][self.filtername] != hp.UNSEEN)
-        m5[good] = m5_flat_sed(conditions['filter'], conditions['skybrightness'][self.filtername][good],
+        m5[good] = m5_flat_sed(self.filtename, conditions['skybrightness'][self.filtername][good],
                                self.expTime, conditions['airmass'][good])
 
         self.feature = self.m5p.m5map2percentile(m5)

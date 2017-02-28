@@ -1,4 +1,5 @@
 import numpy as np
+import numpy.ma as ma
 import features
 import utils
 import healpy as hp
@@ -9,7 +10,7 @@ default_nside = utils.set_default_nside()
 
 class Base_basis_function(object):
     """
-    Class that takes features and computes a reward fucntion
+    Class that takes features and computes a reward fucntion when called.
     """
 
     def __init__(self, survey_features=None, condition_features=None, **kwargs):
@@ -31,7 +32,7 @@ class Base_basis_function(object):
 
     def update_conditions(self, conditions):
         for feature in self.condition_features:
-            self.conditions[feature].update_conditions(conditions)
+            self.condition_features[feature].update_conditions(conditions)
 
     def __call__(self, **kwargs):
         """
@@ -44,8 +45,8 @@ class Target_map_basis_function(Base_basis_function):
     """
     Generate a map that rewards survey areas falling behind.
     """
-    def __init__(self, filtername='r', nside=default_nside, target_map=None, softening=1., survey_features=None,
-                 condition_features=None):
+    def __init__(self, filtername='r', nside=default_nside, target_map=None, softening=1.,
+                 survey_features=None, condition_features=None):
         """
         Parameters
         ----------
@@ -53,7 +54,7 @@ class Target_map_basis_function(Base_basis_function):
         """
         if survey_features is None:
             self.survey_features = {}
-            self.survey_features['N_obs'] = features.N_observations(fltername=filtername)
+            self.survey_features['N_obs'] = features.N_observations(filtername=filtername)
             self.survey_features['N_obs_reference'] = features.N_obs_reference()
         super(Target_map_basis_function, self).__init__(survey_features=self.survey_features,
                                                         condition_features=condition_features)
@@ -73,14 +74,15 @@ class Target_map_basis_function(Base_basis_function):
 
         Returns
         -------
-        
+        Healpix reward map
         """
+        # Should probably update this to be as masked array.
         result = np.empty(hp.nside2npix(self.nside), dtype=float)
         result.fill(hp.UNSEEN)
         if indx is None:
             indx = np.arange(result.size)
-        result[indx] = -self.survey_features['N_obs'][indx]
-        result[indx] /= (self.survey_features['N_obs_reference'][indx] + self.softening)
+        result[indx] = -self.survey_features['N_obs'].feature[indx]
+        result[indx] /= (self.survey_features['N_obs_reference'].feature + self.softening)
         result[indx] += self.target_map[indx]
         return result
 
@@ -124,13 +126,13 @@ class Depth_percentile_basis_function(Base_basis_function):
             self.condition_features = {}
             self.condition_features['M5Depth_percentile'] = features.M5Depth_percentile(filtername=filtername)
 
-
     def __call__(self, indx=None):
 
         result = np.empty(hp.nside2npix(self.nside), dtype=float)
         result.fill(hp.UNSEEN)
         if indx is None:
             indx = np.arange(result.size)
-        result[indx] = self.condition_features['M5Depth_percentile'][indx]
+        result[indx] = self.condition_features['M5Depth_percentile'].feature[indx]
+        result = ma.masked_values(result, hp.UNSEEN)
         return result
 

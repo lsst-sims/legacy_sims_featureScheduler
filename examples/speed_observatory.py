@@ -68,10 +68,13 @@ class Speed_observatory(object):
         """
         result = {}
         result['mjd'] = self.mjd
-        result['sky_brightness'] = self.sky.returnMags(self.mjd)
-        # XXX Obviously need to update to a real seeing table
+        result['skybrightness'] = self.sky.returnMags(self.mjd)
+        # XXX Obviously need to update to a real seeing table, and make it a full-sky map
         result['seeing'] = 0.7  # arcsec
         result['airmass'] = self.sky.returnAirmass(self.mjd)
+        result['filter'] = self.filtername
+        result['RA'] = self.ra
+        result['Dec'] = self.dec
 
         return result
 
