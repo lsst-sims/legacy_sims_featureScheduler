@@ -17,9 +17,9 @@ def empty_observation():
     """
     Return a numpy array that could be a handy observation record
     """
-    names = ['RA', 'Dec', 'mjd', 'exptime', 'filter', 'rotSkyPos']
+    names = ['RA', 'Dec', 'mjd', 'exptime', 'filter', 'rotSkyPos', 'nexp']
     # units of rad, rad,   days,  seconds,   string, radians (E of N?)
-    types = [float, float, float, float, '|1S', float]
+    types = [float, float, float, float, '|1S', float, float]
     result = np.zeros(1, dtype=zip(names, types))
     return result
 

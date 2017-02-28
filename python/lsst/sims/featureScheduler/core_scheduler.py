@@ -1,5 +1,7 @@
 import numpy as np
-from utils import hp_in_lsst_fov
+from utils import hp_in_lsst_fov, set_default_nside
+
+default_nside = set_default_nside()
 
 
 class Core_scheduler(object):
@@ -7,7 +9,7 @@ class Core_scheduler(object):
     
     """
 
-    def __init__(self, surveys, nside=32, camera='LSST'):
+    def __init__(self, surveys, nside=default_nside, camera='LSST'):
         """
 
         """
@@ -15,6 +17,7 @@ class Core_scheduler(object):
         self.queue = []
         self.surveys = surveys
         self.nside = nside
+        # Should just make camera a class that takes a pointing and returns healpix indices
         if camera == 'LSST':
             self.pointing2hpindx = hp_in_lsst_fov(nside=nside)
         else:
@@ -33,11 +36,11 @@ class Core_scheduler(object):
         Parameters
         ----------
         observation : dict-like
-            An object that contains the relevant information about a 
+            An object that contains the relevant information about a
             completed observation (e.g., mjd, ra, dec, filter, rotation angle, etc)
         """
 
-        # XXX-- find the healpixel centers that are included in an observation
+        # Find the healpixel centers that are included in an observation
         indx = self.pointing2hpindx(observation['RA'], observation['Dec'])
         for survey in self.surveys:
             survey.add_observation(observation, indx=indx)
@@ -64,5 +67,12 @@ class Core_scheduler(object):
 
     def _fill_queue(self):
         """
-        
+        Compute reward function for each survey and fill the observing queue with the
+        observations of highest reward.
         """
+        rewards = []
+        for survey in self.surveys:
+            rewards.append(survey.calc_reward_function())
+        good = np.where(rewards == np.max(rewards))
+        self.queue = self.surveys[good].return_observations()
+
