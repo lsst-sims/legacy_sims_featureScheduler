@@ -1,6 +1,7 @@
 import numpy as np
-from utils import empty_observation, set_default_nside
-from lsst.sims.utils import _hpid2RaDec
+from utils import empty_observation, set_default_nside, read_fields
+from lsst.sims.utils import _hpid2RaDec, _raDec2Hpid
+
 
 default_nside = set_default_nside()
 
@@ -87,7 +88,8 @@ class Simple_greedy_survey(BaseSurvey):
     XXX-Healpixels are NOT "evenly distributed" on the sky. Using them as pointing centers
     will result in features in the coadded depth power spectrum (I think).
     """
-    def __init__(self, basis_functions, basis_weights, extra_features=None, filtername='r'):
+    def __init__(self, basis_functions, basis_weights, extra_features=None, filtername='r',
+                 block_size=1):
         super(Simple_greedy_survey, self).__init__(basis_functions=basis_functions,
                                                    basis_weights=basis_weights,
                                                    extra_features=extra_features)
@@ -99,16 +101,61 @@ class Simple_greedy_survey(BaseSurvey):
         """
         if not self.reward_checked:
             self.reward = self.calc_reward_function()
-        obs = empty_observation()
         # Just find the best one
-        best = np.min(np.where(self.reward == self.reward.max())[0])
+        highest_reward = self.reward[np.where(~self.reward.mask)].max()
+        best = [np.min(np.where(self.reward == highest_reward)[0])]
+        # Could move this up to be a lookup rather than call every time.
         ra, dec = _hpid2RaDec(default_nside, best)
-        obs['RA'] = ra
-        obs['dec'] = dec
-        obs['filter'] = self.filtername
-        obs['nexp'] = 2.
-        obs['exptime'] = 30.
-        return [obs]
+        observations = []
+        for i,indx in enumerate(best):
+            obs = empty_observation()
+            obs['RA'] = ra[i]
+            obs['dec'] = dec[i]
+            obs['filter'] = self.filtername
+            obs['nexp'] = 2.
+            obs['exptime'] = 30.
+            observations.append(obs)
+        return observations
+
+
+class Simple_greedy_survey_fields(BaseSurvey):
+    """
+    Chop down the reward function to just look at unmasked opsim field locations.
+    """
+    def __init__(self, basis_functions, basis_weights, extra_features=None, filtername='r',
+                 block_size=25):
+        super(Simple_greedy_survey_fields, self).__init__(basis_functions=basis_functions,
+                                                          basis_weights=basis_weights,
+                                                          extra_features=extra_features)
+        self.filtername = filtername
+        self.fields = read_fields()
+        self.field_hp = _raDec2Hpid(default_nside, self.fields['RA'], self.fields['dec'])
+        self.block_size = block_size
+
+    def return_observations(self):
+        """
+        Just point at the highest reward healpix
+        """
+        if not self.reward_checked:
+            self.reward = self.calc_reward_function()
+        # Just find the best one
+        #best = np.min(np.where(self.reward == self.reward.max())[0])
+        # Let's find the best N from the fields
+        reward_fields = self.reward[self.field_hp]
+        reward_fields[reward_fields.mask] = -np.inf
+        order = np.argsort(reward_fields)[::-1]
+        best_fields = order[0:self.block_size]
+        observations = []
+        for field in best_fields:
+            obs = empty_observation()
+            #ra, dec = _hpid2RaDec(default_nside, best)
+            obs['RA'] = self.fields['RA'][field]
+            obs['dec'] = self.fields['dec'][field]
+            obs['filter'] = self.filtername
+            obs['nexp'] = 2.
+            obs['exptime'] = 30.
+            observations.append(obs)
+        return observations
 
 
 class Deep_drill_survey(BaseSurvey):

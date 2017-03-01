@@ -29,6 +29,8 @@ if __name__ == "__main__":
         if attempted_obs is not None:
             scheduler.add_observation(attempted_obs)
             observations.append(attempted_obs)
+        else:
+            scheduler.flush_queue()
         scheduler.update_conditions(observatory.return_status())
         mjd = observatory.mjd
 

@@ -4,13 +4,19 @@ from scipy.spatial import cKDTree as kdtree
 from lsst.sims.utils import _hpid2RaDec
 from astropy.coordinates import SkyCoord
 from astropy import units as u
+import os
+from lsst.utils import getPackageDir
 
 
-default_nside = 64
-
-
-def set_default_nside():
-    return default_nside
+def set_default_nside(nside=None):
+    """
+    Can just call this function at the start to set to a different nside for everything
+    """
+    if not hasattr(set_default_nside, 'nside'):
+        if nside is None:
+            nside = 64
+        set_default_nside.side = nside
+    return set_default_nside.side
 
 
 def empty_observation():
@@ -27,6 +33,20 @@ def empty_observation():
     return result
 
 
+def read_fields():
+    """
+    Read in the old Field coordinates
+    """
+    names = ['id', 'RA', 'dec']
+    types = [int, float, float]
+    data_dir = os.path.join(getPackageDir('sims_featureScheduler'), 'python/lsst/sims/featureScheduler/')
+    filepath = os.path.join(data_dir, 'fieldID.lis')
+    fields = np.loadtxt(filepath, dtype=zip(names, types))
+    fields['RA'] = np.radians(fields['RA'])
+    fields['dec'] = np.radians(fields['dec'])
+    return fields
+
+
 def treexyz(ra, dec):
     """Calculate x/y/z values for ra/dec points, ra/dec in radians."""
     # Note ra/dec can be arrays.
@@ -36,7 +56,7 @@ def treexyz(ra, dec):
     return x, y, z
 
 
-def hp_kd_tree(nside=default_nside, leafsize=100):
+def hp_kd_tree(nside=set_default_nside(), leafsize=100):
     hpid = np.arange(hp.nside2npix(nside))
     ra, dec = _hpid2RaDec(nside, hpid)
     x, y, z = treexyz(ra, dec)
@@ -61,7 +81,7 @@ class hp_in_lsst_fov(object):
     """
     Return the healpixels within a pointing
     """
-    def __init__(self, nside=default_nside, fov_radius=1.75):
+    def __init__(self, nside=set_default_nside(), fov_radius=1.75):
         self.tree = hp_kd_tree()
         self.radius = rad_length(fov_radius)
 
@@ -74,12 +94,12 @@ class hp_in_lsst_fov(object):
         return indices
 
 
-def ra_dec_hp_map(nside=default_nside):
+def ra_dec_hp_map(nside=set_default_nside()):
     ra, dec = _hpid2RaDec(nside, np.arange(hp.nside2npix(nside)))
     return ra, dec
 
 
-def WFD_healpixels(nside=default_nside, dec_min=-60., dec_max=0.):
+def WFD_healpixels(nside=set_default_nside(), dec_min=-60., dec_max=0.):
     """
     Define a wide fast deep region.
     """
@@ -90,7 +110,7 @@ def WFD_healpixels(nside=default_nside, dec_min=-60., dec_max=0.):
     return result
 
 
-def SCP_healpixels(nside=default_nside, dec_max=-60.):
+def SCP_healpixels(nside=set_default_nside(), dec_max=-60.):
     ra, dec = ra_dec_hp_map(nside=nside)
     result = np.zeros(ra.size)
     good = np.where(dec < np.radians(dec_max))
@@ -98,7 +118,7 @@ def SCP_healpixels(nside=default_nside, dec_max=-60.):
     return result
 
 
-def NES_healpixels(nside=default_nside, width=15, dec_min=0., fill_gap=True):
+def NES_healpixels(nside=set_default_nside(), width=15, dec_min=0., fill_gap=True):
     ra, dec = ra_dec_hp_map(nside=nside)
     result = np.zeros(ra.size)
     coord = SkyCoord(ra=ra*u.rad, dec=dec*u.rad)
@@ -114,7 +134,8 @@ def NES_healpixels(nside=default_nside, width=15, dec_min=0., fill_gap=True):
     return result
 
 
-def galactic_plane_healpixels(nside=default_nside, center_width=10., end_width=4., gal_long1=70., gal_long2=290.):
+def galactic_plane_healpixels(nside=set_default_nside(), center_width=10., end_width=4.,
+                              gal_long1=70., gal_long2=290.):
     # XXX--this is not right yet
     ra, dec = ra_dec_hp_map(nside=nside)
     result = np.zeros(ra.size)
@@ -138,7 +159,7 @@ def galactic_plane_healpixels(nside=default_nside, center_width=10., end_width=4
     return result
 
 
-def generate_goal_map(nside=default_nside, NES_fraction = .3, WFD_fraction = 1., SCP_fraction=0.4,
+def generate_goal_map(nside=set_default_nside(), NES_fraction = .3, WFD_fraction = 1., SCP_fraction=0.4,
                       GP_fraction = 0.2,
                       NES_width=15., NES_dec_min=0., NES_fill=True,
                       SCP_dec_max=-60., gp_center_width=10.,
@@ -164,7 +185,7 @@ def generate_goal_map(nside=default_nside, NES_fraction = .3, WFD_fraction = 1.,
     return result
 
 
-def standard_goals(nside=default_nside):
+def standard_goals(nside=set_default_nside()):
     """
     A quick fucntion to generate the "standard" goal maps.
     """

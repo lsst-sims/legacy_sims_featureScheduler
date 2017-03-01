@@ -202,16 +202,20 @@ class M5Depth_percentile(BaseConditionsFeature):
         conditions : dict
             Keys should include airmass, sky_brightness, seeing.
         """
-        m5 = ma.zeros(conditions['skybrightness'][self.filtername].size, fill_value=hp.UNSEEN)
-        m5.mask = [False]*m5.size
-        m5.mask[np.where(conditions['skybrightness'][self.filtername] == hp.UNSEEN)] = True
+        m5 = np.empty(conditions['skybrightness'][self.filtername].size)
+        m5.fill(hp.UNSEEN)
+        m5_mask = np.zeros(m5.size, dtype=bool)
+        m5_mask[np.where(conditions['skybrightness'][self.filtername] == hp.UNSEEN)] = True
         good = np.where(conditions['skybrightness'][self.filtername] != hp.UNSEEN)
         m5[good] = m5_flat_sed(self.filtername, conditions['skybrightness'][self.filtername][good],
                                conditions['FWHMeff'][good],
                                self.expTime, conditions['airmass'][good])
 
         self.feature = self.m5p.m5map2percentile(m5)
+        self.feature[m5_mask] = hp.UNSEEN
         self.feature = hp.ud_grade(self.feature, nside_out=self.nside)
+        self.feature = ma.masked_values(self.feature, hp.UNSEEN)
+
 
 
 class Current_mjd(BaseConditionsFeature):
