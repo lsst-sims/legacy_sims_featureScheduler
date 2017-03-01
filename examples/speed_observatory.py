@@ -15,7 +15,7 @@ class Speed_observatory(object):
     """
     def __init__(self, mjd_start=59580.035, ang_speed=0.5,
                  readtime=2., settle=2., filtername=None, f_change_time=120.,
-                 nside=default_nside, sun_limit=-12., quickTest=True):
+                 nside=default_nside, sun_limit=-13., quickTest=True):
         """
         Parameters
         ----------
@@ -91,8 +91,8 @@ class Speed_observatory(object):
         """
         sunMoon = self.sky.returnSunMoon(mjd)
         if sunMoon['sunAlt'] > self.sun_limit:
-            good = np.where(self.sky.info['mjds'] > mjd & (self.sky.info['sunAlts'] > self.sun_limit))[0]
-            mjd = np.min(self.sky.info['mjds'][good])
+            good = np.where((self.sky.info['mjds'] > mjd) & (self.sky.info['sunAlts'] < self.sun_limit))[0]
+            mjd = self.sky.info['mjds'][good][0]
             return False, mjd
         else:
             return True, mjd
