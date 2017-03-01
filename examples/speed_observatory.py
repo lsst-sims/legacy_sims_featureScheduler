@@ -117,9 +117,8 @@ class Speed_observatory(object):
 
         # Assume we can slew while reading the last exposure, and slewtime always > exptime
         rt = (observation['nexp']-1.)*self.readtime
-        total_time = st + rt + observation['exptime'] + settle + ft
-        to_open_time = st+settle+ft
-
+        total_time = (st + rt + observation['exptime'] + settle + ft)*sec2days
+        to_open_time = (st+settle+ft)*sec2days
         check_result, jump_mjd = self.check_mjd(self.mjd + total_time)
         if check_result:
             # XXX--major decision here, should the status be updated after every observation? Or just assume
@@ -128,14 +127,15 @@ class Speed_observatory(object):
                 update_status = True
             else:
                 update_status = False
-            self.mjd = self.mjd+(to_open_time)*sec2days
+            self.mjd = self.mjd+to_open_time
             observation['mjd'] = self.mjd
             self.ra = observation['RA']
             self.dec = observation['dec']
             if update_status:
+                # What's the name for temp variables?
                 status = self.return_status()
             # time the shutter should open
-            self.mjd += (total_time-to_open_time)*sec2days
+            self.mjd += total_time-to_open_time
 
             self.filtername = observation['filter'][0]
             hpid = _raDec2Hpid(self.sky_nside, self.ra, self.dec)

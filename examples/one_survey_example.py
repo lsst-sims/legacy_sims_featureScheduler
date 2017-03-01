@@ -10,9 +10,10 @@ if __name__ == "__main__":
     target_map = fs.standard_goals()['r']
 
     bfs = []
-    bfs.append(fs.Target_map_basis_function(target_map=target_map))
     bfs.append(fs.Depth_percentile_basis_function())
-    survey = fs.Simple_greedy_survey(bfs, np.array([1.]*len(bfs)))
+    bfs.append(fs.Target_map_basis_function(target_map=target_map))
+    weights = np.array([.5, 1])
+    survey = fs.Simple_greedy_survey(bfs, weights)
     scheduler = fs.Core_scheduler([survey])
 
     observations = []
@@ -30,10 +31,9 @@ if __name__ == "__main__":
             observations.append(attempted_obs)
         scheduler.update_conditions(observatory.return_status())
         mjd = observatory.mjd
+
     # Collapse observations into single array
     print len(observations)
     observations = np.array(observations)[:, 0]
-    print np.size(observations)
-    import pdb ; pdb.set_trace()
 
 
