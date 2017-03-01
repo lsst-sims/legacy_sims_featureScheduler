@@ -16,10 +16,13 @@ def set_default_nside():
 def empty_observation():
     """
     Return a numpy array that could be a handy observation record
+
+    XXX:  Document all the fields and units
     """
-    names = ['RA', 'Dec', 'mjd', 'exptime', 'filter', 'rotSkyPos', 'nexp', 'airmass', 'FHWMeff']
+    names = ['RA', 'dec', 'mjd', 'exptime', 'filter', 'rotSkyPos', 'nexp',
+             'airmass', 'FWHMeff', 'skybrightness']
     # units of rad, rad,   days,  seconds,   string, radians (E of N?)
-    types = [float, float, float, float, '|1S', float, float]
+    types = [float, float, float, float, '|1S', float, int, float, float, float]
     result = np.zeros(1, dtype=zip(names, types))
     return result
 
@@ -55,15 +58,18 @@ def rad_length(radius=1.75):
 
 
 class hp_in_lsst_fov(object):
+    """
+    Return the healpixels within a pointing
+    """
     def __init__(self, nside=default_nside, fov_radius=1.75):
         self.tree = hp_kd_tree()
         self.radius = rad_length(fov_radius)
 
     def __call__(self, ra, dec):
         """
-        ra dec in radians
+        ra dec in radians. Only single points for now.
         """
-        x, y, z = treexyz(ra, dec)
+        x, y, z = treexyz(np.max(ra), np.max(dec))
         indices = self.tree.query_ball_point((x, y, z), self.radius)
         return indices
 

@@ -59,19 +59,20 @@ class BaseSurvey(object):
             self.reward = 0
             for bf, weight in zip(self.basis_functions, self.basis_weights):
                 self.reward += bf()*weight
-                if np.isinf(self.reward):
+                if np.any(np.isinf(self.reward)):
                     self.reward = np.inf
         else:
-            self.reward = np.inf
+            # If not feasable, negative infinity reward
+            self.reward = -np.inf
         return self.reward
 
-    def return_observations(self, conditions):
+    def return_observations(self):
         # If the reward function hasn't been updated with the
         # latest info, calculate it
         if not self.reward_checked:
             self.reward = self.calc_reward_function()
         obs = empty_observation()
-        return obs
+        return [obs]
 
     def viz_config(self):
         # XXX--zomg, we should have a method that goes through all the objects and
@@ -92,7 +93,7 @@ class Simple_greedy_survey(BaseSurvey):
                                                    extra_features=extra_features)
         self.filtername = filtername
 
-    def return_observations(self, conditions):
+    def return_observations(self):
         """
         Just point at the highest reward healpix
         """
@@ -101,17 +102,13 @@ class Simple_greedy_survey(BaseSurvey):
         obs = empty_observation()
         # Just find the best one
         best = np.min(np.where(self.reward == self.reward.max())[0])
-        ra, dec = _hpid2RaDec(best)
+        ra, dec = _hpid2RaDec(default_nside, best)
         obs['RA'] = ra
         obs['dec'] = dec
-        obs['filtername'] = self.filtername
+        obs['filter'] = self.filtername
         obs['nexp'] = 2.
         obs['exptime'] = 30.
-        # XXX-might need to scale to filter?
-        obs['FWHMeff'] = conditions['FWHMeff'][best]
-        obs['skybrightness'] = conditions['skybrightness'][self.filtername][best]
-        obs['airmass'] = conditions['airmass'][best]
-        return obs
+        return [obs]
 
 
 class Deep_drill_survey(BaseSurvey):
@@ -139,13 +136,13 @@ class Deep_drill_survey(BaseSurvey):
         self.RA = np.radians(RA)
         self.dec = np.radians(dec)
 
-    def return_observations(self, conditions):
+    def return_observations(self):
         result = []
         for fn in self.sequence:
             obs = empty_observation()
             # XXX--Note that we'll want to put some dithering schemes in here eventually.
             obs['RA'] = self.RA
-            obs['Dec'] = self.dec
+            obs['dec'] = self.dec
             obs['exptime'] = self.exptime
             obs['filter'] = fn
             result.append(obs)

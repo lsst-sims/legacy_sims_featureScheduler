@@ -66,7 +66,7 @@ class N_observations(BaseSurveyFeature):
             # Find the healpixels that were observed by the pointing
             pass
 
-        if (self.filtername is None) | (self.filtername == observation.filter):
+        if (self.filtername is None) | (self.filtername == observation['filter'][0]):
             self.feature[indx] += 1
 
         if self.mask_indx is not None:
@@ -96,7 +96,7 @@ class Coadded_depth(BaseSurveyFeature):
         if indx is None:
             # Find the hepixels that were observed by the pointing
             pass
-        if observation.filter == self.filtername:
+        if observation['filter'][0] == self.filtername:
             m5 = m5_flat_sed(observation['filter'], observation['skybrightness'],
                              observation['FWHMeff'], observation['expTime'],
                              observation['airmass'])
@@ -112,7 +112,7 @@ class Last_observed(BaseSurveyFeature):
         self.feature = np.zeros(hp.nside2npix(nside), dtype=float)
 
     def add_observation(self, observation, indx=None):
-        if (self.filtername is None) | (observation.filter == self.filtername):
+        if (self.filtername is None) | (observation['filter'][0] == self.filtername):
             self.feature[indx] = observation.mjd
 
 
@@ -206,7 +206,8 @@ class M5Depth_percentile(BaseConditionsFeature):
         m5.mask = [False]*m5.size
         m5.mask[np.where(conditions['skybrightness'][self.filtername] == hp.UNSEEN)] = True
         good = np.where(conditions['skybrightness'][self.filtername] != hp.UNSEEN)
-        m5[good] = m5_flat_sed(self.filtename, conditions['skybrightness'][self.filtername][good],
+        m5[good] = m5_flat_sed(self.filtername, conditions['skybrightness'][self.filtername][good],
+                               conditions['FWHMeff'][good],
                                self.expTime, conditions['airmass'][good])
 
         self.feature = self.m5p.m5map2percentile(m5)
@@ -238,7 +239,7 @@ class Rotator_angle(BaseSurveyFeature):
         self.bins = np.arange(0, 360+binsize, binsize)
 
     def add_observation(self, observation, indx=None):
-        if observation.filter == self.filtername:
+        if observation['filter'][0] == self.filtername:
             # I think this is how to broadcast things properly.
             self.feature[indx, :] += np.histogram(observation.rotSkyPos, bins=self.bins)[0]
 

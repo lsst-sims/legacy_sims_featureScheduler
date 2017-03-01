@@ -41,7 +41,7 @@ class Core_scheduler(object):
         """
 
         # Find the healpixel centers that are included in an observation
-        indx = self.pointing2hpindx(observation['RA'], observation['Dec'])
+        indx = self.pointing2hpindx(observation['RA'], observation['dec'])
         for survey in self.surveys:
             survey.add_observation(observation, indx=indx)
 
@@ -73,6 +73,8 @@ class Core_scheduler(object):
         rewards = []
         for survey in self.surveys:
             rewards.append(survey.calc_reward_function())
-        good = np.where(rewards == np.max(rewards))
+        # Take a min here, so the surveys will be executed in the order they are
+        # entered if there is a tie.
+        good = np.min(np.where(rewards == np.max(rewards)))
         self.queue = self.surveys[good].return_observations()
 

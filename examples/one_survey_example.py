@@ -5,7 +5,7 @@ from speed_observatory import Speed_observatory
 
 if __name__ == "__main__":
 
-    survey_length = 10.  # days
+    survey_length = 3.  # days
     # Define what we want the final visit ratio map to look like
     target_map = fs.standard_goals()['r']
 
@@ -23,11 +23,15 @@ if __name__ == "__main__":
     scheduler.update_conditions(observatory.return_status())
 
     while mjd < end_mjd:
-        desired_obs = scheduler.request_observation(observatory.return_status())
+        desired_obs = scheduler.request_observation()
         attempted_obs = observatory.attempt_observe(desired_obs)
         if attempted_obs is not None:
             scheduler.add_observation(attempted_obs)
             observations.append(attempted_obs)
         scheduler.update_conditions(observatory.return_status())
         mjd = observatory.mjd
+    # Collapse observations into single array
+    observations = np.array(observations)[:, 0]
+    print np.size(observations)
+    
 

@@ -26,9 +26,9 @@ class Base_basis_function(object):
         else:
             self.condition_features = condition_features
 
-    def add_observation(self, observation):
+    def add_observation(self, observation, indx=None):
         for feature in self.survey_features:
-            self.survey_features[feature].add_observation(observation)
+            self.survey_features[feature].add_observation(observation, indx=indx)
 
     def update_conditions(self, conditions):
         for feature in self.condition_features:
@@ -125,6 +125,8 @@ class Depth_percentile_basis_function(Base_basis_function):
         if condition_features is None:
             self.condition_features = {}
             self.condition_features['M5Depth_percentile'] = features.M5Depth_percentile(filtername=filtername)
+        super(Depth_percentile_basis_function, self).__init__(survey_features=survey_features,
+                                                              condition_features=self.condition_features)
 
     def __call__(self, indx=None):
 
