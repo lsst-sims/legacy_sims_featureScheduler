@@ -21,7 +21,7 @@ class Core_scheduler(object):
         if camera == 'LSST':
             self.pointing2hpindx = hp_in_lsst_fov(nside=nside)
         else:
-            raise ValueError('')
+            raise ValueError('camera %s not implamented' % camera)
 
     def flush_queue(self):
         """"

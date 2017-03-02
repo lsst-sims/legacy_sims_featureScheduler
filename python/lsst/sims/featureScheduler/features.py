@@ -217,6 +217,10 @@ class M5Depth_percentile(BaseConditionsFeature):
         self.feature = ma.masked_values(self.feature, hp.UNSEEN)
 
 
+class Current_filter(BaseConditionsFeature):
+    def update_conditions(self, conditions):
+        self.feature = conditions['filter']
+
 
 class Current_mjd(BaseConditionsFeature):
     def update_conditions(self, conditions):

@@ -138,3 +138,25 @@ class Depth_percentile_basis_function(Base_basis_function):
         result = ma.masked_values(result, hp.UNSEEN)
         return result
 
+
+class Filter_change_basis_function(Base_basis_function):
+    """
+    Reward staying in the current filter.
+    """
+    def __init__(self, survey_features=None, condition_features=None, filtername='r'):
+        self.filtername = filtername
+        if condition_features is None:
+            self.condition_features = {}
+            self.condition_features['Current_filter'] = features.Current_filter()
+        super(Filter_change_basis_function, self).__init__(survey_features=survey_features,
+                                                           condition_features=self.condition_features)
+
+    def __call__(self, **kwargs):
+        # XXX--Note here my speed observatory says None when it's parked, so should be easy to start any filter.
+        if (self.condition_features['Current_filter'] == self.filtername) | (self.condition_features['Current_filter'] is None):
+            result = 1.
+        else:
+            result = 0.
+        return result
+
+

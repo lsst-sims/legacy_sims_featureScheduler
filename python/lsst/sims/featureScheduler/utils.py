@@ -23,7 +23,7 @@ def empty_observation():
     """
     Return a numpy array that could be a handy observation record
 
-    XXX:  Document all the fields and units
+    XXX:  Document all the fields and units!!!
     """
     names = ['RA', 'dec', 'mjd', 'exptime', 'filter', 'rotSkyPos', 'nexp',
              'airmass', 'FWHMeff', 'skybrightness']
@@ -211,11 +211,35 @@ def standard_goals(nside=set_default_nside()):
 
     return result
 
-# OK, Let's just look at minion_1016 to get an idea:
-# region, u, g, r, i, z, y,
-# NES, 0, 40, 92, 92, 80., 0.
-# SCP, 30, 30, 30, 30, 30, 30
-# WFD, 62, 88, 200, 200, 180, 180
-# GP, 30, 30, 30, 30, 30, 30
-# DD, 4940, 1911, 3855, 3818, 4930, 3742
 
+def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3.):
+    """
+    run a simulation
+    """
+
+    if mjd_start is None:
+        mjd = observatory.mjd
+    else:
+        observatory.mjd = mjd
+        observatory.ra = None
+        observatory.dec = None
+        observatory.status = None
+        observatory.filtername = None
+
+    end_mjd = mjd + survey_length
+    scheduler.update_conditions(observatory.return_status())
+    observations = []
+    while mjd < end_mjd:
+        desired_obs = scheduler.request_observation()
+        attempted_obs = observatory.attempt_observe(desired_obs)
+        if attempted_obs is not None:
+            scheduler.add_observation(attempted_obs)
+            observations.append(attempted_obs)
+        else:
+            scheduler.flush_queue()
+        scheduler.update_conditions(observatory.return_status())
+        mjd = observatory.mjd
+
+    print 'Completed %i observations' % len(observations)
+    observations = np.array(observations)[:, 0]
+    return observatory, scheduler, observations
