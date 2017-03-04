@@ -161,15 +161,20 @@ class Pair_in_night(BaseSurveyFeature):
         self.last_observed = Last_observed(filtername=filtername)
         self.gap_min = gap_min / (24.*60)  # Days
         self.gap_max = gap_max / (24.*60)  # Days
+        self.night = 0
 
     def add_observation(self, observation, indx=None):
         if observation['filter'][0] in self.filtername:
             if indx is None:
                 indx = self.indx
+            # Clear values if on a new night
+            if self.night != observation['night']:
+                self.feature *= 0.
+                self.night = observation['night']
             tdiff = observation['mjd'] - self.last_observed.feature[indx]
             good = np.where((tdiff >= self.gap_min) & (tdiff <= self.gap_max))[0]
-            self.feature[indx[good]] += 1
-            self.last_observed.add_observation(observation)
+            self.feature[indx[good]] += 1.
+            self.last_observed.add_observation(observation, indx=indx)
 
 
 class N_obs_reference(BaseSurveyFeature):

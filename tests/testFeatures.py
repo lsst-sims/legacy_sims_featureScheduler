@@ -4,9 +4,8 @@ import lsst.sims.featureScheduler as fs
 import lsst.utils.tests
 
 
-
 class TestFeatures(unittest.TestCase):
-    
+
     def testPair_in_night(self):
         pin = fs.Pair_in_night()
         self.assertEqual(np.max(pin.feature), 0.)
@@ -31,6 +30,7 @@ class TestFeatures(unittest.TestCase):
         pin.add_observation(obs, indx=indx)
         self.assertEqual(np.max(pin.feature), 2.)
 
+        # XXX--test that it clears if a new night rolls over
 
 
 class TestMemory(lsst.utils.tests.MemoryTestCase):

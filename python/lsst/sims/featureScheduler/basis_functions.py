@@ -115,6 +115,7 @@ class Visit_repeat_basis_function(Base_basis_function):
             # Track the number of pairs that have been taken in a night
             self.survey_features['Pair_in_night'] = features.Pair_in_night(gap_min=gap_min, gap_max=gap_max)
             # When was it last observed
+            # XXX--since this feature is also in Pair_in_night, I should just access that one!
             self.survey_features['Last_observed'] = features.Last_observed()
         if condition_features is None:
             self.condition_features = {}
@@ -136,7 +137,7 @@ class Visit_repeat_basis_function(Base_basis_function):
 
 class Depth_percentile_basis_function(Base_basis_function):
     """
-    Return a healpix map of the reward function based on 5-sigma limiting depth
+    Return a healpix map of the reward function based on 5-sigma limiting depth percentile
     """
     def __init__(self, survey_features=None, condition_features=None, filtername='r', nside=default_nside):
         self.filtername = filtername
