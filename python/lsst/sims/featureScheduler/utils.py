@@ -93,7 +93,7 @@ class hp_in_lsst_fov(object):
         """
         x, y, z = treexyz(np.max(ra), np.max(dec))
         indices = self.tree.query_ball_point((x, y, z), self.radius)
-        return indices
+        return np.array(indices)
 
 
 def ra_dec_hp_map(nside=set_default_nside()):

@@ -77,8 +77,7 @@ class Target_map_basis_function(Base_basis_function):
         Healpix reward map
         """
         # Should probably update this to be as masked array.
-        result = np.empty(hp.nside2npix(self.nside), dtype=float)
-        result.fill(hp.UNSEEN)
+        result = np.zeros(hp.nside2npix(self.nside), dtype=float)
         if indx is None:
             indx = np.arange(result.size)
         result[indx] = -self.survey_features['N_obs'].feature[indx]
@@ -114,7 +113,7 @@ class Visit_repeat_basis_function(Base_basis_function):
         if survey_features is None:
             self.survey_features = {}
             # Track the number of pairs that have been taken in a night
-            self.survey_features['Pair_in_night'] = features.Pair_in_night()
+            self.survey_features['Pair_in_night'] = features.Pair_in_night(gap_min=gap_min, gap_max=gap_max)
             # When was it last observed
             self.survey_features['Last_observed'] = features.Last_observed()
         if condition_features is None:
@@ -129,7 +128,6 @@ class Visit_repeat_basis_function(Base_basis_function):
         if indx is None:
             indx = np.arange(result.size)
         diff = self.condition_features['Current_mjd'].feature - self.survey_features['Last_observed'].feature[indx]
-        ack = np.where((diff > self.gap_min) & (diff < self.gap_max))[0]
         good = np.where((diff > self.gap_min) & (diff < self.gap_max) &
                         (self.survey_features['Pair_in_night'].feature[indx] < self.npairs))[0]
         result[indx[good]] += 1.

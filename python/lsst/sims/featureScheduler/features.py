@@ -157,15 +157,18 @@ class Pair_in_night(BaseSurveyFeature):
         """
         self.filtername = filtername
         self.feature = np.zeros(hp.nside2npix(nside), dtype=float)
+        self.indx = np.arange(self.feature.size)
         self.last_observed = Last_observed(filtername=filtername)
         self.gap_min = gap_min / (24.*60)  # Days
         self.gap_max = gap_max / (24.*60)  # Days
 
     def add_observation(self, observation, indx=None):
         if observation['filter'][0] in self.filtername:
+            if indx is None:
+                indx = self.indx
             tdiff = observation['mjd'] - self.last_observed.feature[indx]
-            good = np.where((tdiff >= self.gap_min) & (tdiff <= self.gap_max))
-            self.feature[indx][good] += 1
+            good = np.where((tdiff >= self.gap_min) & (tdiff <= self.gap_max))[0]
+            self.feature[indx[good]] += 1
             self.last_observed.add_observation(observation)
 
 
