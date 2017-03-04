@@ -13,7 +13,7 @@ class Speed_observatory(object):
     A very very simple observatory model that will take observation requests and supply
     current conditions.
     """
-    def __init__(self, mjd_start=59580.035, ang_speed=1.,
+    def __init__(self, mjd_start=59580.035, ang_speed=5.,
                  readtime=2., settle=2., filtername=None, f_change_time=120.,
                  nside=default_nside, sun_limit=-13., quickTest=True):
         """

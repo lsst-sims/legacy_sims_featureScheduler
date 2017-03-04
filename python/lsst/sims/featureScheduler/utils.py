@@ -1,11 +1,13 @@
 import numpy as np
 import healpy as hp
+import pandas as pd
 from scipy.spatial import cKDTree as kdtree
 from lsst.sims.utils import _hpid2RaDec
 from astropy.coordinates import SkyCoord
 from astropy import units as u
 import os
 from lsst.utils import getPackageDir
+import sqlite3 as db
 
 
 def set_default_nside(nside=None):
@@ -212,7 +214,7 @@ def standard_goals(nside=set_default_nside()):
     return result
 
 
-def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3.):
+def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3., filename=None):
     """
     run a simulation
     """
@@ -242,4 +244,24 @@ def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3.):
 
     print 'Completed %i observations' % len(observations)
     observations = np.array(observations)[:, 0]
+    if filename is not None:
+        observations2sqlite(observations, filename=filename)
     return observatory, scheduler, observations
+
+
+def observations2sqlite(observations, filename='observations.db'):
+    """
+    Take an array of observations and dump it to a sqlite3 database
+    """
+
+    # XXX--Here is a good place to add any missing columns
+
+    # Convert to degrees for output
+    observations['RA'] = np.degrees(observations['RA'])
+    observations['dec'] = np.degrees(observations['dec'])
+    observations['rotSkyPos'] = np.degrees(observations['rotSkyPos'])
+
+    df = pd.DataFrame(observations)
+    con = db.connect(filename)
+    df.to_sql('SummaryAllProps', con, index_label='observationId')
+

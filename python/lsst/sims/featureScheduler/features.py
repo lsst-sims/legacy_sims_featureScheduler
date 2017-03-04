@@ -46,6 +46,8 @@ class N_observations(BaseSurveyFeature):
         """
         Parameters
         ----------
+        filtername : str ('r')
+            String or list that has all the filters that can count.
         nside : int (32)
             The nside of the healpixel map to use
         mask_indx : list of ints (None)
@@ -66,7 +68,7 @@ class N_observations(BaseSurveyFeature):
             # Find the healpixels that were observed by the pointing
             pass
 
-        if (self.filtername is None) | (self.filtername == observation['filter'][0]):
+        if observation['filter'][0] in self.filtername:
             self.feature[indx] += 1
 
         if self.mask_indx is not None:
@@ -112,8 +114,8 @@ class Last_observed(BaseSurveyFeature):
         self.feature = np.zeros(hp.nside2npix(nside), dtype=float)
 
     def add_observation(self, observation, indx=None):
-        if (self.filtername is None) | (observation['filter'][0] == self.filtername):
-            self.feature[indx] = observation.mjd
+        if observation['filter'][0] in self.filtername:
+            self.feature[indx] = observation['mjd']
 
 
 class N_obs_night(BaseSurveyFeature):
@@ -135,7 +137,7 @@ class N_obs_night(BaseSurveyFeature):
         self.night = -1
 
     def add_observation(self, observation, indx=None):
-        if observation.filter == self.filtername:
+        if observation.filter in self.filtername:
             if observation.night != self.night:
                 self.feature *= 0
             self.feature[indx] += 1
@@ -145,7 +147,7 @@ class Pair_in_night(BaseSurveyFeature):
     """
     I think this makes sense to do as a complicated feature?
     """
-    def __init__(self, nside=default_nside, gap_min=15., gap_max=45.):
+    def __init__(self, filtername='r', nside=default_nside, gap_min=15., gap_max=45.):
         """
         Parameters
         ----------
@@ -153,16 +155,18 @@ class Pair_in_night(BaseSurveyFeature):
             The minimum time gap to consider a successful pair in minutes
         gap_max : float (40.)
         """
+        self.filtername = filtername
         self.feature = np.zeros(hp.nside2npix(nside), dtype=float)
-        self.last_observed = Last_observed(filtername=None)
+        self.last_observed = Last_observed(filtername=filtername)
         self.gap_min = gap_min / (24.*60)  # Days
         self.gap_max = gap_max / (24.*60)  # Days
 
     def add_observation(self, observation, indx=None):
-        tdiff = observation['mjd'] - self.last_observed.feature[indx]
-        good = np.where((tdiff >= self.gap_min) & (tdiff <= self.gap_max))
-        self.feature[indx][good] += 1
-        self.last_observed.add_observation(observation)
+        if observation['filter'][0] in self.filtername:
+            tdiff = observation['mjd'] - self.last_observed.feature[indx]
+            good = np.where((tdiff >= self.gap_min) & (tdiff <= self.gap_max))
+            self.feature[indx][good] += 1
+            self.last_observed.add_observation(observation)
 
 
 class N_obs_reference(BaseSurveyFeature):
@@ -180,7 +184,8 @@ class N_obs_reference(BaseSurveyFeature):
 
     def add_observation(self, observation, indx=None):
         if self.indx in indx:
-            self.feature += 1
+            if observation['filtername'][0] == self.filtername:
+                self.feature += 1
 
 
 class M5Depth_percentile(BaseConditionsFeature):

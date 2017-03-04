@@ -1,13 +1,14 @@
 import numpy as np
 from utils import empty_observation, set_default_nside, read_fields
 from lsst.sims.utils import _hpid2RaDec, _raDec2Hpid
+import healpy as hp
 
 
 default_nside = set_default_nside()
 
 
 class BaseSurvey(object):
-    def __init__(self, basis_functions, basis_weights, extra_features=None):
+    def __init__(self, basis_functions, basis_weights, extra_features=None, smoothing_kernel=None):
         """
         Parameters
         ----------
@@ -19,6 +20,8 @@ class BaseSurvey(object):
         extra_features : list
             List of any additional features the survey may want to use
             e.g., for computing final dither positions, or feasability maps.
+        smoothing_kernel : float (None)
+            Smooth the reward function with a Gaussian FWHM (degrees)
         """
 
         if len(basis_functions) != np.size(basis_weights):
@@ -33,6 +36,10 @@ class BaseSurvey(object):
         else:
             self.extra_features = extra_features
         self.reward_checked = False
+        if smoothing_kernel is not None:
+            self.smoothing_kernel = np.radians(smoothing_kernel)
+        else:
+            self.smoothing_kernel = None
 
     def add_observation(self, observation, **kwargs):
         for bf in self.basis_functions:
@@ -54,17 +61,29 @@ class BaseSurvey(object):
         """
         return True
 
+    def smooth_reward(self):
+        if hp.isnpixok(self.reward.size):
+            self.reward = hp.sphtfunc.smoothing(self.reward.filled(), fwhm=self.smooth_reward)
+        # Might need to check if mask expanded?
+
     def calc_reward_function(self):
         self.reward_checked = True
         if self._check_feasability():
             self.reward = 0
+            indx = np.arange(hp.nside2npix(default_nside))
             for bf, weight in zip(self.basis_functions, self.basis_weights):
-                self.reward += bf()*weight
+                self.reward += bf(indx=indx)*weight
+                # might be faster to pull this out into the feasabiliity check?
+                if hasattr(self.reward, 'mask'):
+                    indx = np.where(self.reward.mask == False)[0]
+                # inf reward means it trumps everything.
                 if np.any(np.isinf(self.reward)):
                     self.reward = np.inf
         else:
             # If not feasable, negative infinity reward
             self.reward = -np.inf
+        if self.smoothing_kernel is not None:
+            self.smooth_reward()
         return self.reward
 
     def return_observations(self):
@@ -107,7 +126,7 @@ class Simple_greedy_survey(BaseSurvey):
         # Could move this up to be a lookup rather than call every time.
         ra, dec = _hpid2RaDec(default_nside, best)
         observations = []
-        for i,indx in enumerate(best):
+        for i, indx in enumerate(best):
             obs = empty_observation()
             obs['RA'] = ra[i]
             obs['dec'] = dec[i]
@@ -138,17 +157,14 @@ class Simple_greedy_survey_fields(BaseSurvey):
         """
         if not self.reward_checked:
             self.reward = self.calc_reward_function()
-        # Just find the best one
-        #best = np.min(np.where(self.reward == self.reward.max())[0])
         # Let's find the best N from the fields
         reward_fields = self.reward[self.field_hp]
-        reward_fields[reward_fields.mask] = -np.inf
+        reward_fields[np.where(reward_fields.mask == True)] = -np.inf
         order = np.argsort(reward_fields)[::-1]
         best_fields = order[0:self.block_size]
         observations = []
         for field in best_fields:
             obs = empty_observation()
-            #ra, dec = _hpid2RaDec(default_nside, best)
             obs['RA'] = self.fields['RA'][field]
             obs['dec'] = self.fields['dec'][field]
             obs['filter'] = self.filtername

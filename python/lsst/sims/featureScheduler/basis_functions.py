@@ -91,27 +91,48 @@ class Visit_repeat_basis_function(Base_basis_function):
     """
     Basis function to reward re-visiting an area on the sky. Looking for Solar System objects.
     """
-    def __init__(self, survey_features=None, gap_min=15., gap_max=45., nside=default_nside, npairs=1.):
+    def __init__(self, survey_features=None, condition_features=None, gap_min=15., gap_max=45.,
+                 filtername='r', nside=default_nside, npairs=1):
+        """
+        survey_features : dict of features (None)
+            Dict of feature objects.
+        gap_min : float (15.)
+            Minimum time for the gap (minutes)
+        gap_max : flaot (45.)
+            Maximum time for a gap
+        filtername : str ('r')
+            The filter(s) to count with pairs
+        npairs : int (1)
+            The number of pairs of observations to attempt to gather
+        """
 
         self.gap_min = gap_min/60./24.
         self.gap_max = gap_max/60./24.
-        self.npairs = 1.
+        self.npairs = npairs
+        self.nside = nside
 
         if survey_features is None:
             self.survey_features = {}
+            # Track the number of pairs that have been taken in a night
             self.survey_features['Pair_in_night'] = features.Pair_in_night()
+            # When was it last observed
             self.survey_features['Last_observed'] = features.Last_observed()
-            self.condition_features['Conditions'] = features.Conditions()
-        super(Target_map_basis_function, self).__init__(survey_features=self.survey_features,
-                                                        condition_features=self.condition_features)
+        if condition_features is None:
+            self.condition_features = {}
+            # Current MJD
+            self.condition_features['Current_mjd'] = features.Current_mjd()
+        super(Visit_repeat_basis_function, self).__init__(survey_features=self.survey_features,
+                                                          condition_features=self.condition_features)
 
     def __call__(self, indx=None):
-        result = np.empty(hp.nside2npix(self.nside), dtype=float)
-        result.fill(hp.UNSEEN)
-        diff = self.survey_features['Conditions']['mjd'] - self.survey_features['Last_observed'][indx]
+        result = np.zeros(hp.nside2npix(self.nside), dtype=float)
+        if indx is None:
+            indx = np.arange(result.size)
+        diff = self.condition_features['Current_mjd'].feature - self.survey_features['Last_observed'].feature[indx]
+        ack = np.where((diff > self.gap_min) & (diff < self.gap_max))[0]
         good = np.where((diff > self.gap_min) & (diff < self.gap_max) &
-                        (self.survey_features['Pair_in_night'][indx] < self.npairs))
-        result[indx][good] = 1.
+                        (self.survey_features['Pair_in_night'].feature[indx] < self.npairs))[0]
+        result[indx[good]] += 1.
         return result
 
 

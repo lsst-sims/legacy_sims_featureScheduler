@@ -12,11 +12,12 @@ if __name__ == "__main__":
     bfs = []
     bfs.append(fs.Depth_percentile_basis_function())
     bfs.append(fs.Target_map_basis_function(target_map=target_map))
-    weights = np.array([.5, 1])
+    bfs.append(fs.Visit_repeat_basis_function())
+    weights = np.array([.5, 1., 1.])
     survey = fs.Simple_greedy_survey(bfs, weights)
     scheduler = fs.Core_scheduler([survey])
 
     observatory = Speed_observatory()
     observatory, scheduler, observations = fs.sim_runner(observatory, scheduler,
                                                          survey_length=survey_length,
-                                                         filename='one_survey.db')
+                                                         filename='pairs_survey.db')
