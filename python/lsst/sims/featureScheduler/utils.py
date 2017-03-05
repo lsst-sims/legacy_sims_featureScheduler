@@ -28,9 +28,9 @@ def empty_observation():
     XXX:  Document all the fields and units!!!
     """
     names = ['RA', 'dec', 'mjd', 'exptime', 'filter', 'rotSkyPos', 'nexp',
-             'airmass', 'FWHMeff', 'skybrightness']
+             'airmass', 'FWHMeff', 'skybrightness', 'night']
     # units of rad, rad,   days,  seconds,   string, radians (E of N?)
-    types = [float, float, float, float, '|1S', float, int, float, float, float]
+    types = [float, float, float, float, '|1S', float, int, float, float, float, int]
     result = np.zeros(1, dtype=zip(names, types))
     return result
 

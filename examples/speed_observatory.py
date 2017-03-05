@@ -1,8 +1,9 @@
 import numpy as np
-from lsst.sims.utils import haversine, _hpid2RaDec, _raDec2Hpid
+from lsst.sims.utils import haversine, _hpid2RaDec, _raDec2Hpid, Site
 import lsst.sims.skybrightness_pre as sb
 import healpy as hp
 import lsst.sims.featureScheduler.utils as utils
+import ephem
 
 sec2days = 1./(3600.*24.)
 default_nside = utils.set_default_nside()
@@ -150,4 +151,47 @@ class Speed_observatory(object):
             self.status = None
             self.filtername = None
             return None
+
+    def generate_sunsets(self):
+        """
+        Generate the sunrise times for LSST so we can label nights by MJD
+        """
+
+        # Swipe dates to match sims_skybrightness_pre365
+        mjd_start = 59560.
+        nyears = 13
+        day_pad = 50.
+        mjd_end = np.arange(59560, 59560+365.25*nyears+day_pad+366, 366).max()
+        step = 0.25
+        mjds = np.arange(mjd_start, mjd_end+step, step)
+        setting = mjds*0.
+
+        site = Site(name='LSST')
+        lsstObs = ephem.Observer()
+        lsstObs.lat = site.latitude_rad
+        lsstObs.lon = site.longitude_rad
+        lsstObs.elevation = site.height
+
+        # Stupid Dublin Julian Date
+        doff = ephem.Date(0)-ephem.Date('1858/11/17')
+        djds = mjds - doff
+        sun = ephem.Sun()
+        obs = ephem.Observer()
+        obs.lat, obs.lon, obs.elevation = lsstObs.lat, lsstObs.lon, lsstObs.elevation
+        obs.horizon = 0.
+
+        for i, (mjd, djd) in enumerate(zip(mjds, djds)):
+            sun.compute(djd)
+            setting[i] = obs.previous_setting(sun, start=djd, use_center=True)
+
+        # zomg, round off crazy
+        setting_rough = np.round(setting*100.)
+        indx = np.unique(setting_rough, return_index=True)
+        setting = setting[indx]
+
+
+
+
+
+
 
