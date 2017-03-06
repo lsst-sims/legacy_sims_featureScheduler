@@ -188,10 +188,11 @@ class Speed_observatory(object):
         for i, (mjd, djd) in enumerate(zip(mjds, djds)):
             sun.compute(djd)
             setting[i] = obs.previous_setting(sun, start=djd, use_center=True)
+        setting = setting + doff
 
         # zomg, round off crazy floating point precision issues
         setting_rough = np.round(setting*100.)
-        indx = np.unique(setting_rough, return_index=True)
+        u, indx = np.unique(setting_rough, return_index=True)
         self.setting_sun_mjds = setting[indx]
         left = np.searchsorted(self.setting_sun_mjds, mjd_start)
         self.setting_sun_mjds = self.setting_sun_mjds[left:]
@@ -200,9 +201,16 @@ class Speed_observatory(object):
         """
         Convert an mjd to a night integer.
         """
-        self.night = np.searchsorted(mjd, self.setting_sun_mjds)
+        self.night = np.searchsorted(self.setting_sun_mjds, mjd)
+        return self.night
 
-
+    def set_mjd(self, mjd):
+        """
+        update the mjd of the observatory
+        """
+        self.mjd = mjd
+        self.night = self.mjd2night(self.mjd)
+        
 
 
 
