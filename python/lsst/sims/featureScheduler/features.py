@@ -219,7 +219,7 @@ class M5Depth_percentile(BaseConditionsFeature):
                                conditions['FWHMeff'][good],
                                self.expTime, conditions['airmass'][good])
 
-        self.feature = self.m5p.m5map2percentile(m5)
+        self.feature = self.m5p.m5map2percentile(m5, filtername=self.filtername)
         self.feature[m5_mask] = hp.UNSEEN
         self.feature = hp.ud_grade(self.feature, nside_out=self.nside)
         self.feature = ma.masked_values(self.feature, hp.UNSEEN)
