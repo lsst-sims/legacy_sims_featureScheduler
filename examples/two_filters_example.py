@@ -19,7 +19,7 @@ if __name__ == "__main__":
     for filtername in filters:
         bfs = []
         bfs.append(fs.Depth_percentile_basis_function(filtername=filtername))
-        bfs.append(fs.Target_map_basis_function(target_map=target_maps[filtername]))
+        bfs.append(fs.Target_map_basis_function(target_map=target_maps[filtername], filtername=filtername))
         bfs.append(fs.Filter_change_basis_function(filtername=filtername))
         weight = weights[filtername]
         surveys.append(fs.Simple_greedy_survey_fields(bfs, weight, filtername=filtername))

@@ -187,7 +187,7 @@ class N_obs_reference(BaseSurveyFeature):
 
     def add_observation(self, observation, indx=None):
         if self.indx in indx:
-            if observation['filtername'][0] == self.filtername:
+            if observation['filter'][0] == self.filtername:
                 self.feature += 1
 
 

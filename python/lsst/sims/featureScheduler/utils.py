@@ -12,7 +12,12 @@ import sqlite3 as db
 
 def set_default_nside(nside=None):
     """
-    Can just call this function at the start to set to a different nside for everything
+    Utility function to set a default nside value across the scheduler.
+
+    Parameters
+    ----------
+    nside : int (None)
+        A valid healpixel nside.
     """
     if not hasattr(set_default_nside, 'nside'):
         if nside is None:
@@ -25,7 +30,43 @@ def empty_observation():
     """
     Return a numpy array that could be a handy observation record
 
-    XXX:  Document all the fields and units!!!
+    XXX:  Should this really be "empty visit"? Should we have "visits" made
+    up of multple "observations" to support multi-exposure time visits?
+
+    XXX-Could add a bool flag for "observed". Then easy to track all proposed
+    observations. Could also add an mjd_min, mjd_max for when an observation should be observed.
+    That way we could drop things into the queue for DD fields.
+
+    Returns
+    -------
+    numpy array
+
+    Notes
+    -----
+    The numpy fields have the following structure
+    RA : float
+       The Right Acension of the observation (center of the field) (Radians)
+    dec : float
+       Declination of the observation (Radians)
+    mjd : float
+       Modified Julian Date at the start of the observation (time shutter opens)
+    exptime : float
+       Total exposure time of the visit (seconds)
+    filter : str
+        The filter used. Should be one of u, g, r, i, z, y.
+    rotSkyPos : float
+        The rotation angle of the camera relative to the sky E of N (Radians)
+    nexp : int
+        Number of exposures in the visit.
+    airmass : float
+        Airmass at the center of the field
+    FWHMeff : float
+        The effective seeing FWHM at the center of the field. (arcsec)
+    skybrightness : float
+        The surface brightness of the sky background at the center of the
+        field. (mag/sq arcsec)
+    night : int
+        The night number of the observation (days)
     """
     names = ['RA', 'dec', 'mjd', 'exptime', 'filter', 'rotSkyPos', 'nexp',
              'airmass', 'FWHMeff', 'skybrightness', 'night']
