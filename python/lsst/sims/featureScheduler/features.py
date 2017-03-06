@@ -12,7 +12,7 @@ default_nside = utils.set_default_nside()
 
 class BaseFeature(object):
     """
-    Base class for features. If a feature never cahnges, it can be a subclass of this.
+    Base class for features.
     """
     def __init__(self, **kwargs):
         # self.feature should be a float, bool, or healpix size numpy array, or numpy masked array
@@ -40,7 +40,7 @@ class BaseConditionsFeature(object):
 
 class N_observations(BaseSurveyFeature):
     """
-    Track the number of observations that have been made accross the sky
+    Track the number of observations that have been made accross the sky.
     """
     def __init__(self, filtername=None, nside=default_nside, mask_indx=None):
         """
@@ -64,9 +64,6 @@ class N_observations(BaseSurveyFeature):
         indx : ints
             The indices of the healpixel map that have been observed by observation
         """
-        if indx is None:
-            # Find the healpixels that were observed by the pointing
-            pass
 
         if observation['filter'][0] in self.filtername:
             self.feature[indx] += 1
@@ -95,9 +92,6 @@ class Coadded_depth(BaseSurveyFeature):
         """
         
         """
-        if indx is None:
-            # Find the hepixels that were observed by the pointing
-            pass
         if observation['filter'][0] == self.filtername:
             m5 = m5_flat_sed(observation['filter'], observation['skybrightness'],
                              observation['FWHMeff'], observation['expTime'],
@@ -107,7 +101,8 @@ class Coadded_depth(BaseSurveyFeature):
 
 class Last_observed(BaseSurveyFeature):
     """
-    Track when a pixel was last observed.
+    Track when a pixel was last observed. Assumes observations are added in chronological
+    order.
     """
     def __init__(self, filtername='r', nside=default_nside):
         self.filtername = filtername
@@ -121,7 +116,7 @@ class Last_observed(BaseSurveyFeature):
 class N_obs_night(BaseSurveyFeature):
     """
     Track how many times something has been observed in a night
-    (Note, even if there are two, it might not be a good pair)
+    (Note, even if there are two, it might not be a good pair.)
     """
     def __init__(self, filtername='r', nside=default_nside):
         """
@@ -145,7 +140,7 @@ class N_obs_night(BaseSurveyFeature):
 
 class Pair_in_night(BaseSurveyFeature):
     """
-    I think this makes sense to do as a complicated feature?
+    Track how many pairs have been observed within a night
     """
     def __init__(self, filtername='r', nside=default_nside, gap_min=15., gap_max=45.):
         """

@@ -60,6 +60,10 @@ class Speed_observatory(object):
         self.ra_all_sky, self.dec_all_sky = _hpid2RaDec(nside, hpids)
         self.status = None
 
+        # Generate sunset times so we can label nights by integers
+        self.generate_sunsets()
+        self.night = self.mjd2night(self.mjd)
+
     def slew_time(self, ra, dec):
         """
         Compute slew time to new ra, dec position
@@ -74,6 +78,7 @@ class Speed_observatory(object):
         """
         result = {}
         result['mjd'] = self.mjd
+        result['night'] = self.night
         result['skybrightness'] = self.sky.returnMags(self.mjd)
         result['airmass'] = self.sky.returnAirmass(self.mjd)
         # XXX Obviously need to update to a real seeing table, and make it a full-sky map, and filter, airmass dependent
@@ -137,6 +142,7 @@ class Speed_observatory(object):
                 status = self.return_status()
             # time the shutter should open
             self.mjd += total_time-to_open_time
+            self.night = self.mjd2night(self.mjd)
 
             self.filtername = observation['filter'][0]
             hpid = _raDec2Hpid(self.sky_nside, self.ra, self.dec)
@@ -146,21 +152,20 @@ class Speed_observatory(object):
             return observation
         else:
             self.mjd = jump_mjd
+            self.night = self.mjd2night(self.mjd)
             self.ra = None
             self.dec = None
             self.status = None
             self.filtername = None
             return None
 
-    def generate_sunsets(self):
+    def generate_sunsets(self, nyears=13, day_pad=50):
         """
         Generate the sunrise times for LSST so we can label nights by MJD
         """
 
         # Swipe dates to match sims_skybrightness_pre365
-        mjd_start = 59560.
-        nyears = 13
-        day_pad = 50.
+        mjd_start = self.mjd
         mjd_end = np.arange(59560, 59560+365.25*nyears+day_pad+366, 366).max()
         step = 0.25
         mjds = np.arange(mjd_start, mjd_end+step, step)
@@ -184,10 +189,19 @@ class Speed_observatory(object):
             sun.compute(djd)
             setting[i] = obs.previous_setting(sun, start=djd, use_center=True)
 
-        # zomg, round off crazy
+        # zomg, round off crazy floating point precision issues
         setting_rough = np.round(setting*100.)
         indx = np.unique(setting_rough, return_index=True)
-        setting = setting[indx]
+        self.setting_sun_mjds = setting[indx]
+        left = np.searchsorted(self.setting_sun_mjds, mjd_start)
+        self.setting_sun_mjds = self.setting_sun_mjds[left:]
+
+    def mjd2night(self, mjd):
+        """
+        Convert an mjd to a night integer.
+        """
+        self.night = np.searchsorted(mjd, self.setting_sun_mjds)
+
 
 
 
