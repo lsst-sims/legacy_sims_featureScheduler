@@ -79,6 +79,10 @@ def empty_observation():
 def read_fields():
     """
     Read in the old Field coordinates
+    Returns
+    -------
+    numpy.array
+        With RA and dec in radians.
     """
     names = ['id', 'RA', 'dec']
     types = [int, float, float]
@@ -91,7 +95,21 @@ def read_fields():
 
 
 def treexyz(ra, dec):
-    """Calculate x/y/z values for ra/dec points, ra/dec in radians."""
+    """
+    Utility to convert RA,dec postions in x,y,z space, useful for constructing KD-trees.
+    
+    Parameters
+    ----------
+    ra : float or array
+        RA in radians
+    dec : float or array
+        Dec in radians
+
+    Returns
+    -------
+    x,y,z : floats or arrays
+        The position of the given points on the unit sphere.
+    """
     # Note ra/dec can be arrays.
     x = np.cos(dec) * np.cos(ra)
     y = np.cos(dec) * np.sin(ra)
@@ -100,6 +118,20 @@ def treexyz(ra, dec):
 
 
 def hp_kd_tree(nside=set_default_nside(), leafsize=100):
+    """
+    Generate a KD-tree of healpixel locations
+
+    Parameters
+    ----------
+    nside : int
+        A valid healpix nside
+    leafsize : int (100)
+        Leafsize of the kdtree
+
+    Returns
+    -------
+    tree : scipy kdtree
+    """
     hpid = np.arange(hp.nside2npix(nside))
     ra, dec = _hpid2RaDec(nside, hpid)
     x, y, z = treexyz(ra, dec)
@@ -109,6 +141,8 @@ def hp_kd_tree(nside=set_default_nside(), leafsize=100):
 
 def rad_length(radius=1.75):
     """
+    Convert an angular radius into a physical radius for a kdtree search.
+
     Parameters
     ----------
     radius : float
@@ -122,15 +156,32 @@ def rad_length(radius=1.75):
 
 class hp_in_lsst_fov(object):
     """
-    Return the healpixels within a pointing
+    Return the healpixels within a pointing. A very simple LSST camera model with
+    no chip/raft gaps.
     """
     def __init__(self, nside=set_default_nside(), fov_radius=1.75):
+        """
+        Parameters
+        ----------
+        fov_radius : float (1.75)
+            Radius of the filed of view in degrees
+        """
         self.tree = hp_kd_tree()
         self.radius = rad_length(fov_radius)
 
     def __call__(self, ra, dec):
         """
-        ra dec in radians. Only single points for now.
+        Parameters
+        ----------
+        ra : float
+            RA in radians
+        dec : float
+            Dec in radians
+
+        Returns
+        -------
+        indx : numpy array
+            The healpixels that are within the FoV
         """
         x, y, z = treexyz(np.max(ra), np.max(dec))
         indices = self.tree.query_ball_point((x, y, z), self.radius)
@@ -138,13 +189,16 @@ class hp_in_lsst_fov(object):
 
 
 def ra_dec_hp_map(nside=set_default_nside()):
+    """
+    Return all the RA,dec points for the centers of a healpix map
+    """
     ra, dec = _hpid2RaDec(nside, np.arange(hp.nside2npix(nside)))
     return ra, dec
 
 
 def WFD_healpixels(nside=set_default_nside(), dec_min=-60., dec_max=0.):
     """
-    Define a wide fast deep region.
+    Define a wide fast deep region. Return a healpix map with WFD pixels as 1.
     """
     ra, dec = ra_dec_hp_map(nside=nside)
     result = np.zeros(ra.size)
@@ -154,6 +208,9 @@ def WFD_healpixels(nside=set_default_nside(), dec_min=-60., dec_max=0.):
 
 
 def SCP_healpixels(nside=set_default_nside(), dec_max=-60.):
+    """
+    Define the South Celestial Pole region. Return a healpix map with SCP pixels as 1.
+    """
     ra, dec = ra_dec_hp_map(nside=nside)
     result = np.zeros(ra.size)
     good = np.where(dec < np.radians(dec_max))
@@ -162,6 +219,9 @@ def SCP_healpixels(nside=set_default_nside(), dec_max=-60.):
 
 
 def NES_healpixels(nside=set_default_nside(), width=15, dec_min=0., fill_gap=True):
+    """
+    Define the North Ecliptic Spur region. Return a healpix map with NES pixels as 1.
+    """
     ra, dec = ra_dec_hp_map(nside=nside)
     result = np.zeros(ra.size)
     coord = SkyCoord(ra=ra*u.rad, dec=dec*u.rad)
@@ -179,7 +239,9 @@ def NES_healpixels(nside=set_default_nside(), width=15, dec_min=0., fill_gap=Tru
 
 def galactic_plane_healpixels(nside=set_default_nside(), center_width=10., end_width=4.,
                               gal_long1=70., gal_long2=290.):
-    # XXX--this is not right yet
+    """
+    Define the Galactic Plane region. Return a healpix map with GP pixels as 1.
+    """
     ra, dec = ra_dec_hp_map(nside=nside)
     result = np.zeros(ra.size)
     coord = SkyCoord(ra=ra*u.rad, dec=dec*u.rad)
@@ -211,6 +273,8 @@ def generate_goal_map(nside=set_default_nside(), NES_fraction = .3, WFD_fraction
     """
     Handy function that will put together a target map in the proper order.
     """
+
+    # Note, some regions overlap, thus order regions are added is important.
     result = np.zeros(hp.nside2npix(nside), dtype=float)
     result += NES_fraction*NES_healpixels(nside=nside, width=NES_width,
                                           dec_min=NES_dec_min, fill_gap=NES_fill)
@@ -293,16 +357,33 @@ def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3., filenam
 def observations2sqlite(observations, filename='observations.db'):
     """
     Take an array of observations and dump it to a sqlite3 database
+
+    Parameters
+    ----------
+    observations : numpy.array
+        An array of executed observations
+    filename : str (observations.db)
+        Filename to save sqlite3 to. Value of None will skip
+        writing out file.
+
+    Returns
+    -------
+    observations : numpy.array
+        The observations array updated to have angles in degrees and
+        any added columns
     """
 
-    # XXX--Here is a good place to add any missing columns
+    # XXX--Here is a good place to add any missing columns, e.g., alt,az
 
     # Convert to degrees for output
     observations['RA'] = np.degrees(observations['RA'])
     observations['dec'] = np.degrees(observations['dec'])
     observations['rotSkyPos'] = np.degrees(observations['rotSkyPos'])
 
-    df = pd.DataFrame(observations)
-    con = db.connect(filename)
-    df.to_sql('SummaryAllProps', con, index_label='observationId')
+    if filename is not None:
+        df = pd.DataFrame(observations)
+        con = db.connect(filename)
+        df.to_sql('SummaryAllProps', con, index_label='observationId')
+    return observations
+
 

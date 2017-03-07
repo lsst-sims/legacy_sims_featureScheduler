@@ -172,7 +172,8 @@ class Filter_change_basis_function(Base_basis_function):
                                                            condition_features=self.condition_features)
 
     def __call__(self, **kwargs):
-        # XXX--Note here my speed observatory says None when it's parked, so should be easy to start any filter.
+        # XXX--Note here my speed observatory says None when it's parked,
+        # so should be easy to start any filter. Maybe None should be reserved for no filter instead?
         if (self.condition_features['Current_filter'] == self.filtername) | (self.condition_features['Current_filter'] is None):
             result = 1.
         else:

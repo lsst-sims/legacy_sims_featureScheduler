@@ -5,7 +5,6 @@ import utils
 from lsst.sims.utils import m5_flat_sed, raDec2Hpid
 from lsst.sims.skybrightness_pre import M5percentiles
 
-# XXX-shit, should I have added _feature to all of the names here? 
 
 default_nside = utils.set_default_nside()
 
@@ -89,9 +88,7 @@ class Coadded_depth(BaseSurveyFeature):
         self.feature = np.zeros(hp.nside2npix(nside), dtype=float)
 
     def add_observation(self, observation, indx=None):
-        """
-        
-        """
+
         if observation['filter'][0] == self.filtername:
             m5 = m5_flat_sed(observation['filter'], observation['skybrightness'],
                              observation['FWHMeff'], observation['expTime'],
