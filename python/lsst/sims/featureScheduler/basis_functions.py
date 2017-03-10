@@ -3,7 +3,7 @@ import numpy.ma as ma
 import features
 import utils
 import healpy as hp
-
+from lsst.sims.utils import haversine, _hpid2RaDec
 
 default_nside = utils.set_default_nside()
 
@@ -178,6 +178,40 @@ class Filter_change_basis_function(Base_basis_function):
             result = 1.
         else:
             result = 0.
+        return result
+
+
+class Slew_distance_basis_function(Base_basis_function):
+    """
+    Reward shorter slews
+    """
+    def __init__(self, survey_features=None, condition_features=None, nside=default_nside,
+                 inner_ring = 3., inner_penalty=-1., slope=-.01):
+        """
+        Parameters
+        ----------
+        inner_ring : float (3.)
+            add a penalty inside this region (degrees).
+        """
+        if condition_features is None:
+            self.condition_features['Current_pointing'] = features.Current_pointing()
+        else:
+            self.condition_features = condition_features
+        super(Filter_change_basis_function, self).__init__(survey_features=survey_features,
+                                                           condition_features=self.condition_features)
+        self.nside = nside
+        self.inner_ring = np.radians(inner_ring)
+        self.inner_penalty = inner_penalty
+        self.slope = np.radians(slope)
+        # Make the RA, Dec map
+        indx = np.arange(hp.nside2npix(self.nside))
+        self.ra, self.dec = _hpid2RaDec(indx)
+
+    def __call__(self, indx=None):
+        ang_distance = haversine(self.ra, self.dec, self.condition_features['Current_pointing'].feature['RA'],
+                                 self.condition_features['Current_pointing'].feature['dec'])
+        result = 1.+ang_distance * self.slope
+        result[np.where(ang_distance <= self.inner_ring)] = self.inner_penalty
         return result
 
 

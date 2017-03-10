@@ -232,6 +232,11 @@ class Current_mjd(BaseConditionsFeature):
         self.feature = conditions['mjd']
 
 
+class Current_pointing(BaseConditionsFeature):
+    def update_conditions(self, conditions):
+        self.feature = {'RA': conditions['RA'], 'dec': conditions['dec']}
+
+
 class DD_feasability(BaseConditionsFeature):
     """
     For the DD fields, we can pre-compute hour-angles for MJD, then do a lookup to check visibility

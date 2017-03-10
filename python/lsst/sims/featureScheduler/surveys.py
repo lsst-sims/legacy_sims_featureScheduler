@@ -41,6 +41,9 @@ class BaseSurvey(object):
         else:
             self.smoothing_kernel = None
 
+        # Attribute to track if the reward function is up-to-date.
+        self.reward_checked = False
+
     def add_observation(self, observation, **kwargs):
         for bf in self.basis_functions:
             bf.add_observation(observation, **kwargs)
@@ -86,7 +89,15 @@ class BaseSurvey(object):
             self.smooth_reward()
         return self.reward
 
-    def return_observations(self):
+    def __call__(self):
+        """
+        Returns
+        -------
+        one of:
+            1) None
+            2) A list of observations
+            3) A Scripted_survey object (which can be called to return a list of observations)
+        """
         # If the reward function hasn't been updated with the
         # latest info, calculate it
         if not self.reward_checked:
@@ -114,7 +125,7 @@ class Simple_greedy_survey(BaseSurvey):
                                                    extra_features=extra_features)
         self.filtername = filtername
 
-    def return_observations(self):
+    def __call__(self):
         """
         Just point at the highest reward healpix
         """
@@ -151,7 +162,7 @@ class Simple_greedy_survey_fields(BaseSurvey):
         self.field_hp = _raDec2Hpid(default_nside, self.fields['RA'], self.fields['dec'])
         self.block_size = block_size
 
-    def return_observations(self):
+    def __call__(self):
         """
         Just point at the highest reward healpix
         """
@@ -176,30 +187,30 @@ class Simple_greedy_survey_fields(BaseSurvey):
 
 class Deep_drill_survey(BaseSurvey):
     """
-    Class to make deep drilling fields
+    Class to make deep drilling fields.
+
+    Rather than a single observation, the DD surveys return Scheduled Survey objects.
     """
-    def __init__(self, basis_functions, basis_weights, extra_features=None, sequence=None,
-                 exptime=30., RA=0, dec=0):
+    def __init__(self, basis_functions, basis_weights, extra_features=None,
+                 RA=0, dec=0, scripted_survey=None):
         """
         Parameters
         ----------
-        sequence : list
-            Should be a list of strings specifying which filters to take, e.g.,
-            ['r', 'r', 'i', 'i', 'z', 'y']
         RA : float (0.)
             The RA of the drilling field (degrees).
         dec : float (0.)
             The Dec of the drilling field (degrees).
         """
+
+        # Need a basis function to see if DD is good to go
+
         super(Deep_drill_survey, self).__init__(basis_functions=basis_functions,
                                                 basis_weights=basis_weights,
                                                 extra_features=extra_features)
-        self.sequence = sequence
-        self.exptime = exptime
         self.RA = np.radians(RA)
         self.dec = np.radians(dec)
 
-    def return_observations(self):
+    def __call__(self):
         result = []
         for fn in self.sequence:
             obs = empty_observation()
@@ -211,6 +222,11 @@ class Deep_drill_survey(BaseSurvey):
             result.append(obs)
         return result
 
+
+class Scripted_survey(BaseSurvey):
+    """
+    A class that will return observations from a script. And possibly self-destruct when needed.
+    """
 
 # class Raster_survey(BaseSurvey):
 

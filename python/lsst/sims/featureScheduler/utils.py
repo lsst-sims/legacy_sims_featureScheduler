@@ -2,7 +2,7 @@ import numpy as np
 import healpy as hp
 import pandas as pd
 from scipy.spatial import cKDTree as kdtree
-from lsst.sims.utils import _hpid2RaDec
+from lsst.sims.utils import _hpid2RaDec, calcLmstLast
 from astropy.coordinates import SkyCoord
 from astropy import units as u
 import os
@@ -72,6 +72,20 @@ def empty_observation():
              'airmass', 'FWHMeff', 'skybrightness', 'night']
     # units of rad, rad,   days,  seconds,   string, radians (E of N?)
     types = [float, float, float, float, '|1S', float, int, float, float, float, int]
+    result = np.zeros(1, dtype=zip(names, types))
+    return result
+
+
+def empty_scheduled_observation():
+    """
+    Same as empty observation, but with mjd_min, mjd_max columns
+    """
+    start = empty_observation()
+    names = start.dtype.names
+    types = start.dtype.types
+    names.extend(['mjd_min', 'mjd_max'])
+    types.extend([float, float])
+
     result = np.zeros(1, dtype=zip(names, types))
     return result
 
@@ -386,4 +400,83 @@ def observations2sqlite(observations, filename='observations.db'):
         df.to_sql('SummaryAllProps', con, index_label='observationId')
     return observations
 
+
+def inrange(inval, minimum=-1., maximum=1.):
+    """
+    Make sure values are within min/max
+    """
+    inval = np.array(inval)
+    below = np.where(inval < minimum)
+    inval[below] = minimum
+    above = np.where(inval > maximum)
+    inval[above] = maximum
+    return inval
+
+
+def stupidFast_RaDec2AltAz(ra, dec, lat, lon, mjd, lmst=None):
+    """
+    Convert Ra,Dec to Altitude and Azimuth.
+
+    Coordinate transformation is killing performance. Just use simple equations to speed it up
+    and ignore abberation, precesion, nutation, nutrition, etc.
+
+    Parameters
+    ----------
+    ra : array_like
+        RA, in radians.
+    dec : array_like
+        Dec, in radians. Must be same length as `ra`.
+    lat : float
+        Latitude of the observatory in radians.
+    lon : float
+        Longitude of the observatory in radians.
+    mjd : float
+        Modified Julian Date.
+
+    Returns
+    -------
+    alt : numpy.array
+        Altitude, same length as `ra` and `dec`. Radians.
+    az : numpy.array
+        Azimuth, same length as `ra` and `dec`. Radians.
+    """
+    if lmst is None:
+        lmst, last = calcLmstLast(mjd, lon)
+        lmst = lmst/12.*np.pi  # convert to rad
+    ha = lmst-ra
+    sindec = np.sin(dec)
+    sinlat = np.sin(lat)
+    coslat = np.cos(lat)
+    sinalt = sindec*sinlat+np.cos(dec)*coslat*np.cos(ha)
+    sinalt = inrange(sinalt)
+    alt = np.arcsin(sinalt)
+    cosaz = (sindec-np.sin(alt)*sinlat)/(np.cos(alt)*coslat)
+    cosaz = inrange(cosaz)
+    az = np.arccos(cosaz)
+    signflip = np.where(np.sin(ha) > 0)
+    az[signflip] = 2.*np.pi-az[signflip]
+    return alt, az
+
+
+def sort_pointings(observations, order_first='azimuth'):
+    """
+    Try to sort a group of pointings to be executed in a good order
+
+    Parameters
+    ----------
+    observations : list of observation objects
+        The observations we want to sort.
+    order : str (azimuth)
+        Sort by azimuth or altitude first.
+
+    Returns
+    -------
+    The observations sorted in a good order
+    """
+
+    obs_array = np.array(observations)[:, 0]
+    # compute alt-az and raster in the correct way.
+    # Maybe take some windows. 
+    # Note that the az rotation is a problem near zenith. 
+    # does a greedy walk do a good job?
 
