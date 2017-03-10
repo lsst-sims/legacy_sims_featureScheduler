@@ -3,11 +3,11 @@ import healpy as hp
 import matplotlib.pylab as plt
 import lsst.sims.featureScheduler as fs
 from speed_observatory import Speed_observatory
-
+import cPickle as pickle
 
 if __name__ == "__main__":
 
-    survey_length = .1  # days
+    survey_length = 30  # days
     # Define what we want the final visit ratio map to look like
     target_maps = fs.standard_goals()
 
@@ -28,5 +28,7 @@ if __name__ == "__main__":
 
     scheduler = fs.Core_scheduler(surveys)
 
-    observatory = Speed_observatory()
-    observatory, scheduler, observations = fs.sim_runner(observatory, scheduler, survey_length=survey_length)
+    observatory = Speed_observatory(quickTest=False)
+    observatory, scheduler, observations = fs.sim_runner(observatory, scheduler, survey_length=survey_length,
+                                                         filename='six_w.db')
+    

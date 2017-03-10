@@ -6,6 +6,7 @@ from lsst.sims.utils import _hpid2RaDec, calcLmstLast
 from astropy.coordinates import SkyCoord
 from astropy import units as u
 import os
+import sys
 from lsst.utils import getPackageDir
 import sqlite3 as db
 
@@ -350,6 +351,9 @@ def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3., filenam
     end_mjd = mjd + survey_length
     scheduler.update_conditions(observatory.return_status())
     observations = []
+    mjd_track = mjd + 0
+    step = 1./24.
+
     while mjd < end_mjd:
         desired_obs = scheduler.request_observation()
         attempted_obs = observatory.attempt_observe(desired_obs)
@@ -360,6 +364,12 @@ def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3., filenam
             scheduler.flush_queue()
         scheduler.update_conditions(observatory.return_status())
         mjd = observatory.mjd
+        if (mjd-mjd_track) > step:
+            progress = (end_mjd - mjd)/float(end_mjd)*100
+            text = "\rprogress = %.1f%%" % progress
+            sys.stdout.write(text)
+            sys.stdout.flush()
+            mjd_track = mjd+0
 
     print 'Completed %i observations' % len(observations)
     observations = np.array(observations)[:, 0]

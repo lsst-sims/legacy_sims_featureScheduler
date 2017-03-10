@@ -226,7 +226,8 @@ class Filter_change_basis_function(Base_basis_function):
 
 class Slew_distance_basis_function(Base_basis_function):
     """
-    Reward shorter slews
+    Reward shorter slews.
+    XXX-this should really be slew time, so need to break into alt and az distances.
     """
     def __init__(self, survey_features=None, condition_features=None, nside=default_nside,
                  inner_ring = 3., inner_penalty=-1., slope=-.01):
@@ -237,10 +238,11 @@ class Slew_distance_basis_function(Base_basis_function):
             add a penalty inside this region (degrees).
         """
         if condition_features is None:
+            self.condition_features = {}
             self.condition_features['Current_pointing'] = features.Current_pointing()
         else:
             self.condition_features = condition_features
-        super(Filter_change_basis_function, self).__init__(survey_features=survey_features,
+        super(Slew_distance_basis_function, self).__init__(survey_features=survey_features,
                                                            condition_features=self.condition_features)
         self.nside = nside
         self.inner_ring = np.radians(inner_ring)
@@ -248,9 +250,11 @@ class Slew_distance_basis_function(Base_basis_function):
         self.slope = np.radians(slope)
         # Make the RA, Dec map
         indx = np.arange(hp.nside2npix(self.nside))
-        self.ra, self.dec = _hpid2RaDec(indx)
+        self.ra, self.dec = _hpid2RaDec(nside, indx)
 
     def __call__(self, indx=None):
+        if self.condition_features['Current_pointing'].feature['RA'] is None:
+            return 0
         ang_distance = haversine(self.ra, self.dec, self.condition_features['Current_pointing'].feature['RA'],
                                  self.condition_features['Current_pointing'].feature['dec'])
         result = 1.+ang_distance * self.slope

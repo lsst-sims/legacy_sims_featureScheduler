@@ -122,10 +122,11 @@ class Simple_greedy_survey(BaseSurvey):
     will result in features in the coadded depth power spectrum (I think).
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, filtername='r',
-                 block_size=1):
+                 block_size=1, smoothing_kernel=None):
         super(Simple_greedy_survey, self).__init__(basis_functions=basis_functions,
                                                    basis_weights=basis_weights,
-                                                   extra_features=extra_features)
+                                                   extra_features=extra_features,
+                                                   smoothing_kernel=smoothing_kernel)
         self.filtername = filtername
 
     def __call__(self):
@@ -156,10 +157,11 @@ class Simple_greedy_survey_fields(BaseSurvey):
     Chop down the reward function to just look at unmasked opsim field locations.
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, filtername='r',
-                 block_size=25):
+                 block_size=25, smoothing_kernel=None):
         super(Simple_greedy_survey_fields, self).__init__(basis_functions=basis_functions,
                                                           basis_weights=basis_weights,
-                                                          extra_features=extra_features)
+                                                          extra_features=extra_features,
+                                                          smoothing_kernel=smoothing_kernel)
         self.filtername = filtername
         self.fields = read_fields()
         self.field_hp = _raDec2Hpid(default_nside, self.fields['RA'], self.fields['dec'])
