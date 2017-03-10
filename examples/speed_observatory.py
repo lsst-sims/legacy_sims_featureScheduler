@@ -135,6 +135,7 @@ class Speed_observatory(object):
                 update_status = False
             self.mjd = self.mjd+to_open_time
             observation['mjd'] = self.mjd
+            observation['night'] = self.night
             self.ra = observation['RA']
             self.dec = observation['dec']
             if update_status:
@@ -201,16 +202,14 @@ class Speed_observatory(object):
         """
         Convert an mjd to a night integer.
         """
-        self.night = np.searchsorted(self.setting_sun_mjds, mjd)
-        return self.night
+        return np.searchsorted(self.setting_sun_mjds, mjd)
 
     def set_mjd(self, mjd):
         """
         update the mjd of the observatory
         """
         self.mjd = mjd
-        self.night = self.mjd2night(self.mjd)
-        
+        self.night = self.mjd2night(mjd)
 
 
 

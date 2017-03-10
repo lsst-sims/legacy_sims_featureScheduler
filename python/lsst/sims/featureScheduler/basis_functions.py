@@ -172,7 +172,7 @@ class Visit_repeat_basis_function(Base_basis_function):
         if indx is None:
             indx = np.arange(result.size)
         diff = self.condition_features['Current_mjd'].feature - self.survey_features['Last_observed'].feature[indx]
-        good = np.where((diff > self.gap_min) & (diff < self.gap_max) &
+        good = np.where((diff >= self.gap_min) & (diff <= self.gap_max) &
                         (self.survey_features['Pair_in_night'].feature[indx] < self.npairs))[0]
         result[indx[good]] += 1.
         return result
