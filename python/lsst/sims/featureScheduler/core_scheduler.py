@@ -76,8 +76,10 @@ class Core_scheduler(object):
             rewards = []
             for survey in self.scripted_surveys:
                 rewards.append(survey.calc_reward_function())
-            good = np.min(np.where(rewards == np.max(rewards)))
-            result = self.scripted_surveys[good]()
+            max_reward = np.max(rewards)
+            if max_reward > -np.inf:
+                good = np.min(np.where(rewards == np.max(rewards)))
+                result = self.scripted_surveys[good]()
 
         return result
 
@@ -94,7 +96,7 @@ class Core_scheduler(object):
             if len(self.queue) == 0:
                 self._fill_queue()
             result = self.queue.pop(0)
-            return result
+        return result
 
     def _fill_queue(self):
         """

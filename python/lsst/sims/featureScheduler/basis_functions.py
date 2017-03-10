@@ -86,6 +86,48 @@ class Target_map_basis_function(Base_basis_function):
         return result
 
 
+class Obs_ratio_basis_function(Base_basis_function):
+    """
+    Mostly for deep_drilling fields
+    """
+    def __init__(self, survey_features=None, condition_features=None, ref_ra=0., ref_dec=-30.,
+                 dd_ra=0., dd_dec=0., target_ratio=100., softening=1.):
+        """
+        blah
+        """
+        self.target_ratio = target_ratio
+        self.softening = softening
+        if survey_features is None:
+            self.survey_features = {}
+            self.survey_features['N_obs_reference'] = features.N_obs_reference(ra=ref_ra, dec=ref_dec)
+            self.survey_features['N_obs_DD'] = features.N_obs_reference(ra=dd_ra, dec=dd_dec)
+
+        super(Visit_repeat_basis_function, self).__init__(survey_features=self.survey_features,
+                                                          condition_features=condition_features)
+
+    def __call__(self, **kwargs):
+        result = 0.
+        N_DD = self.survey_features['N_obs_DD'].feature
+        N_ref = self.survey_features['N_obs']
+        result += self.target_ratio - (N_DD/(N_ref+self.softening))
+
+        return result
+
+
+class Spot_observable_basis_function(Base_basis_function):
+    """
+    Decide if a spot on the sky is good to go
+    """
+    def __init__(self, condition_features=None, ra=0., dec=0., lst_min=-1., lst_max=0.5):
+        # Need to add sun distance requirements, moon dist requirements, seeing requirements, etc.
+
+        # Need feature of LST.
+        pass
+
+    def __call__(self, **kwargs):
+        pass
+
+
 class Visit_repeat_basis_function(Base_basis_function):
     """
     Basis function to reward re-visiting an area on the sky. Looking for Solar System objects.
@@ -113,10 +155,11 @@ class Visit_repeat_basis_function(Base_basis_function):
         if survey_features is None:
             self.survey_features = {}
             # Track the number of pairs that have been taken in a night
-            self.survey_features['Pair_in_night'] = features.Pair_in_night(gap_min=gap_min, gap_max=gap_max)
+            self.survey_features['Pair_in_night'] = features.Pair_in_night(filtername=filtername,
+                                                                           gap_min=gap_min, gap_max=gap_max)
             # When was it last observed
             # XXX--since this feature is also in Pair_in_night, I should just access that one!
-            self.survey_features['Last_observed'] = features.Last_observed()
+            self.survey_features['Last_observed'] = features.Last_observed(filtername=filtername)
         if condition_features is None:
             self.condition_features = {}
             # Current MJD

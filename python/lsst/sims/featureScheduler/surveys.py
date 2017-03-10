@@ -43,6 +43,8 @@ class BaseSurvey(object):
 
         # Attribute to track if the reward function is up-to-date.
         self.reward_checked = False
+        # count how many times we calc reward function
+        self.reward_count = 0
 
     def add_observation(self, observation, **kwargs):
         for bf in self.basis_functions:
@@ -70,6 +72,7 @@ class BaseSurvey(object):
         # Might need to check if mask expanded?
 
     def calc_reward_function(self):
+        self.reward_count += 1
         self.reward_checked = True
         if self._check_feasability():
             self.reward = 0
@@ -200,6 +203,8 @@ class Deep_drill_survey(BaseSurvey):
             The RA of the drilling field (degrees).
         dec : float (0.)
             The Dec of the drilling field (degrees).
+        scripted_survey : survey object
+            A survey objcet that will return observations
         """
 
         # Need a basis function to see if DD is good to go
@@ -210,23 +215,32 @@ class Deep_drill_survey(BaseSurvey):
         self.RA = np.radians(RA)
         self.dec = np.radians(dec)
 
-    def __call__(self):
-        result = []
-        for fn in self.sequence:
-            obs = empty_observation()
-            # XXX--Note that we'll want to put some dithering schemes in here eventually.
-            obs['RA'] = self.RA
-            obs['dec'] = self.dec
-            obs['exptime'] = self.exptime
-            obs['filter'] = fn
-            result.append(obs)
-        return result
+        self.scripted_survey = scripted_survey
 
+    def __call__(self):
+        
+        # If there are no other scripted surveys of this type in the 
+        # scripted_survey list, then send one over
+        return self.scripted_survey.copy()
+
+
+        
 
 class Scripted_survey(BaseSurvey):
     """
     A class that will return observations from a script. And possibly self-destruct when needed.
     """
+    def __init__(self):
+        """
+        Need to put in all the logic for if there are observations left in the sequence. 
+        """
 
-# class Raster_survey(BaseSurvey):
+    def __call__(self):
+        obs = empty_observation()
+        obs['RA'] = self.RA
+        obs['dec'] = self.dec
+        obs['filter'] = 'z'
+
+        return [obs]*5
+
 
