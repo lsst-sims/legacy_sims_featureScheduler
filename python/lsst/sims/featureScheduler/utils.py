@@ -341,6 +341,7 @@ def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3., filenam
 
     if mjd_start is None:
         mjd = observatory.mjd
+        mjd_start = mjd + 0
     else:
         observatory.mjd = mjd
         observatory.ra = None
@@ -353,6 +354,7 @@ def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3., filenam
     observations = []
     mjd_track = mjd + 0
     step = 1./24.
+    mjd_run = end_mjd-mjd_start
 
     while mjd < end_mjd:
         desired_obs = scheduler.request_observation()
@@ -365,7 +367,7 @@ def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3., filenam
         scheduler.update_conditions(observatory.return_status())
         mjd = observatory.mjd
         if (mjd-mjd_track) > step:
-            progress = (end_mjd - mjd)/float(end_mjd)*100
+            progress = float(mjd-mjd_start)/mjd_run*100
             text = "\rprogress = %.1f%%" % progress
             sys.stdout.write(text)
             sys.stdout.flush()

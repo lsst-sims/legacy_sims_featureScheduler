@@ -80,9 +80,15 @@ class Target_map_basis_function(Base_basis_function):
         result = np.zeros(hp.nside2npix(self.nside), dtype=float)
         if indx is None:
             indx = np.arange(result.size)
-        result[indx] = -self.survey_features['N_obs'].feature[indx]
-        result[indx] /= (self.survey_features['N_obs_reference'].feature + self.softening)
-        result[indx] += self.target_map[indx]
+
+        # Find out how many observations we want now at those points
+        scale = np.max([self.softening, self.survey_features['N_obs_reference'].feature])
+        goal_N = self.target_map[indx] * scale
+        result[indx] = goal_N - self.survey_features['N_obs'].feature[indx]
+
+        #result[indx] = -self.survey_features['N_obs'].feature[indx]
+        #result[indx] /= (self.survey_features['N_obs_reference'].feature + self.softening)
+        #result[indx] += self.target_map[indx]
         return result
 
 
