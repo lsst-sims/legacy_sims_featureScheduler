@@ -5,6 +5,7 @@ setupRequired(sims_skybrightness_pre)
 setupRequired(scipy)
 setupRequired(healpy)
 setupRequired(astropy)
+setupRequired(ephem)
 
 envPrepend(PYTHONPATH, ${PRODUCT_DIR}/python)
 envPrepend(PATH, ${PRODUCT_DIR}/bin)
