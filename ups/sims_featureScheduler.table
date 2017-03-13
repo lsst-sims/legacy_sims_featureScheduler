@@ -1,7 +1,6 @@
 setupRequired(base)
 setupRequired(numpy)
 setupRequired(sims_utils)
-setupRequired(sims_coordUtils)
 setupRequired(sims_skybrightness_pre)
 setupRequired(scipy)
 setupRequired(healpy)
