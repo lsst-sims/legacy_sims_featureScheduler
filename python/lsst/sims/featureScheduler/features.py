@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+from builtins import object
 import numpy as np
 import numpy.ma as ma
 import healpy as hp

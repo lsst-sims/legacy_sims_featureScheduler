@@ -1,4 +1,6 @@
 from __future__ import print_function
+from builtins import zip
+from builtins import object
 import numpy as np
 import healpy as hp
 import pandas as pd
@@ -74,7 +76,7 @@ def empty_observation():
              'airmass', 'FWHMeff', 'skybrightness', 'night']
     # units of rad, rad,   days,  seconds,   string, radians (E of N?)
     types = [float, float, float, float, '|1S', float, int, float, float, float, int]
-    result = np.zeros(1, dtype=zip(names, types))
+    result = np.zeros(1, dtype=list(zip(names, types)))
     return result
 
 
@@ -88,7 +90,7 @@ def empty_scheduled_observation():
     names.extend(['mjd_min', 'mjd_max'])
     types.extend([float, float])
 
-    result = np.zeros(1, dtype=zip(names, types))
+    result = np.zeros(1, dtype=list(zip(names, types)))
     return result
 
 
@@ -104,7 +106,7 @@ def read_fields():
     types = [int, float, float]
     data_dir = os.path.join(getPackageDir('sims_featureScheduler'), 'python/lsst/sims/featureScheduler/')
     filepath = os.path.join(data_dir, 'fieldID.lis')
-    fields = np.loadtxt(filepath, dtype=zip(names, types))
+    fields = np.loadtxt(filepath, dtype=list(zip(names, types)))
     fields['RA'] = np.radians(fields['RA'])
     fields['dec'] = np.radians(fields['dec'])
     return fields
@@ -151,7 +153,7 @@ def hp_kd_tree(nside=set_default_nside(), leafsize=100):
     hpid = np.arange(hp.nside2npix(nside))
     ra, dec = _hpid2RaDec(nside, hpid)
     x, y, z = treexyz(ra, dec)
-    tree = kdtree(zip(x, y, z), leafsize=leafsize, balanced_tree=False, compact_nodes=False)
+    tree = kdtree(list(zip(x, y, z)), leafsize=leafsize, balanced_tree=False, compact_nodes=False)
     return tree
 
 
