@@ -1,7 +1,9 @@
+from __future__ import absolute_import
+from builtins import object
 import numpy as np
 import numpy.ma as ma
 import healpy as hp
-import utils
+from . import utils
 from lsst.sims.utils import m5_flat_sed, raDec2Hpid
 from lsst.sims.skybrightness_pre import M5percentiles
 

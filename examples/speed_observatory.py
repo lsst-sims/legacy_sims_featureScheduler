@@ -1,3 +1,5 @@
+from builtins import zip
+from builtins import object
 import numpy as np
 from lsst.sims.utils import haversine, _hpid2RaDec, _raDec2Hpid, Site
 import lsst.sims.skybrightness_pre as sb

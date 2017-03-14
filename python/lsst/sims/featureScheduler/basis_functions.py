@@ -1,7 +1,9 @@
+from __future__ import absolute_import
+from builtins import object
 import numpy as np
 import numpy.ma as ma
-import features
-import utils
+from . import features
+from . import utils
 import healpy as hp
 from lsst.sims.utils import haversine, _hpid2RaDec
 
