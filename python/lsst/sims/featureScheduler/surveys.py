@@ -1,5 +1,6 @@
+from __future__ import absolute_import
 import numpy as np
-from utils import empty_observation, set_default_nside, read_fields
+from .utils import empty_observation, set_default_nside, read_fields
 from lsst.sims.utils import _hpid2RaDec, _raDec2Hpid
 import healpy as hp
 

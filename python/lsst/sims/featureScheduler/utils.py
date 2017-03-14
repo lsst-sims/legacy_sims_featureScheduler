@@ -1,3 +1,4 @@
+from __future__ import print_function
 import numpy as np
 import healpy as hp
 import pandas as pd
@@ -373,7 +374,7 @@ def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3., filenam
             sys.stdout.flush()
             mjd_track = mjd+0
 
-    print 'Completed %i observations' % len(observations)
+    print('Completed %i observations' % len(observations))
     observations = np.array(observations)[:, 0]
     if filename is not None:
         observations2sqlite(observations, filename=filename)

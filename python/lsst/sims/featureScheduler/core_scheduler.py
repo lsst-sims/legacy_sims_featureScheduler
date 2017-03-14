@@ -1,5 +1,6 @@
+from __future__ import absolute_import
 import numpy as np
-from utils import hp_in_lsst_fov, set_default_nside
+from .utils import hp_in_lsst_fov, set_default_nside
 
 default_nside = set_default_nside()
 
