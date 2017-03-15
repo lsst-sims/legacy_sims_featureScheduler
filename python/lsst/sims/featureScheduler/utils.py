@@ -416,6 +416,15 @@ def observations2sqlite(observations, filename='observations.db'):
     return observations
 
 
+def sqlite2observations(filename='observations.db'):
+    """
+    Restore a databse of observations.
+    """
+    con = db.connect(filename)
+    df = pd.read_sql('select * from SummaryAllProps;', con)
+    return df
+
+
 def inrange(inval, minimum=-1., maximum=1.):
     """
     Make sure values are within min/max
