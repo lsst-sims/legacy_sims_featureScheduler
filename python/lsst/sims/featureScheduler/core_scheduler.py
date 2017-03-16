@@ -35,7 +35,7 @@ class Core_scheduler(object):
 
     def add_observation(self, observation):
         """
-        Record a completed observation and update features accourdingly.
+        Record a completed observation and update features accordingly.
 
         Parameters
         ----------
