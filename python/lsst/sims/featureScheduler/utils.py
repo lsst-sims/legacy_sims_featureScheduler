@@ -12,6 +12,7 @@ import os
 import sys
 from lsst.utils import getPackageDir
 import sqlite3 as db
+from lsst.sims.utils import haversine
 
 
 def set_default_nside(nside=None):
@@ -504,3 +505,26 @@ def sort_pointings(observations, order_first='azimuth'):
     # Note that the az rotation is a problem near zenith. 
     # does a greedy walk do a good job?
 
+def simple_performance_measure(observations, preferences):
+# sum of slew times
+    sum_slew = 0; temp = 0
+    shifted_obs = np.roll(observations, -1)
+    for ra0,dec0,ra1,dec1 in zip(observations['RA'], observations['dec'], shifted_obs['RA'], shifted_obs['dec']):
+        temp = slew_time(ra0, dec0, ra1, dec1)
+        sum_slew += temp
+    sum_slew -= temp # last element is not a real slew
+
+# number of observations
+    N_obs = len(observations['RA'])
+
+# performance
+    return -preferences[0]* sum_slew + preferences[1] * N_obs
+
+def slew_time(ra0, dec0, ra1, dec1):
+    ang_speed = np.radians(5.)
+    """
+    Compute slew time to new ra, dec position
+    """
+    dist = haversine(ra1, dec1, ra0, dec0)
+    time = dist / ang_speed
+    return time

@@ -12,7 +12,7 @@ if __name__ == "__main__":
     bfs = []
     bfs.append(fs.Depth_percentile_basis_function())
     bfs.append(fs.Target_map_basis_function(target_map=target_map))
-    weights = np.array([.5, 1])
+    weights = np.array([5, 1])
     survey = fs.Simple_greedy_survey(bfs, weights)
     scheduler = fs.Core_scheduler([survey])
 
