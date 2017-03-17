@@ -37,14 +37,14 @@ class BlackTraining():
 
 
 
-N_p     = 10
-F       = 0.8
-Cr      = 0.8
-maxIter = 10
-Domain  = np.array([[0,20], [0,20]])
-D       = 2
+N_p     = 5      # number of candidate solutions that are supposed to explore the space of solution in each iteration, rule of thumb: ~10*D
+F       = 0.8    # algorithm meta parameter (mutation factor that determines the amount of change for the derivation of candidate solutions of the next iteration)
+Cr      = 0.8    # algorithm meta parameter (crossover rate)
+maxIter = 10     # maximum number of iterations. maximum number of function evaluations = N_p * maxIter,
+Domain  = np.array([[0,20], [0,20]]) # Final solution would lie in this domain
+D       = 2      # weights dimension
 
-preferences     = [1,1]
+preferences     = [1,1]  # to define the objective function based on scientific preferences, can have any dimension
 #P1: slew time     * -1
 #P2: N_observation * 1
 
