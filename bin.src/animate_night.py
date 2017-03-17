@@ -41,10 +41,10 @@ def AltAz2XY(Alt, Az):
     #Y = Alt * 2/ np.pi
     #X = Az / (2*np.pi)
 
-    return Y, -1*X
+    return -1.*Y, -1.*X
 
 
-def visualize(Date, file_name, PlotID = 1,FPS = 15,Steps = 20,MP4_quality = 300, Name = "Visualization.mp4", showClouds = False):
+def visualize(night, file_name, PlotID = 1,FPS = 15,Steps = 20,MP4_quality = 300, Name = "Visualization.mp4", showClouds = False):
 
     # Import data
     '''
@@ -64,8 +64,7 @@ def visualize(Date, file_name, PlotID = 1,FPS = 15,Steps = 20,MP4_quality = 300,
 
 
     #Initialize date and time
-    lastN_start = float(Date) -1;   lastN_end = float(Date)
-    toN_start = float(Date);        toN_end = float(Date) + 1
+    last_night = night-1
 
     #Connect to the History data base
     con = lite.connect(file_name)
@@ -161,18 +160,18 @@ def visualize(Date, file_name, PlotID = 1,FPS = 15,Steps = 20,MP4_quality = 300,
     # Figure labels and fixed elements
     Phi = np.arange(0, 2* np.pi, 0.05)
     Horizon.set_data(1.01*np.cos(Phi), 1.01*np.sin(Phi))
-    ax.text(-1.3, 0, 'West', color = 'white', fontsize = 7)
-    ax.text(1.15, 0 ,'East', color = 'white', fontsize = 7)
+    ax.text(-1.3, 0, 'East', color = 'white', fontsize = 7)
+    ax.text(1.15, 0 ,'West', color = 'white', fontsize = 7)
     ax.text( 0, 1.1, 'North', color = 'white', fontsize = 7)
     airmass_horizon.set_data(np.cos(np.pi/4) * np.cos(Phi), np.cos(np.pi/4) *  np.sin(Phi))
     ax.text(-.3, 0.6, 'Acceptable airmass horizon', color = 'white', fontsize = 5, fontweight = 'bold')
-    Alt, Az = Fields_local_coordinate(180, -90, toN_start, Site)
+    Alt, Az = Fields_local_coordinate(180, -90, 59581.0381944435, Site)
     x, y = AltAz2XY(Alt,Az)
     S_Pole.set_data(x, y)
     ax.text(x+ .05, y, 'S-Pole', color = 'white', fontsize = 7)
 
     # Observed last night fields
-    cur.execute('SELECT RA, dec, mjd, filter FROM SummaryAllProps WHERE mjd BETWEEN (?) AND (?)',(lastN_start, lastN_end))
+    cur.execute('SELECT RA, dec, mjd, filter FROM SummaryAllProps WHERE night=%i' % (last_night))
     row = cur.fetchall()
     if row is not None:
         F1 = [x[0:2] for x in row]
@@ -180,7 +179,7 @@ def visualize(Date, file_name, PlotID = 1,FPS = 15,Steps = 20,MP4_quality = 300,
         F1 = []
 
     # Tonight observation path
-    cur.execute('SELECT RA, dec, mjd, filter FROM SummaryAllProps WHERE mjd BETWEEN (?) AND (?)',(toN_start, toN_end))
+    cur.execute('SELECT RA, dec, mjd, filter FROM SummaryAllProps WHERE night=%i' % (night))
     row = cur.fetchall()
     if row[0][0] is not None:
         F2 = [x[0:2] for x in row]
@@ -359,7 +358,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="Generate an animation of number of nights from a simulation database")
     parser.add_argument("file_name", type=str, help="sqlite database")
-    parser.add_argument("--night", type=int, default=0, help="the night to start on")
+    parser.add_argument("--night", type=int, default=1, help="the night to start on")
     parser.add_argument("--n_nights", type=int, default=1, help="number of nights to animate")
 
     args = parser.parse_args()
@@ -367,8 +366,8 @@ if __name__ == '__main__':
 
     n_nights = args.n_nights  # number of the nights to be scheduled starting from 1st Jan. 2021
 
-    for i in range(n_nights + args.night):
-        Date = 59581.0381944435 + i # times are in UT
+    for i in range(args.night, n_nights + args.night):
+        night = i
 
         # create animation
         FPS = 10            # Frame per second
@@ -376,5 +375,5 @@ if __name__ == '__main__':
         MP4_quality = 300   # MP4 size and quality
 
         PlotID = 1        # 1 for one Plot, 2 for including covering pattern
-        visualize(Date, file_name, PlotID ,FPS, Steps, MP4_quality, 'LSST1plot{}.mp4'.format(i + 1), showClouds= False)
+        visualize(night, file_name, PlotID ,FPS, Steps, MP4_quality, 'LSST1plot{}.mp4'.format(i + 1), showClouds= False)
 
