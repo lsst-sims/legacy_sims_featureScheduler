@@ -1,7 +1,7 @@
 from builtins import zip
 from builtins import object
 import numpy as np
-from lsst.sims.utils import haversine, _hpid2RaDec, _raDec2Hpid, Site
+from lsst.sims.utils import haversine, _hpid2RaDec, _raDec2Hpid, Site, calcLmstLast
 import lsst.sims.skybrightness_pre as sb
 import healpy as hp
 import lsst.sims.featureScheduler.utils as utils
@@ -9,6 +9,7 @@ import ephem
 
 sec2days = 1./(3600.*24.)
 default_nside = utils.set_default_nside()
+doff = ephem.Date(0)-ephem.Date('1858/11/17')
 
 
 class Speed_observatory(object):
@@ -61,10 +62,21 @@ class Speed_observatory(object):
         hpids = np.arange(hp.nside2npix(nside))
         self.ra_all_sky, self.dec_all_sky = _hpid2RaDec(nside, hpids)
         self.status = None
+        
+        self.site = Site(name='LSST')
+        self.obs = ephem.Observer()
+        self.obs.lat = self.site.latitude_rad
+        self.obs.lon = self.site.longitude_rad
+        self.obs.elevation = self.site.height
+
+        self.obs.horizon = 0.
+
+        self.sun = ephem.Sun()
 
         # Generate sunset times so we can label nights by integers
         self.generate_sunsets()
         self.night = self.mjd2night(self.mjd)
+
 
     def slew_time(self, ra, dec):
         """
@@ -77,10 +89,13 @@ class Speed_observatory(object):
     def return_status(self):
         """
         Return a dict full of the current info about the observatory and sky.
+
+        XXX-- Need to document all these with units!!!
         """
         result = {}
         result['mjd'] = self.mjd
         result['night'] = self.night
+        result['lmst'], last = calcLmstLast(self.mjd, self.site.longitude_rad)
         result['skybrightness'] = self.sky.returnMags(self.mjd)
         result['airmass'] = self.sky.returnAirmass(self.mjd)
         # XXX Obviously need to update to a real seeing table, and make it a full-sky map, and filter, airmass dependent
@@ -89,7 +104,9 @@ class Speed_observatory(object):
         result['filter'] = self.filtername
         result['RA'] = self.ra
         result['dec'] = self.dec
-
+        result['next_twilight_start'] = self.next_twilight_start(self.mjd)
+        result['next_twilight_end'] = self.next_twilight_end(self.mjd)
+        result['last_twilight_end'] = self.last_twilight_end(self.mjd)
         self.status = result
         return result
 
@@ -167,6 +184,9 @@ class Speed_observatory(object):
         Generate the sunrise times for LSST so we can label nights by MJD
         """
 
+        # Set observatory horizon to zero
+        self.obs.horizon = 0.
+
         # Swipe dates to match sims_skybrightness_pre365
         mjd_start = self.mjd
         mjd_end = np.arange(59560, 59560+365.25*nyears+day_pad+366, 366).max()
@@ -174,23 +194,13 @@ class Speed_observatory(object):
         mjds = np.arange(mjd_start, mjd_end+step, step)
         setting = mjds*0.
 
-        site = Site(name='LSST')
-        lsstObs = ephem.Observer()
-        lsstObs.lat = site.latitude_rad
-        lsstObs.lon = site.longitude_rad
-        lsstObs.elevation = site.height
-
         # Stupid Dublin Julian Date
-        doff = ephem.Date(0)-ephem.Date('1858/11/17')
         djds = mjds - doff
         sun = ephem.Sun()
-        obs = ephem.Observer()
-        obs.lat, obs.lon, obs.elevation = lsstObs.lat, lsstObs.lon, lsstObs.elevation
-        obs.horizon = 0.
 
         for i, (mjd, djd) in enumerate(zip(mjds, djds)):
             sun.compute(djd)
-            setting[i] = obs.previous_setting(sun, start=djd, use_center=True)
+            setting[i] = self.obs.previous_setting(sun, start=djd, use_center=True)
         setting = setting + doff
 
         # zomg, round off crazy floating point precision issues
@@ -199,6 +209,22 @@ class Speed_observatory(object):
         self.setting_sun_mjds = setting[indx]
         left = np.searchsorted(self.setting_sun_mjds, mjd_start)
         self.setting_sun_mjds = self.setting_sun_mjds[left:]
+
+    def next_twilight_start(self, mjd, twi_limit=-18.):
+        # find the next rising twilight. String to make it degrees I guess?
+        self.obs.horizon = str(twi_limit)
+        next_twi = self.obs.next_rising(self.sun, start=mjd-doff)+doff
+        return next_twi
+
+    def next_twilight_end(self, mjd, twi_limit=-18.):
+        self.obs.horizon = str(twi_limit)
+        next_twi = self.obs.next_setting(self.sun, start=mjd-doff)+doff
+        return next_twi
+
+    def last_twilight_end(self, mjd, twi_limit=-18.):
+        self.obs.horizon = str(twi_limit)
+        next_twi = self.obs.previous_setting(self.sun, start=mjd-doff)+doff
+        return next_twi
 
     def mjd2night(self, mjd):
         """
