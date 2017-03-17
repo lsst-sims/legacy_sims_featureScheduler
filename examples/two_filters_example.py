@@ -7,14 +7,14 @@ from speed_observatory import Speed_observatory
 
 if __name__ == "__main__":
 
-    survey_length = 3.  # days
+    survey_length = 5.2  # days
     # Define what we want the final visit ratio map to look like
     target_maps = fs.standard_goals()
 
     filters = ['r', 'i']
     weights = {}
     weights['r'] = [1., 1., 1.]
-    weights['i'] = [2., 1., 0.]
+    weights['i'] = [1.5, 1., 0.]
     surveys = []
     for filtername in filters:
         bfs = []
@@ -27,4 +27,5 @@ if __name__ == "__main__":
     scheduler = fs.Core_scheduler(surveys)
 
     observatory = Speed_observatory()
-    observatory, scheduler, observations = fs.sim_runner(observatory, scheduler, survey_length=survey_length)
+    observatory, scheduler, observations = fs.sim_runner(observatory, scheduler, survey_length=survey_length,
+                                                         filename='two_filt.db')
