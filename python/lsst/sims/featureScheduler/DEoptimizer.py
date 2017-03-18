@@ -109,8 +109,7 @@ class DE_optimizer(object):
     def evolve(self):
     #Candidate
         self.ui = self.cal_trials()
-        if self.gray_training:
-            self.after_score_ui = np.zeros(np.shape(self.ui))
+        self.after_score_ui = np.zeros(np.shape(self.ui))
     #Selection
         for trial_indx in range(self.population_size):
             trial_score = self.score_trial(trial_indx)
