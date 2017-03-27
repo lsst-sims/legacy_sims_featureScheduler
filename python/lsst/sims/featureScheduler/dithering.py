@@ -1,5 +1,6 @@
 import numpy as np
 import healpy as hp
+from scipy.optimize import minimize
 from .utils import treexyz, hp_kd_tree, rad_length, set_default_nside, read_fields
 
 default_nside = set_default_nside()
@@ -37,6 +38,8 @@ def wrapRADec(ra, dec):
 def rotate_ra_dec(ra, dec, ra_target, dec_target, init_rotate=0.):
     """
     Rotate ra and dec coordinates to be centered on a new dec.
+
+    Rotates around the x-axis 1st, then to the dec, then ra.
 
     Inputs
     ------
@@ -94,7 +97,8 @@ class pointings2hp(object):
         """
 
         """
-        self.tree = hp_kd_tree(nside=nside, leafsize=200)
+        # hmm, not sure what the leafsize should be? Kernel can crash if too low.
+        self.tree = hp_kd_tree(nside=nside, leafsize=300)
         self.nside = nside
         self.rad = rad_length(radius)
         self.bins = np.arange(hp.nside2npix(nside)+1)-.5
@@ -117,7 +121,6 @@ class pointings2hp(object):
         """
         xs, ys, zs = treexyz(ra, dec)
         coords = np.array((xs, ys, zs)).T
-        # This seems to fail for more than 200 pointings?
         indx = self.tree.query_ball_point(coords, self.rad)
         # Convert array of lists to single array
         if stack:
@@ -125,7 +128,7 @@ class pointings2hp(object):
             result, bins = np.histogram(indx, bins=self.bins)
         else:
             result = indx
-        
+
         return result
 
 
@@ -133,12 +136,14 @@ class hpmap_cross(object):
     """
     Find the cross-correlation of a healpix map and a bunch of rotated pointings
     """
-    def __init__(self, nside=default_nside, radius=1.75):
+    # XXX--just a very random radius search
+    def __init__(self, nside=default_nside, radius=1.75, radius_search=1.5):
         """
 
         """
-
+        self.nside = nside
         # XXX -- should I shrink the radius slightly to get rid of overlap? That would be clever!
+        self.p2hp_search = pointings2hp(nside=nside, radius=radius_search)
         self.p2hp = pointings2hp(nside=nside, radius=radius)
         # Load up a list of pointings, chop them down to a small block
 
@@ -152,17 +157,21 @@ class hpmap_cross(object):
         self.ra = fields['RA']
         self.dec = fields['dec']
 
-    def __call__(self, inmap, ra_rot, dec_rot, im_rot, return_pointings_map=False):
+    def set_map(self, inmap):
+        """
+        Set the map that will be cross correlated
+        """
+        self.inmap = inmap
+
+    def __call__(self, x, return_pointings_map=False):
         """
         Parameters
         ----------
-        inmap : numpy array
-             A Healpixel map.
-        ra_rot : float
+        x[0], ra_rot : float
             Amount to rotate the fields in RA (radians)
-        dec_rot : float
+        x[1], dec_rot : float
             Amount to rotate the fields in Dec (radians)
-        im_rot : float
+        x[2], im_rot : float
             Initial rotation to apply to fields (radians)
         return_pointings_map : bool (False)
             If set, return the overlapping fields and the resulting observing helpix map
@@ -170,31 +179,63 @@ class hpmap_cross(object):
         Returns
         -------
         cross_corr : float
-            If return_pointings_map is False, return the sum of the pointing map multipled 
-            with the 
+            If return_pointings_map is False, return the sum of the pointing map multipled
+            with the
         """
-        # XXX-check the nside 
+        # XXX-check the nside
+
+        # Unpack the x variable
+        ra_rot = x[0]
+        dec_rot = x[1]
+        im_rot = x[2]
+
         # Rotate pointings to desired position
         final_ra, final_dec = rotate_ra_dec(self.ra, self.dec, ra_rot, dec_rot, init_rotate=im_rot)
         # Find the number of observations at each healpixel
-        obs_map = self.p2hp(final_ra, final_dec)
-        good = np.where(inmap != hp.UNSEEN)[0]
+        obs_map = self.p2hp_search(final_ra, final_dec)
+        good = np.where(self.inmap != hp.UNSEEN)[0]
 
         # Should check that the pointings cover the area where I want them.
 
         if return_pointings_map:
-            obs_indx = self.p2hp(final_ra, final_dec, stack=False)
+            obs_indx = self.p2hp_search(final_ra, final_dec, stack=False)
             good_pointings = np.array([True if np.intersect1d(indxes, good).size > 0
                                       else False for indxes in obs_indx])
             obs_map = self.p2hp(final_ra[good_pointings], final_dec[good_pointings])
             return final_ra[good_pointings], final_dec[good_pointings], obs_map
         else:
-            result = np.sum(inmap[good] * obs_map[good])
+            result = np.sum(self.inmap[good] * obs_map[good])
             return result
 
+    def minimize(self, x0, ra_delta=1., dec_delta=1., rot_delta=30.):
+        """
+        Let's find the minimum of the cross correlation
+        """
 
+        ra_delta = np.radians(ra_delta)
+        dec_delta = np.radians(dec_delta)
+        rot_delta = np.radians(rot_delta)
 
+        rots = np.arange(-np.pi/2., np.pi/2.+rot_delta, rot_delta)
 
+        # Make sure the initial simplex is large enough
+        # XXX--might need to update scipy to actually use this.
+        deltas = np.array([[ra_delta, 0, 0],
+                          [0, dec_delta, rot_delta],
+                          [-ra_delta, 0, -rot_delta],
+                          [ra_delta, dec_delta, 2.*rot_delta]])
+        init_simplex = deltas + x0
+        minimum = None
+        for rot in rots:
+            x0[-1] = rot
+            min_result = minimize(self, x0)
+            if minimum is None:
+                minimum = min_result.fun
+                result = min_result
+            if min_result.fun < minimum:
+                minimum = min_result.fun
+                result = min_result
+        return result.x
 
 
 
