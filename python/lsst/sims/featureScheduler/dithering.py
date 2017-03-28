@@ -2,6 +2,7 @@ import numpy as np
 import healpy as hp
 from scipy.optimize import minimize
 from .utils import treexyz, hp_kd_tree, rad_length, set_default_nside, read_fields
+from lsst.sims.utils import _hpid2RaDec
 
 default_nside = set_default_nside()
 
@@ -148,7 +149,7 @@ class hpmap_cross(object):
         # Load up a list of pointings, chop them down to a small block
 
         # XXX--Should write code to generate a new tellelation so we know where it came from,
-        # not just a random .dat file that's been floating around! 
+        # not just a random .dat file that's been floating around!
         fields = read_fields()
         good = np.where((fields['RA'] > np.radians(360.-15.)) | (fields['RA'] < np.radians(15.)))
         fields = fields[good]
@@ -156,6 +157,9 @@ class hpmap_cross(object):
         fields = fields[good]
         self.ra = fields['RA']
         self.dec = fields['dec']
+
+        # Healpixel ra and dec
+        self.hp_ra, self.hp_dec = _hpid2RaDec(nside, np.arange(hp.nside2npix(nside)))
 
     def set_map(self, inmap):
         """
@@ -207,10 +211,20 @@ class hpmap_cross(object):
             result = np.sum(self.inmap[good] * obs_map[good])
             return result
 
-    def minimize(self, x0, ra_delta=1., dec_delta=1., rot_delta=30.):
+    def minimize(self, ra_delta=1., dec_delta=1., rot_delta=30.):
         """
-        Let's find the minimum of the cross correlation
+        Let's find the minimum of the cross correlation.
         """
+
+        # Hmm, this minimization seems to be failing. Maybe start with a
+        # Mesh search, then use that as the initial guess to the simplex?
+        # 6x6x10 = 360 calls to start?
+
+        good_im = np.where(self.inmap != hp.UNSEEN)
+
+        ra_guess = np.median(self.hp_ra[good_im])
+        dec_guess = np.median(self.hp_dec[good_im])
+        x0 = np.array([ra_guess, dec_guess, 0.])
 
         ra_delta = np.radians(ra_delta)
         dec_delta = np.radians(dec_delta)
@@ -223,12 +237,13 @@ class hpmap_cross(object):
         deltas = np.array([[ra_delta, 0, 0],
                           [0, dec_delta, rot_delta],
                           [-ra_delta, 0, -rot_delta],
-                          [ra_delta, dec_delta, 2.*rot_delta]])
+                          [ra_delta, -dec_delta, 2.*rot_delta]])
         init_simplex = deltas + x0
         minimum = None
         for rot in rots:
             x0[-1] = rot
-            min_result = minimize(self, x0)
+            min_result = minimize(self, x0, method='Nelder-Mead',
+                                  options={'initial_simplex': init_simplex})
             if minimum is None:
                 minimum = min_result.fun
                 result = min_result
