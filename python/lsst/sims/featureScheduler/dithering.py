@@ -216,22 +216,19 @@ class hpmap_cross(object):
         Let's find the minimum of the cross correlation.
         """
 
-        # Hmm, this minimization seems to be failing. Maybe start with a
-        # Mesh search, then use that as the initial guess to the simplex?
-        # 6x6x10 = 360 calls to start?
-
         good_im = np.where(self.inmap != hp.UNSEEN)
 
         ra_guess = np.median(self.hp_ra[good_im])
         dec_guess = np.median(self.hp_dec[good_im])
+        # x0 = np.array([ra_guess, dec_guess, 0.])
         x0 = np.array([ra_guess, dec_guess, 0.])
 
         ra_delta = np.radians(ra_delta)
         dec_delta = np.radians(dec_delta)
         rot_delta = np.radians(rot_delta)
 
-        rots = np.arange(-np.pi/2., np.pi/2.+rot_delta, rot_delta)
-
+        # rots = np.arange(-np.pi/2., np.pi/2.+rot_delta, rot_delta)
+        rots = [np.radians(0.)]
         # Make sure the initial simplex is large enough
         # XXX--might need to update scipy to actually use this.
         deltas = np.array([[ra_delta, 0, 0],
