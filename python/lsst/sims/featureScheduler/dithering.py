@@ -138,7 +138,7 @@ class hpmap_cross(object):
     Find the cross-correlation of a healpix map and a bunch of rotated pointings
     """
     # XXX--just a very random radius search
-    def __init__(self, nside=default_nside, radius=1.75, radius_search=1.5):
+    def __init__(self, nside=default_nside, radius=1.75, radius_search=1.75):
         """
 
         """
@@ -208,7 +208,7 @@ class hpmap_cross(object):
             obs_map = self.p2hp(final_ra[good_pointings], final_dec[good_pointings])
             return final_ra[good_pointings], final_dec[good_pointings], obs_map
         else:
-            result = np.sum(self.inmap[good] * obs_map[good])
+            result = np.sum(self.inmap[good] * obs_map[good])/float(np.sum(self.inmap[good] + obs_map[good]))
             return result
 
     def minimize(self, ra_delta=1., dec_delta=1., rot_delta=30.):
