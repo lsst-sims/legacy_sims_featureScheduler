@@ -230,7 +230,7 @@ class hpmap_cross(object):
         # rots = np.arange(-np.pi/2., np.pi/2.+rot_delta, rot_delta)
         rots = [np.radians(0.)]
         # Make sure the initial simplex is large enough
-        # XXX--might need to update scipy to actually use this.
+        # XXX--might need to update scipy latest version to actually use this.
         deltas = np.array([[ra_delta, 0, 0],
                           [0, dec_delta, rot_delta],
                           [-ra_delta, 0, -rot_delta],

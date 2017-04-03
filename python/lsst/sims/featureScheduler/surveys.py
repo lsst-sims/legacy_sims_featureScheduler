@@ -5,6 +5,8 @@ import numpy as np
 from .utils import empty_observation, set_default_nside, read_fields
 from lsst.sims.utils import _hpid2RaDec, _raDec2Hpid
 import healpy as hp
+from . import features
+from . import dithering
 
 
 default_nside = set_default_nside()
@@ -71,7 +73,8 @@ class BaseSurvey(object):
 
     def smooth_reward(self):
         if hp.isnpixok(self.reward.size):
-            self.reward = hp.sphtfunc.smoothing(self.reward.filled(), fwhm=self.smooth_reward)
+            self.reward_smooth = hp.sphtfunc.smoothing(self.reward.filled(),
+                                                       fwhm=self.smoothing_kernel)
         # Might need to check if mask expanded?
 
     def calc_reward_function(self):
@@ -93,7 +96,9 @@ class BaseSurvey(object):
             self.reward = -np.inf
         if self.smoothing_kernel is not None:
             self.smooth_reward()
-        return self.reward
+            return self.reward_smooth
+        else:
+            return self.reward
 
     def __call__(self):
         """
@@ -115,6 +120,58 @@ class BaseSurvey(object):
         # XXX--zomg, we should have a method that goes through all the objects and
         # makes plots/prints info so there can be a little notebook showing the config!
         pass
+
+
+class Smooth_area_survey(BaseSurvey):
+    """
+    Survey that selects a large area block at a time
+    """
+    def __init__(self, basis_functions, basis_weights, extra_features=None, filtername='r',
+                 block_size=100, smoothing_kernel=3.5):
+
+        if extra_features is None:
+            self.extra_features = []
+            self.extra_features.append(features.Coadded_depth(filtername=filtername))
+
+        super(Simple_greedy_survey, self).__init__(basis_functions=basis_functions,
+                                                   basis_weights=basis_weights,
+                                                   extra_features=self.extra_features,
+                                                   smoothing_kernel=smoothing_kernel)
+        self.filtername = filtername
+        self.block_size = block_size
+        # Make the dithering solving object
+        self.hpc = dithering.hpmap_cross(nside=default_nside)
+
+    def __call__(self):
+        """
+        Return pointings for a block of sky
+        """
+        if not self.reward_checked:
+            reward_smooth = self.calc_reward_function()
+        else:
+            reward_smooth = self.reward_smooth
+
+        # Pick the top healpixels to observe
+        order = np.argsort(reward_smooth)
+        selected = order[-self.blocksize:]
+
+        # Construct masked 5-sigma depth map to cross-correlate
+        to_observe = np.empty(reward_smooth.size, dtype=float)
+        to_observe.fill(hp.UNSEEN)
+        to_observe[selected] = self.extra_features[0].feature[selected]
+        self.hpc.set_map(to_observe)
+        best_fit_shifts = self.hpc.minimize()
+        ra_pointings, dec_pointings, obs_map = self.hpc(best_fit_shifts, return_pointings_map=True)
+        observations = []
+        for ra, dec in zip(ra_pointings, dec_pointings):
+            obs = empty_observation()
+            obs['RA'] = ra
+            obs['dec'] = dec
+            obs['filter'] = self.filtername
+            obs['nexp'] = 2.
+            obs['exptime'] = 30.
+            observations.append(obs)
+        return observations
 
 
 class Simple_greedy_survey(BaseSurvey):
