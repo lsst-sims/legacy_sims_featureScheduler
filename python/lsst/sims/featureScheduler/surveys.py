@@ -127,7 +127,15 @@ class Smooth_area_survey(BaseSurvey):
     Survey that selects a large area block at a time
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, filtername='r',
-                 block_size=100, smoothing_kernel=3.5):
+                 block_size=100, smoothing_kernel=3.5, max_region_size=20.):
+    """
+    Parameters
+    ----------
+    block_size : int (100)
+        Number of healpixels to select to observe in each observing block.
+    max_region_size : float (20.)
+       How far away to consider healpixes after the reward function max is found (degrees)
+    """
 
         if extra_features is None:
             self.extra_features = []
@@ -141,6 +149,7 @@ class Smooth_area_survey(BaseSurvey):
         self.block_size = block_size
         # Make the dithering solving object
         self.hpc = dithering.hpmap_cross(nside=default_nside)
+        self.max_region_size = np.radians(max_region_size)
 
     def __call__(self):
         """
@@ -152,12 +161,17 @@ class Smooth_area_survey(BaseSurvey):
             reward_smooth = self.reward_smooth
 
         # Pick the top healpixels to observe
+        reward_max = np.where(reward_smooth == np.max(reward_smooth))[0].min()
+
         order = np.argsort(reward_smooth)
         selected = order[-self.blocksize:]
 
         # Construct masked 5-sigma depth map to cross-correlate
         to_observe = np.empty(reward_smooth.size, dtype=float)
         to_observe.fill(hp.UNSEEN)
+        # Make sure we have a contiguous blob
+        # XXX--can use hp.query_disc to 
+
         to_observe[selected] = self.extra_features[0].feature[selected]
         self.hpc.set_map(to_observe)
         best_fit_shifts = self.hpc.minimize()
