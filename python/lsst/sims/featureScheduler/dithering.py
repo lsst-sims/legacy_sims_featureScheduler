@@ -199,8 +199,7 @@ class hpmap_cross(object):
         obs_map = self.p2hp_search(final_ra, final_dec)
         good = np.where(self.inmap != hp.UNSEEN)[0]
 
-        # Should check that the pointings cover the area where I want them.
-
+        
         if return_pointings_map:
             obs_indx = self.p2hp_search(final_ra, final_dec, stack=False)
             good_pointings = np.array([True if np.intersect1d(indxes, good).size > 0
@@ -208,19 +207,31 @@ class hpmap_cross(object):
             obs_map = self.p2hp(final_ra[good_pointings], final_dec[good_pointings])
             return final_ra[good_pointings], final_dec[good_pointings], obs_map
         else:
-            result = np.sum(self.inmap[good] * obs_map[good])/float(np.sum(self.inmap[good] + obs_map[good]))
-            return result
+            # If some requested pixels are not observed
+            if np.min(obs_map[good] == 0):
+                return np.inf
+            else:
+                result = np.sum(self.inmap[good] * obs_map[good])/float(np.sum(self.inmap[good] + obs_map[good]))
+                return result
 
     def minimize(self, ra_delta=1., dec_delta=1., rot_delta=30.):
         """
         Let's find the minimum of the cross correlation.
         """
-        # good_im = np.where(self.inmap != hp.UNSEEN)
 
-        reward_max = np.min(np.where(self.inmap == self.inmap.max())[0])
+        # XXX -- need to work on making sure all requested pixels are covered.
 
-        ra_guess = np.median(self.hp_ra[reward_max])
-        dec_guess = np.median(self.hp_dec[reward_max])
+        good_im = np.where(self.inmap != hp.UNSEEN)
+        ra_guess = np.median(self.hp_ra[good_im])
+        dec_guess = np.median(self.hp_dec[good_im])
+
+        #import pdb ; pdb.set_trace()
+
+        #reward_max = np.where(self.inmap == self.inmap.max())[0]
+        #ra_guess = np.median(self.hp_ra[reward_max])
+        #dec_guess = np.median(self.hp_dec[reward_max])
+
+        #import pdb ; pdb.set_trace
 
         # x0 = np.array([ra_guess, dec_guess, 0.])
         x0 = np.array([ra_guess, dec_guess, 0.])
