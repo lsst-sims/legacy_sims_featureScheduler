@@ -55,14 +55,16 @@ class BaseSurvey(object):
         for bf in self.basis_functions:
             bf.add_observation(observation, **kwargs)
         for feature in self.extra_features:
-            feature.add_observation(observation, **kwargs)
+            if hasattr(feature, 'add_observation'):
+                feature.add_observation(observation, **kwargs)
         self.reward_checked = False
 
     def update_conditions(self, conditions, **kwargs):
         for bf in self.basis_functions:
             bf.update_conditions(conditions, **kwargs)
         for feature in self.extra_features:
-            feature.update_conditions(conditions, **kwargs)
+            if hasattr(feature, 'update_conditions'):
+                feature.update_conditions(conditions, **kwargs)
         self.reward_checked = False
 
     def _check_feasability(self):
@@ -127,29 +129,32 @@ class Smooth_area_survey(BaseSurvey):
     Survey that selects a large area block at a time
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, filtername='r',
-                 block_size=100, smoothing_kernel=3.5, max_region_size=20.):
-    """
-    Parameters
-    ----------
-    block_size : int (100)
-        Number of healpixels to select to observe in each observing block.
-    max_region_size : float (20.)
-       How far away to consider healpixes after the reward function max is found (degrees)
-    """
+                 block_size=100, smoothing_kernel=3.5, max_region_size=20., nside=default_nside):
+        """
+        Parameters
+        ----------
+        block_size : int (100)
+            Number of healpixels to select to observe in each observing block.
+        max_region_size : float (20.)
+           How far away to consider healpixes after the reward function max is found (degrees)
+        """
 
         if extra_features is None:
             self.extra_features = []
-            self.extra_features.append(features.Coadded_depth(filtername=filtername))
+            self.extra_features.append(features.Coadded_depth(filtername=filtername,
+                                                              nside=nside))
+            self.extra_features[0].feature += 1e-5
 
-        super(Simple_greedy_survey, self).__init__(basis_functions=basis_functions,
-                                                   basis_weights=basis_weights,
-                                                   extra_features=self.extra_features,
-                                                   smoothing_kernel=smoothing_kernel)
+        super(Smooth_area_survey, self).__init__(basis_functions=basis_functions,
+                                                 basis_weights=basis_weights,
+                                                 extra_features=self.extra_features,
+                                                 smoothing_kernel=smoothing_kernel)
         self.filtername = filtername
         self.block_size = block_size
         # Make the dithering solving object
         self.hpc = dithering.hpmap_cross(nside=default_nside)
         self.max_region_size = np.radians(max_region_size)
+        self.nside = nside
 
     def __call__(self):
         """
@@ -164,18 +169,26 @@ class Smooth_area_survey(BaseSurvey):
         reward_max = np.where(reward_smooth == np.max(reward_smooth))[0].min()
 
         order = np.argsort(reward_smooth)
-        selected = order[-self.blocksize:]
+        selected = order[-self.block_size:]
 
         # Construct masked 5-sigma depth map to cross-correlate
-        to_observe = np.empty(reward_smooth.size, dtype=float)
+        to_observe = np.zeros(reward_smooth.size, dtype=float)
         to_observe.fill(hp.UNSEEN)
-        # Make sure we have a contiguous blob
-        # XXX--can use hp.query_disc to 
+        # Only those within max_region_size of the maximum
+        max_vec = hp.pix2vec(self.nside, reward_max)
+        pix_in_disk = hp.query_disc(self.nside, max_vec, self.max_region_size)
 
+        # Select healpixels that have high reward, and are within
+        # radius of the maximum pixel
+        selected = np.intersect1d(selected, pix_in_disk)
         to_observe[selected] = self.extra_features[0].feature[selected]
+
+        # Find the pointings that observe the given pixels, and minimize the cross-correlation
+        # between pointing overlaps regions and co-added depth
         self.hpc.set_map(to_observe)
         best_fit_shifts = self.hpc.minimize()
         ra_pointings, dec_pointings, obs_map = self.hpc(best_fit_shifts, return_pointings_map=True)
+        # Package up the observations.
         observations = []
         for ra, dec in zip(ra_pointings, dec_pointings):
             obs = empty_observation()
@@ -299,8 +312,6 @@ class Deep_drill_survey(BaseSurvey):
         # scripted_survey list, then send one over
         return self.scripted_survey.copy()
 
-
-        
 
 class Scripted_survey(BaseSurvey):
     """

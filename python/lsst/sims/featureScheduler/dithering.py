@@ -215,11 +215,13 @@ class hpmap_cross(object):
         """
         Let's find the minimum of the cross correlation.
         """
+        # good_im = np.where(self.inmap != hp.UNSEEN)
 
-        good_im = np.where(self.inmap != hp.UNSEEN)
+        reward_max = np.min(np.where(self.inmap == self.inmap.max())[0])
 
-        ra_guess = np.median(self.hp_ra[good_im])
-        dec_guess = np.median(self.hp_dec[good_im])
+        ra_guess = np.median(self.hp_ra[reward_max])
+        dec_guess = np.median(self.hp_dec[reward_max])
+
         # x0 = np.array([ra_guess, dec_guess, 0.])
         x0 = np.array([ra_guess, dec_guess, 0.])
 
