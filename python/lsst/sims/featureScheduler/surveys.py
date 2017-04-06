@@ -77,6 +77,10 @@ class BaseSurvey(object):
         if hp.isnpixok(self.reward.size):
             self.reward_smooth = hp.sphtfunc.smoothing(self.reward.filled(),
                                                        fwhm=self.smoothing_kernel)
+            good = np.where(self.reward_smooth != hp.UNSEEN)
+            # Round off to prevent strange behavior early on
+            self.reward_smooth[good] = np.round(self.reward_smooth[good], decimals=4)
+
         # Might need to check if mask expanded?
 
     def calc_reward_function(self):
@@ -129,15 +133,17 @@ class Smooth_area_survey(BaseSurvey):
     Survey that selects a large area block at a time
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, filtername='r',
-                 block_size=100, smoothing_kernel=3.5, max_region_size=20., nside=default_nside):
+                 block_area=160., smoothing_kernel=3.5, max_region_size=10., nside=default_nside):
         """
         Parameters
         ----------
-        block_size : int (100)
-            Number of healpixels to select to observe in each observing block.
+        block_area : float (160.)
+            Area to try and observe per block (sq degrees).
         max_region_size : float (20.)
            How far away to consider healpixes after the reward function max is found (degrees)
         """
+
+        # After overlap, get about 8 sq deg per pointing.
 
         if extra_features is None:
             self.extra_features = []
@@ -150,6 +156,8 @@ class Smooth_area_survey(BaseSurvey):
                                                  extra_features=self.extra_features,
                                                  smoothing_kernel=smoothing_kernel)
         self.filtername = filtername
+        pix_area = hp.nside2pixarea(nside, degrees=True)
+        block_size = np.round(block_area/pix_area)
         self.block_size = block_size
         # Make the dithering solving object
         self.hpc = dithering.hpmap_cross(nside=default_nside)
@@ -169,10 +177,11 @@ class Smooth_area_survey(BaseSurvey):
         reward_max = np.where(reward_smooth == np.max(reward_smooth))[0].min()
 
         order = np.argsort(reward_smooth)
-        selected = order[-self.block_size:]
+        reward_min = reward_smooth[order][-self.block_size]
+        # Pick up any extra pixels that might be equal to the cut-off
+        selected = np.where(reward_smooth >= reward_min)
 
-        # Construct masked 5-sigma depth map to cross-correlate
-        to_observe = np.zeros(reward_smooth.size, dtype=float)
+        to_observe = np.empty(reward_smooth.size, dtype=float)
         to_observe.fill(hp.UNSEEN)
         # Only those within max_region_size of the maximum
         max_vec = hp.pix2vec(self.nside, reward_max)
@@ -188,6 +197,7 @@ class Smooth_area_survey(BaseSurvey):
         self.hpc.set_map(to_observe)
         best_fit_shifts = self.hpc.minimize()
         ra_pointings, dec_pointings, obs_map = self.hpc(best_fit_shifts, return_pointings_map=True)
+        #import pdb ; pdb.set_trace()
         # Package up the observations.
         observations = []
         for ra, dec in zip(ra_pointings, dec_pointings):

@@ -3,6 +3,7 @@ import healpy as hp
 from scipy.optimize import minimize
 from .utils import treexyz, hp_kd_tree, rad_length, set_default_nside, read_fields
 from lsst.sims.utils import _hpid2RaDec
+import matplotlib.pylab as plt
 
 default_nside = set_default_nside()
 
@@ -80,7 +81,7 @@ def rotate_ra_dec(ra, dec, ra_target, dec_target, init_rotate=0.):
 
     # Convert back to RA, Dec
     ra_p = np.arctan2(yp, xp2)
-    dec_p = np.arcsin(zp2)
+    dec_p = -np.arcsin(zp2)
 
     # Rotate to the correct RA
     ra_p += ra_target
@@ -199,19 +200,21 @@ class hpmap_cross(object):
         obs_map = self.p2hp_search(final_ra, final_dec)
         good = np.where(self.inmap != hp.UNSEEN)[0]
 
-        
         if return_pointings_map:
             obs_indx = self.p2hp_search(final_ra, final_dec, stack=False)
             good_pointings = np.array([True if np.intersect1d(indxes, good).size > 0
                                       else False for indxes in obs_indx])
+            if True not in good_pointings:
+                raise ValueError('No pointings overlap requested pixels')
             obs_map = self.p2hp(final_ra[good_pointings], final_dec[good_pointings])
             return final_ra[good_pointings], final_dec[good_pointings], obs_map
         else:
             # If some requested pixels are not observed
-            if np.min(obs_map[good] == 0):
+            if np.min(obs_map[good]) == 0:
                 return np.inf
             else:
-                result = np.sum(self.inmap[good] * obs_map[good])/float(np.sum(self.inmap[good] + obs_map[good]))
+                result = np.sum(self.inmap[good] *
+                                obs_map[good])/float(np.sum(self.inmap[good] + obs_map[good]))
                 return result
 
     def minimize(self, ra_delta=1., dec_delta=1., rot_delta=30.):
@@ -219,21 +222,10 @@ class hpmap_cross(object):
         Let's find the minimum of the cross correlation.
         """
 
-        # XXX -- need to work on making sure all requested pixels are covered.
+        reward_max = np.where(self.inmap == self.inmap.max())[0]
+        ra_guess = np.median(self.hp_ra[reward_max])
+        dec_guess = np.median(self.hp_dec[reward_max])
 
-        good_im = np.where(self.inmap != hp.UNSEEN)
-        ra_guess = np.median(self.hp_ra[good_im])
-        dec_guess = np.median(self.hp_dec[good_im])
-
-        #import pdb ; pdb.set_trace()
-
-        #reward_max = np.where(self.inmap == self.inmap.max())[0]
-        #ra_guess = np.median(self.hp_ra[reward_max])
-        #dec_guess = np.median(self.hp_dec[reward_max])
-
-        #import pdb ; pdb.set_trace
-
-        # x0 = np.array([ra_guess, dec_guess, 0.])
         x0 = np.array([ra_guess, dec_guess, 0.])
 
         ra_delta = np.radians(ra_delta)

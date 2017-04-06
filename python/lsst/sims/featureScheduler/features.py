@@ -92,9 +92,9 @@ class Coadded_depth(BaseSurveyFeature):
     def add_observation(self, observation, indx=None):
 
         if observation['filter'][0] == self.filtername:
-            m5 = m5_flat_sed(observation['filter'], observation['skybrightness'],
-                             observation['FWHMeff'], observation['expTime'],
-                             observation['airmass'])
+            m5 = m5_flat_sed(observation['filter'][0], observation['skybrightness'][0],
+                             observation['FWHMeff'][0], observation['exptime'][0],
+                             observation['airmass'][0])
             self.feature[indx] = 1.25 * np.log10(10.**(0.8*self.feature[indx]) + 10.**(0.8*m5))
 
 
