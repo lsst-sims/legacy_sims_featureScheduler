@@ -76,7 +76,8 @@ class BaseSurvey(object):
     def smooth_reward(self):
         if hp.isnpixok(self.reward.size):
             self.reward_smooth = hp.sphtfunc.smoothing(self.reward.filled(),
-                                                       fwhm=self.smoothing_kernel)
+                                                       fwhm=self.smoothing_kernel,
+                                                       verbose=False)
             good = np.where(self.reward_smooth != hp.UNSEEN)
             # Round off to prevent strange behavior early on
             self.reward_smooth[good] = np.round(self.reward_smooth[good], decimals=4)
@@ -133,7 +134,7 @@ class Smooth_area_survey(BaseSurvey):
     Survey that selects a large area block at a time
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, filtername='r',
-                 block_area=160., smoothing_kernel=3.5, max_region_size=10., nside=default_nside):
+                 block_area=160., smoothing_kernel=3.5, max_region_size=20., nside=default_nside):
         """
         Parameters
         ----------
@@ -157,7 +158,7 @@ class Smooth_area_survey(BaseSurvey):
                                                  smoothing_kernel=smoothing_kernel)
         self.filtername = filtername
         pix_area = hp.nside2pixarea(nside, degrees=True)
-        block_size = np.round(block_area/pix_area)
+        block_size = int(np.round(block_area/pix_area))
         self.block_size = block_size
         # Make the dithering solving object
         self.hpc = dithering.hpmap_cross(nside=default_nside)
@@ -197,7 +198,6 @@ class Smooth_area_survey(BaseSurvey):
         self.hpc.set_map(to_observe)
         best_fit_shifts = self.hpc.minimize()
         ra_pointings, dec_pointings, obs_map = self.hpc(best_fit_shifts, return_pointings_map=True)
-        #import pdb ; pdb.set_trace()
         # Package up the observations.
         observations = []
         for ra, dec in zip(ra_pointings, dec_pointings):
