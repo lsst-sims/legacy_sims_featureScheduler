@@ -5,6 +5,7 @@ import numpy as np
 from .utils import empty_observation, set_default_nside, read_fields
 from lsst.sims.utils import _hpid2RaDec, _raDec2Hpid
 import healpy as hp
+import matplotlib.pylab as plt
 from . import features
 from . import dithering
 
@@ -22,7 +23,7 @@ class BaseSurvey(object):
         basis_weights : numpy array
             Array the same length as basis_functions that are the
             weights to apply to each basis function
-        extra_features : list
+        extra_features : list XXX--should this be a dict for clarity?
             List of any additional features the survey may want to use
             e.g., for computing final dither positions, or feasability maps.
         smoothing_kernel : float (None)
@@ -134,11 +135,15 @@ class Smooth_area_survey(BaseSurvey):
     Survey that selects a large area block at a time
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, filtername='r',
-                 block_area=160., smoothing_kernel=3.5, max_region_size=20., nside=default_nside):
+                 percentile_clip=90., smoothing_kernel=3.5, max_region_size=20.,
+                 max_area=160., nside=default_nside):
         """
         Parameters
         ----------
-        block_area : float (160.)
+        percentile_clip : 90.
+            After the reward maximum is found, include any healpixels with reward value
+            this percentile or higher within max_region_size
+        max_area : float (160.)
             Area to try and observe per block (sq degrees).
         max_region_size : float (20.)
            How far away to consider healpixes after the reward function max is found (degrees)
@@ -158,12 +163,13 @@ class Smooth_area_survey(BaseSurvey):
                                                  smoothing_kernel=smoothing_kernel)
         self.filtername = filtername
         pix_area = hp.nside2pixarea(nside, degrees=True)
-        block_size = int(np.round(block_area/pix_area))
+        block_size = int(np.round(max_area/pix_area))
         self.block_size = block_size
         # Make the dithering solving object
         self.hpc = dithering.hpmap_cross(nside=default_nside)
         self.max_region_size = np.radians(max_region_size)
         self.nside = nside
+        self.percentile_clip = percentile_clip
 
     def __call__(self):
         """
@@ -176,11 +182,10 @@ class Smooth_area_survey(BaseSurvey):
 
         # Pick the top healpixels to observe
         reward_max = np.where(reward_smooth == np.max(reward_smooth))[0].min()
-
-        order = np.argsort(reward_smooth)
-        reward_min = reward_smooth[order][-self.block_size]
-        # Pick up any extra pixels that might be equal to the cut-off
-        selected = np.where(reward_smooth >= reward_min)
+        unmasked = np.where(self.reward_smooth != hp.UNSEEN)[0]
+        selected = np.where(reward_smooth[unmasked] >= np.percentile(reward_smooth[unmasked],
+                                                                     self.percentile_clip))
+        selected = unmasked[selected]
 
         to_observe = np.empty(reward_smooth.size, dtype=float)
         to_observe.fill(hp.UNSEEN)
@@ -190,7 +195,12 @@ class Smooth_area_survey(BaseSurvey):
 
         # Select healpixels that have high reward, and are within
         # radius of the maximum pixel
+        # Selected pixels are above the percentile threshold and within the radius
         selected = np.intersect1d(selected, pix_in_disk)
+        if np.size(selected) > self.block_size:
+            order = np.argsort(reward_smooth[selected])
+            selected = selected[order[-self.block_size:]]
+
         to_observe[selected] = self.extra_features[0].feature[selected]
 
         # Find the pointings that observe the given pixels, and minimize the cross-correlation
