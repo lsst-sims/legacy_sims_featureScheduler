@@ -116,8 +116,11 @@ class Speed_observatory(object):
         """
         sunMoon = self.sky.returnSunMoon(mjd)
         if sunMoon['sunAlt'] > self.sun_limit:
-            good = np.where((self.sky.info['mjds'] > mjd) & (self.sky.info['sunAlts'] < self.sun_limit))[0]
-            mjd = self.sky.info['mjds'][good][0]
+            good = np.where((self.sky.info['mjds'] >= mjd) & (self.sky.info['sunAlts'] <= self.sun_limit))[0]
+            if np.size(good) == 0:
+                mjd += 0.25
+            else:
+                mjd = self.sky.info['mjds'][good][0]
             return False, mjd
         else:
             return True, mjd

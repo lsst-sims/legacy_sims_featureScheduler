@@ -358,7 +358,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="Generate an animation of number of nights from a simulation database")
     parser.add_argument("file_name", type=str, help="sqlite database")
-    parser.add_argument("--night", type=int, default=1, help="the night to start on")
+    parser.add_argument("--night", type=int, default=0, help="the night to start on")
     parser.add_argument("--n_nights", type=int, default=1, help="number of nights to animate")
 
     args = parser.parse_args()

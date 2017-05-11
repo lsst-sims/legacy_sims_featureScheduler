@@ -14,7 +14,7 @@ if __name__ == "__main__":
     bfs.append(fs.Target_map_basis_function(target_map=target_map))
     bfs.append(fs.Visit_repeat_basis_function())
     bfs.append(fs.Slew_distance_basis_function())
-    weights = np.array([3., 1., 1., 1.])
+    weights = np.array([2., 1., 2., 1.])
     survey = fs.Simple_greedy_survey_fields(bfs, weights)
     scheduler = fs.Core_scheduler([survey])
 
