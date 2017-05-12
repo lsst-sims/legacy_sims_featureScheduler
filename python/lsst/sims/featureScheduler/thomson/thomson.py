@@ -2,7 +2,7 @@ import numpy as np
 from scipy.optimize import minimize
 from lsst.sims.utils import _angularSeparation
 
-__all__ = ['thetaphi2xyz', 'even_points', 'elec_potential', 'ang_potential']
+__all__ = ['thetaphi2xyz', 'even_points', 'elec_potential', 'ang_potential', 'fib_sphere_grid']
 
 
 def thetaphi2xyz(theta, phi):
@@ -47,11 +47,10 @@ def elec_potential(x0):
 
 def ang_potential(x0):
     """
-    If distance is compted along sphere rather than 3-space.
-    # XXX--this doesn't seem to work yet.
+    If distance is computed along sphere rather than through 3-space.
     """
     theta = x0[0:x0.size/2]
-    phi = x0[x0.size/2:]
+    phi = np.pi/2-x0[x0.size/2:]
 
     indices = np.triu_indices(theta.size, k=1)
 
@@ -83,7 +82,7 @@ def fib_sphere_grid(npoints):
     return theta, phi
 
 
-def even_points(npts, use_fib_init=True, method='CG', potential_func=elec_potential):
+def even_points(npts, use_fib_init=True, method='CG', potential_func=elec_potential, maxiter=None):
     """
     Distribute npts over a sphere and minimize their potential, making them
     "evenly" distributed
@@ -101,7 +100,7 @@ def even_points(npts, use_fib_init=True, method='CG', potential_func=elec_potent
 
     x = np.concatenate((theta, phi))
     # XXX--need to check if this is the best minimizer
-    min_fit = minimize(potential_func, x, method='CG')
+    min_fit = minimize(potential_func, x, method='CG', options={'maxiter': maxiter})
 
     x = min_fit.x
     theta = x[0:x.size/2]
