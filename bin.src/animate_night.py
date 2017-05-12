@@ -164,7 +164,7 @@ def visualize(night, file_name, PlotID = 1,FPS = 15,Steps = 20,MP4_quality = 300
     ax.text(1.15, 0 ,'West', color = 'white', fontsize = 7)
     ax.text( 0, 1.1, 'North', color = 'white', fontsize = 7)
     airmass_horizon.set_data(np.cos(np.pi/4) * np.cos(Phi), np.cos(np.pi/4) *  np.sin(Phi))
-    ax.text(-.3, 0.6, 'Acceptable airmass horizon', color = 'white', fontsize = 5, fontweight = 'bold')
+    ax.text(-.3, 0.6, 'airmass horizon', color = 'white', fontsize = 5, fontweight = 'bold')
     Alt, Az = Fields_local_coordinate(180, -90, 59581.0381944435, Site)
     x, y = AltAz2XY(Alt,Az)
     S_Pole.set_data(x, y)
@@ -358,7 +358,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="Generate an animation of number of nights from a simulation database")
     parser.add_argument("file_name", type=str, help="sqlite database")
-    parser.add_argument("--night", type=int, default=1, help="the night to start on")
+    parser.add_argument("--night", type=int, default=0, help="the night to start on")
     parser.add_argument("--n_nights", type=int, default=1, help="number of nights to animate")
 
     args = parser.parse_args()

@@ -184,7 +184,7 @@ class hp_in_lsst_fov(object):
         fov_radius : float (1.75)
             Radius of the filed of view in degrees
         """
-        self.tree = hp_kd_tree()
+        self.tree = hp_kd_tree(nside=nside)
         self.radius = rad_length(fov_radius)
 
     def __call__(self, ra, dec):
