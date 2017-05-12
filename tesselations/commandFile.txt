@@ -1,0 +1,11 @@
+export LSST_HOME=~/lsst; source $LSST_HOME/loadLSST.bash; setup sims_featureScheduler -t $USER -t sims -N; cd /Users/yoachim/gitRepos/sims_featureScheduler/tesselations; ./generate_pointings.py 100
+export LSST_HOME=~/lsst; source $LSST_HOME/loadLSST.bash; setup sims_featureScheduler -t $USER -t sims -N; cd /Users/yoachim/gitRepos/sims_featureScheduler/tesselations; ./generate_pointings.py 20
+export LSST_HOME=~/lsst; source $LSST_HOME/loadLSST.bash; setup sims_featureScheduler -t $USER -t sims -N; cd /Users/yoachim/gitRepos/sims_featureScheduler/tesselations; ./generate_pointings.py 30
+export LSST_HOME=~/lsst; source $LSST_HOME/loadLSST.bash; setup sims_featureScheduler -t $USER -t sims -N; cd /Users/yoachim/gitRepos/sims_featureScheduler/tesselations; ./generate_pointings.py 40
+export LSST_HOME=~/lsst; source $LSST_HOME/loadLSST.bash; setup sims_featureScheduler -t $USER -t sims -N; cd /Users/yoachim/gitRepos/sims_featureScheduler/tesselations; ./generate_pointings.py 50
+export LSST_HOME=~/lsst; source $LSST_HOME/loadLSST.bash; setup sims_featureScheduler -t $USER -t sims -N; cd /Users/yoachim/gitRepos/sims_featureScheduler/tesselations; ./generate_pointings.py 60
+export LSST_HOME=~/lsst; source $LSST_HOME/loadLSST.bash; setup sims_featureScheduler -t $USER -t sims -N; cd /Users/yoachim/gitRepos/sims_featureScheduler/tesselations; ./generate_pointings.py 100
+export LSST_HOME=~/lsst; source $LSST_HOME/loadLSST.bash; setup sims_featureScheduler -t $USER -t sims -N; cd /Users/yoachim/gitRepos/sims_featureScheduler/tesselations; ./generate_pointings.py 500
+export LSST_HOME=~/lsst; source $LSST_HOME/loadLSST.bash; setup sims_featureScheduler -t $USER -t sims -N; cd /Users/yoachim/gitRepos/sims_featureScheduler/tesselations; ./generate_pointings.py 1000
+export LSST_HOME=~/lsst; source $LSST_HOME/loadLSST.bash; setup sims_featureScheduler -t $USER -t sims -N; cd /Users/yoachim/gitRepos/sims_featureScheduler/tesselations; ./generate_pointings.py 1500
+export LSST_HOME=~/lsst; source $LSST_HOME/loadLSST.bash; setup sims_featureScheduler -t $USER -t sims -N; cd /Users/yoachim/gitRepos/sims_featureScheduler/tesselations; ./generate_pointings.py 4206
