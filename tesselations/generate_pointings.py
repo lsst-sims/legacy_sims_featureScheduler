@@ -1,6 +1,6 @@
 #!/Users/yoachim/lsst/DarwinX86/miniconda2/3.19.0.lsst4/bin/python
 from __future__ import print_function
-from lsst.sims.featureScheduler.thomson import even_points, thetaphi2xyz
+from lsst.sims.featureScheduler.thomson import even_points_xyz, xyz2thetaphi
 import numpy as np
 import argparse
 
@@ -16,6 +16,13 @@ if __name__ == '__main__':
     args = parser.parse_args()
     npts = args.npts
     print('Solving Thomson problem for %i points' % npts)
-    theta, phi = even_points(npts)
+    x0 = even_points_xyz(npts)
+
+    x0 = x0.reshape(3, x0.size/3)
+    x = x0[0, :]
+    y = x0[1, :]
+    z = x0[2, :]
+
+    theta, phi = xyz2thetaphi(x, y, z)
 
     np.savez('npts_%i.npz' % npts, theta=theta, phi=phi)
