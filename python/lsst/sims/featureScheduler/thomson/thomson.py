@@ -16,7 +16,7 @@ def thetaphi2xyz(theta, phi):
 
 def xyz2thetaphi(x, y, z):
     phi = np.arccos(z)
-    theta = np.arctan2(y, z)
+    theta = np.arctan2(y, x)
     return theta, phi
 
 
@@ -275,7 +275,8 @@ def x02sphere(x0):
     return np.concatenate((x, y, z))
 
 
-def even_points_xyz(npts, use_fib_init=True, method='CG', potential_func=elec_potential_xyz, maxiter=None):
+def even_points_xyz(npts, use_fib_init=True, method='CG', potential_func=elec_potential_xyz, maxiter=None,
+                    callback=None):
     """
     Distribute npts over a sphere and minimize their potential, making them
     "evenly" distributed
@@ -293,7 +294,7 @@ def even_points_xyz(npts, use_fib_init=True, method='CG', potential_func=elec_po
 
     x = np.concatenate(thetaphi2xyz(theta, phi))
     # XXX--need to check if this is the best minimizer
-    min_fit = minimize(potential_func, x, method='CG', options={'maxiter': maxiter})
+    min_fit = minimize(potential_func, x, method='CG', options={'maxiter': maxiter}, callback=callback)
 
     x = x02sphere(min_fit.x)
 
