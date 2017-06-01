@@ -80,4 +80,4 @@ for i in range(altitudes.size):
         st = slewtime(model, alt1=altitudes[i], alt2=altitudes[j])
         alt_array[i, j] += st[0]
 
-np.savez('pre_slewtimes.npz', alt_array=alt_array, az_array=az_array)
+np.savez('pre_slewtimes.npz', alt_array=alt_array, az_array=az_array, azimuths=azimuths, altitudes=altitudes)

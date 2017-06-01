@@ -18,7 +18,7 @@ class Speed_observatory(object):
     current conditions.
     """
     def __init__(self, mjd_start=59580.035, ang_speed=5.,
-                 readtime=2., settle=2., filtername=None, f_change_time=120.,
+                 readtime=2., settle=2., filtername=None, f_change_time=140.,
                  nside=default_nside, sun_limit=-13., quickTest=True):
         """
         Parameters
