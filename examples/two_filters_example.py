@@ -2,7 +2,7 @@ import numpy as np
 import healpy as hp
 import matplotlib.pylab as plt
 import lsst.sims.featureScheduler as fs
-from speed_observatory import Speed_observatory
+from lsst.sims.featureScheduler.observatory import Speed_observatory
 
 
 if __name__ == "__main__":

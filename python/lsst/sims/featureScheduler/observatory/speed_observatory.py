@@ -1,11 +1,16 @@
 from builtins import zip
 from builtins import object
 import numpy as np
-from lsst.sims.utils import haversine, _hpid2RaDec, _raDec2Hpid, Site, calcLmstLast
+from lsst.sims.utils import _hpid2RaDec, _raDec2Hpid, Site, calcLmstLast
 import lsst.sims.skybrightness_pre as sb
 import healpy as hp
 import lsst.sims.featureScheduler.utils as utils
 import ephem
+from slew_pre import Slewtime_pre
+
+
+__all__ = ['Speed_observatory']
+
 
 sec2days = 1./(3600.*24.)
 default_nside = utils.set_default_nside()
@@ -17,16 +22,14 @@ class Speed_observatory(object):
     A very very simple observatory model that will take observation requests and supply
     current conditions.
     """
-    def __init__(self, mjd_start=59580.035, ang_speed=5.,
-                 readtime=2., settle=2., filtername=None, f_change_time=140.,
+    def __init__(self, mjd_start=59580.035,
+                 readtime=2., filtername=None, f_change_time=140.,
                  nside=default_nside, sun_limit=-13., quickTest=True):
         """
         Parameters
         ----------
         mjd_start : float (59580.035)
             The Modified Julian Date to set the observatory to.
-        ang_speed : float (10.)
-            The angular speed the telescope can slew at in degrees per second.
         readtime : float (2.)
             The time it takes to read out the camera (seconds).
         settle : float (2.)
@@ -43,8 +46,6 @@ class Speed_observatory(object):
             Load only a small pre-computed sky array rather than a full year.
         """
         self.mjd = mjd_start
-        self.ang_speed = np.radians(ang_speed)
-        self.settle = settle
         self.f_change_time = f_change_time
         self.readtime = readtime
         self.sun_limit = np.radians(sun_limit)
@@ -62,7 +63,7 @@ class Speed_observatory(object):
         hpids = np.arange(hp.nside2npix(nside))
         self.ra_all_sky, self.dec_all_sky = _hpid2RaDec(nside, hpids)
         self.status = None
-        
+
         self.site = Site(name='LSST')
         self.obs = ephem.Observer()
         self.obs.lat = self.site.latitude_rad
@@ -77,13 +78,14 @@ class Speed_observatory(object):
         self.generate_sunsets()
         self.night = self.mjd2night(self.mjd)
 
+        # Make a slewtime interpolator
+        self.slew_interp = Slewtime_pre()
 
     def slew_time(self, ra, dec):
         """
         Compute slew time to new ra, dec position
         """
-        dist = haversine(ra, dec, self.ra, self.dec)
-        time = dist / self.ang_speed
+        time = self.slew_interp(self.ra, self.dec, ra, dec)
         return time
 
     def return_status(self):
@@ -131,22 +133,19 @@ class Speed_observatory(object):
         """
         # If we were in a parked position, assume no time lost to slew, settle, filter change
         if self.ra is not None:
-            st = self.slew_time(observation['RA'], observation['dec'])
-            self.filtername = observation['filter']
-            settle = self.settle
             if self.filtername != observation['filter']:
                 ft = self.f_change_time
+                st = 0.
             else:
                 ft = 0.
+                st = self.slew_time(observation['RA'], observation['dec'])
         else:
             st = 0.
-            settle = 0.
             ft = 0.
 
-        # Assume we can slew while reading the last exposure, and slewtime always > exptime
+        # Assume we can slew while reading the last exposure
         rt = (observation['nexp']-1.)*self.readtime
-        total_time = (st + rt + observation['exptime'] + settle + ft)*sec2days
-        to_open_time = (st+settle+ft)*sec2days
+        total_time = (st + rt + observation['exptime'] + ft)*sec2days
         check_result, jump_mjd = self.check_mjd(self.mjd + total_time)
         if check_result:
             # XXX--major decision here, should the status be updated after every observation? Or just assume
@@ -155,17 +154,17 @@ class Speed_observatory(object):
                 update_status = True
             else:
                 update_status = False
-            self.mjd = self.mjd+to_open_time
-            observation['mjd'] = self.mjd
+            # This should be the start of the exposure.
+            observation['mjd'] = self.mjd + (ft + st)*sec2days
             observation['night'] = self.night
+
+            self.mjd = self.mjd + total_time
+            self.night = self.mjd2night(self.mjd)
             self.ra = observation['RA']
             self.dec = observation['dec']
             if update_status:
                 # What's the name for temp variables?
                 status = self.return_status()
-            # time the shutter should open
-            self.mjd += total_time-to_open_time
-            self.night = self.mjd2night(self.mjd)
 
             self.filtername = observation['filter'][0]
             hpid = _raDec2Hpid(self.sky_nside, self.ra, self.dec)

@@ -1,6 +1,6 @@
 import numpy as np
 import lsst.sims.featureScheduler as fs
-from speed_observatory import Speed_observatory
+from lsst.sims.featureScheduler.observatory import Speed_observatory
 
 
 if __name__ == "__main__":
