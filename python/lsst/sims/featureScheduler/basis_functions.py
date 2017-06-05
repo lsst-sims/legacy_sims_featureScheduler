@@ -237,10 +237,39 @@ class Filter_change_basis_function(Base_basis_function):
     def __call__(self, **kwargs):
         # XXX--Note here my speed observatory says None when it's parked,
         # so should be easy to start any filter. Maybe None should be reserved for no filter instead?
-        if (self.condition_features['Current_filter'] == self.filtername) | (self.condition_features['Current_filter'] is None):
+        if (self.condition_features['Current_filter'].feature == self.filtername) | (self.condition_features['Current_filter'].feature is None):
             result = 1.
         else:
             result = 0.
+        return result
+
+
+class Slewtime_basis_function(Base_basis_function):
+    """Reward slews that take little time
+    """
+    def __init__(self, survey_features=None, condition_features=None, 
+                 max_time=135., filtername='r'):
+        self.maxtime = max_time
+        self.filtername = filtername
+        if condition_features is None:
+            self.condition_features = {}
+            self.condition_features['Current_filter'] = features.Current_filter()
+            self.condition_features['slewtime'] = features.SlewtimeFeature()
+        super(Slewtime_basis_function, self).__init__(survey_features=survey_features,
+                                                      condition_features=self.condition_features)
+
+    def __call__(self, indx=None):
+        # If we are in a different filter, the Filter_change_basis_function will take it
+        if self.condition_features['Current_filter'].feature != self.filtername:
+            result = 1.
+        else:
+            # Need to make sure smaller slewtime is larger reward.
+            if np.size(self.condition_features['slewtime'].feature) > 1:
+                result = np.zeros(np.size(self.condition_features['slewtime'].feature), dtype=float)
+                good = np.where(self.condition_features['slewtime'].feature != hp.UNSEEN)
+                result[good] = (self.maxtime - self.condition_features['slewtime'].feature[good])/self.maxtime
+            else:
+                result = (self.maxtime - self.condition_features['slewtime'].feature)/self.maxtime
         return result
 
 

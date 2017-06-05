@@ -190,6 +190,19 @@ class N_obs_reference(BaseSurveyFeature):
                 self.feature += 1
 
 
+class SlewtimeFeature(BaseConditionsFeature):
+    """Grab the slewtime map from the observatory.
+    """
+    def __init__(self, nside=default_nside):
+        self.feature = None
+        self.nside = nside
+
+    def update_conditions(self, conditions):
+        self.feature = conditions['slewtimes']
+        if np.size(self.feature) > 1:
+            self.feature = hp.ud_grade(self.feature, nside_out=self.nside)
+
+
 class M5Depth_percentile(BaseConditionsFeature):
     """
     Given current conditions, return the 5-sigma limiting depth percentile map
