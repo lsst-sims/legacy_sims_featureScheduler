@@ -24,7 +24,7 @@ class Speed_observatory(object):
     """
     def __init__(self, mjd_start=59580.035,
                  readtime=2., filtername=None, f_change_time=140.,
-                 nside=default_nside, sun_limit=-13., quickTest=True):
+                 nside=default_nside, sun_limit=-13., quickTest=True, alt_limit=20.):
         """
         Parameters
         ----------
@@ -49,6 +49,7 @@ class Speed_observatory(object):
         self.f_change_time = f_change_time
         self.readtime = readtime
         self.sun_limit = np.radians(sun_limit)
+        self.alt_limit = np.radians(alt_limit)
         # Load up the sky brightness model
         self.sky = sb.SkyModelPre(preload=False, speedLoad=quickTest)
         # Should realy set this by inspecting the map.
@@ -60,8 +61,8 @@ class Speed_observatory(object):
         self.filtername = None
 
         # Set up all sky coordinates
-        hpids = np.arange(hp.nside2npix(nside))
-        self.ra_all_sky, self.dec_all_sky = _hpid2RaDec(nside, hpids)
+        hpids = np.arange(hp.nside2npix(self.sky_nside))
+        self.ra_all_sky, self.dec_all_sky = _hpid2RaDec(self.sky_nside, hpids)
         self.status = None
 
         self.site = Site(name='LSST')
@@ -81,12 +82,35 @@ class Speed_observatory(object):
         # Make a slewtime interpolator
         self.slew_interp = Slewtime_pre()
 
-    def slew_time(self, ra, dec):
+    def slew_time(self, alt, az, mintime=2.):
         """
         Compute slew time to new ra, dec position
         """
-        time = self.slew_interp(self.ra, self.dec, ra, dec)
+
+        current_alt, current_az = utils.stupidFast_RaDec2AltAz(np.array([self.ra]),
+                                                               np.array([self.dec]),
+                                                               self.obs.lat, self.obs.lon,
+                                                               self.mjd)
+        # Interpolation can be off by ~.1 seconds if there's no slew.
+        if (np.max(current_alt) == np.max(alt)) & (np.max(current_az) == np.max(az)):
+            time = mintime
+        else:
+            time = self.slew_interp(current_alt, current_az, alt, az)
         return time
+
+    def slewtime_map(self):
+        """
+        Return a map of how long it would take to slew to lots of positions
+        """
+        if self.ra is None:
+            return 0.
+        alt, az = utils.stupidFast_RaDec2AltAz(self.ra_all_sky, self.dec_all_sky,
+                                               self.obs.lat, self.obs.lon, self.mjd)
+        good = np.where(alt >= self.alt_limit)
+        result = np.empty(self.ra_all_sky.size, dtype=float)
+        result.fill(hp.UNSEEN)
+        result[good] = self.slew_time(alt[good], az[good])
+        return result
 
     def return_status(self):
         """
@@ -99,6 +123,7 @@ class Speed_observatory(object):
         result['night'] = self.night
         result['lmst'], last = calcLmstLast(self.mjd, self.site.longitude_rad)
         result['skybrightness'] = self.sky.returnMags(self.mjd)
+        result['slewtimes'] = self.slewtime_map()
         result['airmass'] = self.sky.returnAirmass(self.mjd)
         # XXX Obviously need to update to a real seeing table, and make it a full-sky map, and filter, airmass dependent
         result['FWHMeff'] = np.empty(result['airmass'].size)  # arcsec
@@ -120,6 +145,7 @@ class Speed_observatory(object):
         if sunMoon['sunAlt'] > self.sun_limit:
             good = np.where((self.sky.info['mjds'] >= mjd) & (self.sky.info['sunAlts'] <= self.sun_limit))[0]
             if np.size(good) == 0:
+                # hack to advance if we are at the end of the mjd list I think
                 mjd += 0.25
             else:
                 mjd = self.sky.info['mjds'][good][0]
@@ -127,25 +153,30 @@ class Speed_observatory(object):
         else:
             return True, mjd
 
-    def attempt_observe(self, observation, indx=None):
+    def attempt_observe(self, observation_in, indx=None):
         """
         Check an observation, if there is enough time, execute it and return it, otherwise, return none.
         """
         # If we were in a parked position, assume no time lost to slew, settle, filter change
+        observation = observation_in.copy()
         if self.ra is not None:
             if self.filtername != observation['filter']:
                 ft = self.f_change_time
                 st = 0.
             else:
                 ft = 0.
-                st = self.slew_time(observation['RA'], observation['dec'])
+                alt, az = utils.stupidFast_RaDec2AltAz(np.array([observation['RA']]),
+                                                       np.array([observation['dec']]),
+                                                       self.obs.lat, self.obs.lon, self.mjd)
+                st = self.slew_time(alt, az)
         else:
             st = 0.
             ft = 0.
 
         # Assume we can slew while reading the last exposure
+        # So, filter change time, slew to target time, expose time, read time
         rt = (observation['nexp']-1.)*self.readtime
-        total_time = (st + rt + observation['exptime'] + ft)*sec2days
+        total_time = (ft + st + observation['exptime'] + rt)*sec2days
         check_result, jump_mjd = self.check_mjd(self.mjd + total_time)
         if check_result:
             # XXX--major decision here, should the status be updated after every observation? Or just assume
@@ -157,7 +188,8 @@ class Speed_observatory(object):
             # This should be the start of the exposure.
             observation['mjd'] = self.mjd + (ft + st)*sec2days
             observation['night'] = self.night
-
+            # XXX I REALLY HATE THIS! READTIME SHOULD NOT BE LUMPED IN WITH SLEWTIME!
+            observation['slewtime'] = ft+st+rt
             self.mjd = self.mjd + total_time
             self.night = self.mjd2night(self.mjd)
             self.ra = observation['RA']

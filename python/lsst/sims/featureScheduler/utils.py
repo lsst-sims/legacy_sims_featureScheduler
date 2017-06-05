@@ -73,9 +73,9 @@ def empty_observation():
         The night number of the observation (days)
     """
     names = ['RA', 'dec', 'mjd', 'exptime', 'filter', 'rotSkyPos', 'nexp',
-             'airmass', 'FWHMeff', 'skybrightness', 'night']
+             'airmass', 'FWHMeff', 'skybrightness', 'night', 'slewtime']
     # units of rad, rad,   days,  seconds,   string, radians (E of N?)
-    types = [float, float, float, float, '|1S', float, int, float, float, float, int]
+    types = [float, float, float, float, '|1S', float, int, float, float, float, int, float]
     result = np.zeros(1, dtype=list(zip(names, types)))
     return result
 
