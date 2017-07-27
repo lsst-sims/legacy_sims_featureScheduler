@@ -32,3 +32,4 @@ if __name__ == "__main__":
     observatory, scheduler, observations = fs.sim_runner(observatory, scheduler, survey_length=survey_length,
                                                          filename='six_w.db')
     
+# 30 days took 27minutes. So 10 years would be 54 hours. So really would be nice to multiprocess some things.
