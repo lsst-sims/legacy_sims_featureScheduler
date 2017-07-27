@@ -5,7 +5,7 @@ from lsst.sims.featureScheduler.observatory import Speed_observatory
 
 if __name__ == "__main__":
 
-    survey_length = 10.  # days
+    survey_length = 2.  # days
     # Define what we want the final visit ratio map to look like
     target_map = fs.standard_goals()['r']
     # Make a list of the basis functions we want to use
