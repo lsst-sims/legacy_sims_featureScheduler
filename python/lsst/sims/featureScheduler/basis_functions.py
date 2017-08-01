@@ -395,7 +395,7 @@ class Visit_repeat_basis_function_cost(Base_basis_function):  #F2
             indx = np.arange(self.result.size)
 
         # Required features
-        self.t_to_invis = self.condition_features['Time_observable_night'].feature[indx]
+        self.t_to_invis = self.condition_features['Time_observable_night'].feature[indx] /24.
         t_last_night_all_filters = np.max([self.survey_features['Last_observed', f].feature[indx] for f in self.survey_filters],0)
         self.since_t_last_all_filters = self.condition_features['Current_mjd'].feature - t_last_night_all_filters
         self.n_night_all_filters = np.zeros_like(indx, dtype=float)
@@ -474,7 +474,7 @@ class Normalized_alt_basis_function_cost(Base_basis_function):  #F4
     """
     Filter dependant altitude allocation
     """
-    def __init__(self, survey_features=None, condition_features=None, nside=default_nside,
+    def __init__(self, filtername = 'r', survey_features=None, condition_features=None, nside=default_nside,
                  lsst_lat=-0.517781017, lsst_lon=-1.2320792):
         """
         Parameters
@@ -490,6 +490,7 @@ class Normalized_alt_basis_function_cost(Base_basis_function):  #F4
 
         super(Normalized_alt_basis_function_cost, self).__init__(survey_features=survey_features,
                                                            condition_features=self.condition_features)
+        self.filtername = filtername
         self.nside = nside
         # Make the RA, Dec map
         indx = np.arange(hp.nside2npix(self.nside))
@@ -502,8 +503,7 @@ class Normalized_alt_basis_function_cost(Base_basis_function):  #F4
             indx = np.arange(result.size)
         mjd = self.condition_features['Current_mjd'].feature
         self.alt, self.az = utils.stupidFast_RaDec2AltAz(self.ra, self.dec, self.lat, self.lon, mjd)
-        filter_name =  self.condition_features['Current_filter'].feature
-        result = utils.alt_allocation(self.alt,self.dec, self.lat, filter_name)
+        result = utils.alt_allocation(self.alt,self.dec, self.lat, self.filtername) + ((1./(1-np.cos(self.alt))) -1)
         return result
 
 
@@ -544,13 +544,13 @@ class Hour_angle_basis_function_cost(Base_basis_function):  #F5
 
 
 
-class Target_map_basis_function_cost(Base_basis_function):  #F6
+class Target_map_basis_function_cost(Base_basis_function):  #F6 & F3
     """
     Return a healpix map of the cost function based on normalized number of observations
     """
     def __init__(self, filtername='r', nside=default_nside, target_map=None, softening=1.,
                  survey_features=None, condition_features=None, visits_per_point=10.,
-                 out_of_bounds_val=-10., survey_filters= ['r']):
+                 out_of_bounds_val=-10., survey_filters= 'r'):
         """
         Parameters
         ----------
@@ -563,19 +563,13 @@ class Target_map_basis_function_cost(Base_basis_function):  #F6
         """
         if survey_features is None:
             self.survey_features = {}
-            for f in survey_filters:
-                self.survey_features['N_obs', f] = features.N_observations(filtername=f)
+            self.survey_features['N_obs'] = features.N_observations_cost(survey_filters = survey_filters)
+            self.survey_features['N_in_f']= features.N_in_filter_cost(survey_filters)
         super(Target_map_basis_function_cost, self).__init__(survey_features=self.survey_features,
                                                         condition_features=condition_features)
         self.visits_per_point = visits_per_point
         self.nside = nside
         self.softening = softening
-        if target_map is None:
-            self.target_map = utils.generate_goal_map(filtername=filtername)
-        else:
-            self.target_map = target_map
-        self.out_of_bounds_area = np.where(self.target_map == 0)[0]
-        self.out_of_bounds_val = out_of_bounds_val
         self.filtername = filtername
         self.survey_filters = survey_filters
 
@@ -597,25 +591,18 @@ class Target_map_basis_function_cost(Base_basis_function):  #F6
         if indx is None:
             indx = np.arange(result.size)
 
-        N_filter[indx] = self.survey_features['N_obs', self.filtername].feature[indx]
-        max_N_filter = np.max(N_filter[indx])
-        for f in self.survey_filters:
-            poten_max_N_all_filter = np.max(self.survey_features['N_obs', f].feature[indx])
-            N_all_filter[indx] += self.survey_features['N_obs', f].feature[indx]
-            if poten_max_N_all_filter > max_N_all_filter:
-                max_N_all_filter = poten_max_N_all_filter
+        N_filter[indx] = self.survey_features['N_obs'].feature[indx][self.filtername]
+        max_N_filter = self.survey_features['N_obs'].max_n[self.filtername]
+        N_all_filter[indx] = self.survey_features['N_obs'].sum_feature[indx]
+        max_N_all_filter = self.survey_features['N_obs'].max_n_all_f
+
 
         result[indx] = 1./(max_N_filter - N_filter[indx]+self.softening) \
                      + 1./(max_N_all_filter - N_all_filter[indx]+self.softening)
 
         # field independent filter urgency factor
-        max_sum_N_all_filter = 0
-        for f in self.survey_filters:
-            temp = np.sum(self.survey_features['N_obs', f].feature[indx])
-            if temp > max_sum_N_all_filter:
-                max_sum_N_all_filter = temp
-
-        sum_N_filter = np.sum(N_filter[indx])
+        sum_N_filter = self.survey_features['N_in_f'].feature[self.filtername]
+        max_sum_N_all_filter = self.survey_features['N_in_f'].max_n_in_filter
         filter_urgency_factor =  5. / (max_sum_N_all_filter - sum_N_filter + 1)
         result[indx] += filter_urgency_factor
         return result

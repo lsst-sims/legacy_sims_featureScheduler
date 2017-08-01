@@ -338,7 +338,7 @@ def standard_goals(nside=set_default_nside()):
     return result
 
 
-def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3., filename=None):
+def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3., filename=None, delete_past=False):
     """
     run a simulation
     """
@@ -380,11 +380,11 @@ def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3., filenam
     print('Completed %i observations' % len(observations))
     observations = np.array(observations)[:, 0]
     if filename is not None:
-        observations2sqlite(observations, filename=filename)
+        observations2sqlite(observations, filename=filename, delete_past=delete_past)
     return observatory, scheduler, observations
 
 
-def observations2sqlite(observations, filename='observations.db'):
+def observations2sqlite(observations, filename='observations.db', delete_past=False):
     """
     Take an array of observations and dump it to a sqlite3 database
 
@@ -404,6 +404,12 @@ def observations2sqlite(observations, filename='observations.db'):
     """
 
     # XXX--Here is a good place to add any missing columns, e.g., alt,az
+
+    if delete_past:
+        try:
+            os.remove(filename)
+        except OSError:
+            pass
 
     # Convert to degrees for output
     observations['RA'] = np.degrees(observations['RA'])

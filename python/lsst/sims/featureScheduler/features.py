@@ -137,7 +137,6 @@ class N_obs_night(BaseSurveyFeature):
         if observation['filter'][0] in self.filtername:
             self.feature[indx] += 1
 
-
 class Pair_in_night(BaseSurveyFeature):
     """
     Track how many pairs have been observed within a night
@@ -421,3 +420,130 @@ class Rotator_angle(BaseSurveyFeature):
             # I think this is how to broadcast things properly.
             self.feature[indx, :] += np.histogram(observation.rotSkyPos, bins=self.bins)[0]
 
+
+
+class N_observations_cost(BaseSurveyFeature):
+    """
+    Track the number of observations that have been made accross the sky.
+    """
+    def __init__(self, survey_filters='r',nside=default_nside, mask_indx=None):
+        """
+        Parameters
+        ----------
+        filtername : str ('r')
+            String or list that has all the filters that can count.
+        nside : int (32)
+            The nside of the healpixel map to use
+        mask_indx : list of ints (None)
+            List of healpixel indices to mask and interpolate over
+        """
+        self.dt = np.dtype({'names': survey_filters, 'formats': len(survey_filters)*[int]})
+        self.feature = np.zeros(hp.nside2npix(nside), dtype=self.dt)
+        self.sum_feature = np.zeros(len(self.feature), dtype=int)
+        self.mask_indx = mask_indx
+        self.survey_filters = survey_filters
+
+        self.max_n = np.zeros(1,dtype=self.dt)
+        self.max_n_all_f = 0
+
+    def add_observation(self, observation, indx=None):
+        """
+        Parameters
+        ----------
+        indx : ints
+            The indices of the healpixel map that have been observed by observation
+        """
+        self.sum_feature[indx] +=1
+
+        for f in self.survey_filters:
+            if observation['filter'][0] == f:
+                self.feature[indx][f] += 1
+            self.max_n[f] = np.max(self.feature[f])
+        self.max_n_all_f = np.max(self.sum_feature)
+
+        if self.mask_indx is not None:
+            overlap = np.intersect1d(indx, self.mask_indx)
+            if overlap.size > 0:
+                # interpolate over those pixels that are DD fields.
+                # XXX.  Do I need to kdtree this? Maybe make a dict on init
+                # to lookup the N closest non-masked pixels, then do weighted average.
+                pass
+
+
+class N_in_filter_cost(BaseSurveyFeature):
+    """
+    Track the number of observations that have been made accross the sky.
+    """
+    def __init__(self, survey_filters='r',nside=default_nside, mask_indx=None):
+        """
+        Parameters
+        ----------
+        filtername : str ('r')
+            String or list that has all the filters that can count.
+        nside : int (32)
+            The nside of the healpixel map to use
+        mask_indx : list of ints (None)
+            List of healpixel indices to mask and interpolate over
+        """
+        self.dt = np.dtype({'names': survey_filters, 'formats': len(survey_filters)*[int]})
+        self.feature = np.zeros(1, dtype=self.dt)
+        self.survey_filters = survey_filters
+        self.max_n_in_filter = 0
+
+    def add_observation(self, observation, indx=None):
+        """
+        Parameters
+        ----------
+        indx : ints
+            The indices of the healpixel map that have been observed by observation
+        """
+        for f in self.survey_filters:
+            if observation['filter'][0] == f:
+                self.feature[f] += 1
+            if self.feature[f] > self.max_n_in_filter:
+                self.max_n_in_filter = self.feature[f]
+
+
+class N_obs_night_cost(BaseSurveyFeature):
+    """
+    Track how many times something has been observed in a night
+    (Note, even if there are two, it might not be a good pair.)
+    """
+    def __init__(self, survey_filters='r', nside=default_nside):
+        """
+        Parameters
+        ----------
+        filtername : string ('r')
+            Filter to track.
+        nside : int (32)
+            Scale of the healpix map
+        """
+        self.dt = np.dtype({'names': survey_filters, 'formats': len(survey_filters)*[int]})
+        self.feature = np.zeros(hp.nside2npix(nside), dtype=self.dt)
+        self.sum_feature = np.zeros(len(self.feature), dtype=int)
+        self.survey_filters = survey_filters
+
+        self.max_n = np.zeros(1,dtype=self.dt)
+        self.max_n_all_f = 0
+        self.night = None
+
+    def add_observation(self, observation, indx=None):
+
+        if observation['night'][0] != self.night:
+            self.feature *= 0
+            self.sum_feature *= 0
+            self.night = observation['night'][0]
+
+        self.sum_feature[indx] +=1
+
+        for f in self.survey_filters:
+            if observation['filter'][0] == f:
+                self.feature[indx][f] += 1
+            self.max_n[f] = np.max(self.feature[f])
+        self.max_n_all_f = np.max(self.sum_feature)
+
+
+
+
+        if observation['filter'][0] in self.survey_filters:
+            self.feature[indx] += 1
