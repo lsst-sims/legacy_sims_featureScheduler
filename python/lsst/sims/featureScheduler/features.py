@@ -286,15 +286,17 @@ class Time_to_set(BaseConditionsFeature):
         lmst_alt_min[np.where(lmst_alt_min < 0)] += 2.*np.pi
         self.lmst_min = lmst_alt_min
 
+        self.nans = np.isnan(self.lmst_min)
+
     def update_conditions(self, conditions):
         """feature = time to set in hours
         """
-        lmst = conditions['lmst']
+        lmst = conditions['lmst'] * np.pi/12.
 
         rad_to_limit = self.lmst_min - lmst
         rad_to_limit[np.where(rad_to_limit < 0)] += 2.*np.pi
 
-        self.feature = rad_to_limit * 12./np.pi
+        self.feature = rad_to_limit
         self.feature *= 12/np.pi * 365.24/366.24
         self.feature[self.nans] = hp.UNSEEN
 
@@ -328,16 +330,14 @@ class Time_to_alt_limit(BaseConditionsFeature):
     def update_conditions(self, conditions):
         """feature = time to set in hours
         """
-        lmst = conditions['lmst']
+        lmst = conditions['lmst'] * np.pi/12.
 
         rad_to_limit = self.lmst_max - lmst
         rad_to_limit[np.where(rad_to_limit < 0)] += 2.*np.pi
 
-        self.feature = rad_to_limit * 12./np.pi
+        self.feature = rad_to_limit
         self.feature *= 12/np.pi * 365.24/366.24
         self.feature[self.nans] = hp.UNSEEN
-
-
 
 
 class Time_observable_in_night(BaseConditionsFeature):
