@@ -1,11 +1,15 @@
 import numpy as np
 import lsst.sims.featureScheduler as fs
 from lsst.sims.featureScheduler.observatory import Speed_observatory
-
+import os
 
 if __name__ == "__main__":
 
-    survey_length = 10.  # days
+    filename = 'one_filter.db'
+    if os.path.exists(filename):
+        os.remove(filename)
+
+    survey_length = 365.  # days
     # Define what we want the final visit ratio map to look like
     target_map = fs.standard_goals()['r']
     # Make a list of the basis functions we want to use
@@ -17,7 +21,7 @@ if __name__ == "__main__":
     # Reward smaller slewtimes
     bfs.append(fs.Slewtime_basis_function(filtername='r'))
 
-    weights = np.array([10., 1., 10.])
+    weights = np.array([10., 1., 1.])
     # Use just the opsim fields for simplicity
     survey = fs.Simple_greedy_survey_fields(bfs, weights)
     scheduler = fs.Core_scheduler([survey])
@@ -25,4 +29,4 @@ if __name__ == "__main__":
     observatory = Speed_observatory()
     observatory, scheduler, observations = fs.sim_runner(observatory, scheduler,
                                                          survey_length=survey_length,
-                                                         filename='one_filter.db')
+                                                         filename=filename)
