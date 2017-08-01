@@ -8,6 +8,7 @@ from scipy.spatial import cKDTree as kdtree
 from lsst.sims.utils import _hpid2RaDec, calcLmstLast
 from astropy.coordinates import SkyCoord
 from astropy import units as u
+import ephem
 import os
 import sys
 from lsst.utils import getPackageDir
@@ -503,4 +504,164 @@ def sort_pointings(observations, order_first='azimuth'):
     # Maybe take some windows. 
     # Note that the az rotation is a problem near zenith. 
     # does a greedy walk do a good job?
+    return
 
+def max_altitude(dec, lsst_lat):
+    """
+    evaluates the maximum altitude that fields can ever achieve.
+
+    Parameters
+    ----------
+    dec : numpy.array
+        declination of the fields
+    lsst_lat  : float
+        Lattitude of the LSST site
+
+    Returns
+    -------
+    max_alt : numpy.array
+        Maximum altitudes. Radians.
+    """
+    max_alt = lsst_lat + np.pi/2. - dec
+    max_alt = np.where(dec >= lsst_lat, lsst_lat + np.pi/2. - dec, -lsst_lat + np.pi/2. + dec)
+    return max_alt
+
+
+def alt_allocation(alt, dec, lsst_lat, filter_name='r'):
+    """
+    Allocates altitude to each filter, so there is a best normalized altitude for each filter
+
+    Parameters
+    ----------
+    alt : numpy.array
+        altitude of the fields
+    dec : numpy.array
+        declination of the fields (to find the maximum altitude they can ever reach)
+    lsst_lat  : float
+        Lattitude of the LSST site
+
+    Returns
+    -------
+    alt_alloc : numpy.array
+
+    """
+    max_alt = max_altitude(dec, lsst_lat)
+    normalized_alt = alt/max_alt
+    if filter_name is None:
+        filter_name = 'r'
+    index = ['u', 'g', 'r', 'i', 'z', 'y'].index(filter_name)
+    traps = np.array([0.95,0.85,0.75,0.65,0.55,0.45])
+
+    alt_alloc = 10. * np.square(normalized_alt - traps[index])
+    alt_alloc[normalized_alt >= .95] = .95
+    alt_alloc[normalized_alt <= .45] = .45
+    return alt_alloc
+
+
+def hour_angle(ra, lsst_lon, mjd, lmst=None):
+    """
+    evaluates the hour angle of fields.
+
+    Parameters
+    ----------
+    ra : numpy.array
+        RA, in radians.
+    lsst_lon  : float
+        Longitude of the LSST site
+
+    Returns
+    -------
+    ha : numpy.array
+        Hour angle ranging from -12 to 12. Hours.
+    """
+    if lmst is None:
+        lmst, last = calcLmstLast(mjd, lsst_lon)
+    ha = lmst-ra * 12./np.pi
+    ha = np.where(ha < -12, ha +24, ha)
+    ha = np.where(ha > 12, ha - 24, ha)
+    return ha
+
+
+def mutually_exclusive_regions(nside=set_default_nside()):
+    SCP_indx = SCP_healpixels(nside)
+    NES_indx = NES_healpixels(nside)
+    GP_indx = galactic_plane_healpixels(nside)
+    all_butWFD = reduce(np.union1d, (SCP_indx, NES_indx, GP_indx))
+    GP_NES     = np.union1d(GP_indx, NES_indx)
+
+    WFD_indx = np.setdiff1d(WFD_healpixels(nside), all_butWFD, assume_unique=True)
+    SCP_indx = np.setdiff1d(SCP_indx, GP_NES, assume_unique=True)
+    NES_indx = np.setdiff1d(NES_indx, GP_indx, assume_unique=True)
+
+    return SCP_indx, NES_indx, GP_indx, WFD_indx
+
+
+def pix2region(indx, nside):
+    ra = np.arange(hp.nside2npix(nside)); dec = np.arange(hp.nside2npix(nside))
+    ra[indx], dec[indx] = _hpid2RaDec(indx)
+    SE_indx = [i for i in indx if is_SE(dec[i])]
+    NE_indx = [i for i in indx if (is_NE(ra[i], dec[i]) and i not in SE_indx)]
+    GP_indx = [i for i in indx if (is_GP(ra[i], dec[i]) and i not in NE_indx and i not in SE_indx)]
+    WFD_indx= [i for i in indx if (i not in SE_indx and i not in NE_indx and i not in GP_indx)]
+    return SE_indx, NE_indx, GP_indx, WFD_indx
+
+
+def is_DD(field_id): #TODO temporarily just by id, later by label or location
+    if field_id in [744, 2412, 1427, 2786, 290]:
+        return True
+    return False
+
+def is_SE(dec):
+    SE_dec_lim = -65. # must be less than this
+    if dec < SE_dec_lim:
+        return True
+    return False
+
+def is_NE(ra, dec):
+    NE_dec_lim = 0 # must be more than this
+    NE_lat_lim = np.deg2rad(7)# must be less than this
+    str_ra = str(ra * 24 / 360); str_dec = str(dec)
+    Eq_body     = ephem.Equatorial(str_ra, str_dec)
+    Ec_body     = ephem.Ecliptic(Eq_body)
+    if dec >= NE_dec_lim and Ec_body.lat <= NE_lat_lim:
+        return True
+    return False
+
+def is_GP(ra, dec):
+    GP_lat_max = np.deg2rad(5)
+    GP_lat_min = np.deg2rad(0)
+    GP_lon_max = np.deg2rad(70)
+    str_ra = str(ra * 24 / 360); str_dec = str(dec)
+    Eq_body     = ephem.Equatorial(str_ra, str_dec)
+    Ga_body     = ephem.Galactic(Eq_body)
+    corrected_GP_lon = Ga_body.lon.real + np.deg2rad(180)
+    if corrected_GP_lon > 2 * np.pi:
+        corrected_GP_lon -= np.deg2rad(360)
+    corrected_GP_lon -= np.deg2rad(180)
+    '''
+    if Ga_body.lat.real <= GP_lat_max or Ga_body.lat.real >= -GP_lat_max:
+        if corrected_GP_lon <= GP_lon_max or corrected_GP_lon >= -GP_lon_max:
+            return True
+    return False
+
+    '''
+    if Ga_body.lat.real > GP_lat_max or Ga_body.lat.real < -GP_lat_max:
+        return False
+    if corrected_GP_lon > GP_lon_max or corrected_GP_lon < -GP_lon_max:
+        return False
+    if Ga_body.lat.real >= 0 and corrected_GP_lon >= 0:
+        if Ga_body.lat.real <= GP_lat_max + float(GP_lat_min - GP_lat_max)/(GP_lon_max - 0) * Ga_body.lat.real:
+            return True
+        return False
+    if Ga_body.lat.real < 0 and corrected_GP_lon < 0:
+        if Ga_body.lat.real >= -GP_lat_max + float(-GP_lon_max + GP_lat_min)/(0 + GP_lon_max) * Ga_body.lat.real:
+            return True
+        return False
+    if Ga_body.lat.real < 0 and corrected_GP_lon > 0:
+        if Ga_body.lat.real >= -GP_lat_max + float(-GP_lat_min + GP_lat_max)/(GP_lon_max - 0) * Ga_body.lat.real:
+            return True
+        return False
+    if Ga_body.lat.real > 0 and corrected_GP_lon < 0:
+        if Ga_body.lat.real <= GP_lat_max + float(GP_lat_min - GP_lat_max)/(0 + GP_lon_max) * Ga_body.lat.real:
+            return True
+        return False

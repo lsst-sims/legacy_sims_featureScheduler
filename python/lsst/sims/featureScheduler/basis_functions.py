@@ -28,6 +28,9 @@ class Base_basis_function(object):
         else:
             self.condition_features = condition_features
 
+        # Mutually exclusive sky regions
+        self.SCP_indx, self.NES_indx, self.GP_indx, self.WFD_indx = utils.mutually_exclusive_regions()
+
     def add_observation(self, observation, indx=None):
         for feature in self.survey_features:
             self.survey_features[feature].add_observation(observation, indx=indx)
@@ -310,4 +313,310 @@ class Slew_distance_basis_function(Base_basis_function):
         result[np.where(ang_distance <= self.inner_ring)] = self.inner_penalty
         return result
 
+
+
+
+
+########## Cost based basis functions #################################################################################
+
+class Slewtime_basis_function_cost(Base_basis_function):  #F1
+    """Slew time cost
+    """
+    def __init__(self, survey_features=None, condition_features=None,
+                 max_time=135., filtername='r'):
+        self.maxtime = max_time
+        self.filtername = filtername
+        if condition_features is None:
+            self.condition_features = {}
+            self.condition_features['Current_filter'] = features.Current_filter()
+            self.condition_features['slewtime'] = features.SlewtimeFeature()
+        super(Slewtime_basis_function_cost, self).__init__(survey_features=survey_features,
+                                                      condition_features=self.condition_features)
+
+    def __call__(self, indx=None):
+        if np.size(self.condition_features['slewtime'].feature) > 1:
+            result = np.zeros(np.size(self.condition_features['slewtime'].feature), dtype=float)
+            good = np.where(self.condition_features['slewtime'].feature != hp.UNSEEN)
+            result[good] = self.condition_features['slewtime'].feature[good]/5.
+        else:
+            result = self.condition_features['slewtime'].feature/5.
+
+        if self.condition_features['Current_filter'].feature == self.filtername:
+            return result
+        else:
+            result += 5.
+            return result
+
+
+
+class Visit_repeat_basis_function_cost(Base_basis_function):  #F2
+    """
+    Cost of re-visiting an area on the sky. Looking for Solar System objects.
+    """
+    def __init__(self, survey_features=None, condition_features=None, gap_min=15., gap_max=45.,
+                 filtername='r', nside=default_nside, npairs=1, survey_filters = ['r']):
+        """
+        survey_features : dict of features (None)
+            Dict of feature objects.
+        gap_min : float (15.)
+            Minimum time for the gap (minutes)
+        gap_max : flaot (45.)
+            Maximum time for a gap
+        filtername : str ('r')
+            The filter(s) to count with pairs
+        npairs : int (1)
+            The number of pairs of observations to attempt to gather
+        """
+
+        self.gap_min = gap_min/60./24.
+        self.gap_max = gap_max/60./24.
+        self.npairs = npairs
+        self.nside = nside
+        self.survey_filters = survey_filters
+
+        if survey_features is None:
+            self.survey_features = {}
+            # number of observations in a same night in all filters
+            for f in self.survey_filters:
+                self.survey_features['N_obs_same_night', f] = features.N_obs_night(nside=nside, filtername=f)
+                # When was it last observed
+                self.survey_features['Last_observed', f]= features.Last_observed(filtername=f)
+        if condition_features is None:
+            self.condition_features = {}
+            # Current MJD
+            self.condition_features['Current_mjd'] = features.Current_mjd()
+            self.condition_features['Time_observable_night'] = features.Time_observable_in_night()
+        super(Visit_repeat_basis_function_cost , self).__init__(survey_features=self.survey_features,
+                                                          condition_features=self.condition_features)
+
+    def __call__(self, indx=None):
+        self.result = np.zeros(hp.nside2npix(self.nside), dtype=float)
+        if indx is None:
+            indx = np.arange(self.result.size)
+
+        # Required features
+        self.t_to_invis = self.condition_features['Time_observable_night'].feature[indx]
+        t_last_night_all_filters = np.max([self.survey_features['Last_observed', f].feature[indx] for f in self.survey_filters],0)
+        self.since_t_last_all_filters = self.condition_features['Current_mjd'].feature - t_last_night_all_filters
+        self.n_night_all_filters = np.zeros_like(indx, dtype=float)
+        for f in self.survey_filters:
+            self.n_night_all_filters += self.survey_features['N_obs_same_night', f].feature[indx]
+
+        self.common_val(indx)
+        self.WFD_modification(indx)
+        self.NES_modification(indx)
+        self.GP_modification(indx)
+        self.SCP_modification(indx)
+        return self.result
+
+    def common_val(self, indx):
+        # common basis function
+        self.n_zero = np.where(self.n_night_all_filters == 0)
+        self.n_one = np.where(self.n_night_all_filters == 1)
+        self.n_two = np.where(self.n_night_all_filters == 2)
+        self.result[indx[self.n_zero]] += 10; self.result[indx[self.n_one]] += 5; self.result[indx[self.n_two]] += 15
+
+
+    def WFD_modification(self, indx, smooth_gap_min=30./ 60./24., smooth_gap_max=60./ 60./24., max_n_night=3, min_t_observable=30. / 60./24.):
+        WFD_cat = np.in1d(indx, self.WFD_indx)
+        cat1 = np.where(WFD_cat & (self.since_t_last_all_filters <= smooth_gap_min) & (self.t_to_invis >= smooth_gap_max))
+        cat2 = np.where(WFD_cat & (self.since_t_last_all_filters <= smooth_gap_min) & (self.t_to_invis <= smooth_gap_max))
+        cat3 = np.where(WFD_cat & (self.since_t_last_all_filters >= smooth_gap_min))
+        cat1 = np.intersect1d(self.n_one, cat1)
+        cat2 = np.intersect1d(self.n_one, cat2)
+        cat3 = np.intersect1d(self.n_one, cat3)
+        self.result[indx[cat1]] += (5 - 1./3. * self.since_t_last_all_filters[cat1] /60./24.)
+        self.result[indx[cat2]] *= 0.
+        self.result[indx[cat3]] *= 0.
+
+        # WFD infeasibility
+        bad1 = np.where(WFD_cat & (self.since_t_last_all_filters < self.gap_min) & (self.since_t_last_all_filters > self.gap_max) & (self.n_night_all_filters >= max_n_night))
+        bad2 = np.where(WFD_cat & (self.t_to_invis <= min_t_observable))
+        bad2 = np.intersect1d(self.n_one, bad2)
+        self.result[indx[bad1]] = np.inf
+        self.result[indx[bad2]] = np.inf
+
+
+    def NES_modification(self, indx, smooth_gap_min=15./ 60./24., mid_gap=20. /60./24., smooth_gap_max=75./ 60./24., max_n_night=3, min_t_observable=30. / 60./24.):
+        NES_cat = np.in1d(indx, self.WFD_indx)
+        cat1 = np.where(NES_cat & (self.since_t_last_all_filters <= smooth_gap_min) & (self.t_to_invis >= smooth_gap_max))
+        cat2 = np.where(NES_cat & (self.since_t_last_all_filters <= smooth_gap_min) & (self.t_to_invis <= smooth_gap_max))
+        cat3 = np.where(NES_cat & (self.since_t_last_all_filters >= smooth_gap_min))
+        cat1 = np.intersect1d(self.n_one, cat1)
+        cat2 = np.intersect1d(self.n_one, cat2)
+        cat3 = np.intersect1d(self.n_one, cat3)
+        self.result[indx[cat1]] += (5 - 1./3. * self.since_t_last_all_filters[cat1] /60./24.)
+        self.result[indx[cat2]] *= 0.
+        self.result[indx[cat3]] *= 0.
+
+        # NES infeasibility
+        bad1 = np.where(NES_cat & (self.since_t_last_all_filters < self.gap_min) & (self.since_t_last_all_filters > self.gap_max) & (self.n_night_all_filters >= max_n_night))
+        bad2 = np.where(NES_cat & (self.t_to_invis <= min_t_observable))
+        bad2 = np.setdiff1d(bad2, self.n_zero)
+        self.result[indx[bad1]] = np.inf
+        self.result[indx[bad2]] = np.inf
+
+    def GP_modification(self, indx, max_n_night=1):
+        GP_cat = np.in1d(indx, self.GP_indx)
+
+        # GP feasibility
+        bad = np.where(GP_cat & (self.n_night_all_filters >= max_n_night))
+        self.result[indx[bad]] = np.inf
+
+    def SCP_modification(self, indx, max_n_night=1):
+        SCP_cat = np.in1d(indx, self.SCP_indx)
+
+        # SCP feasibility
+        bad = np.where(SCP_cat & (self.n_night_all_filters >= max_n_night))
+        self.result[indx[bad]] = np.inf
+
+class Normalized_alt_basis_function_cost(Base_basis_function):  #F4
+    """
+    Filter dependant altitude allocation
+    """
+    def __init__(self, survey_features=None, condition_features=None, nside=default_nside,
+                 lsst_lat=-0.517781017, lsst_lon=-1.2320792):
+        """
+        Parameters
+        ----------
+
+        """
+        if condition_features is None:
+            self.condition_features = {}
+            self.condition_features['Current_mjd'] = features.Current_mjd()
+            self.condition_features['Current_filter'] = features.Current_filter()
+        else:
+            self.condition_features = condition_features
+
+        super(Normalized_alt_basis_function_cost, self).__init__(survey_features=survey_features,
+                                                           condition_features=self.condition_features)
+        self.nside = nside
+        # Make the RA, Dec map
+        indx = np.arange(hp.nside2npix(self.nside))
+        self.ra, self.dec = _hpid2RaDec(nside, indx)
+        self.lat = lsst_lat; self.lon = lsst_lon
+
+    def __call__(self, indx=None):
+        result = np.zeros(hp.nside2npix(self.nside), dtype=float)
+        if indx is None:
+            indx = np.arange(result.size)
+        mjd = self.condition_features['Current_mjd'].feature
+        self.alt, self.az = utils.stupidFast_RaDec2AltAz(self.ra, self.dec, self.lat, self.lon, mjd)
+        filter_name =  self.condition_features['Current_filter'].feature
+        result = utils.alt_allocation(self.alt,self.dec, self.lat, filter_name)
+        return result
+
+
+class Hour_angle_basis_function_cost(Base_basis_function):  #F5
+    """
+    Encourages close-to-meridian observation
+    """
+    def __init__(self, survey_features=None, condition_features=None, nside=default_nside,
+                 lsst_lon=-1.2320792):
+        """
+        Parameters
+        ----------
+
+        """
+        if condition_features is None:
+            self.condition_features = {}
+            self.condition_features['Current_mjd'] = features.Current_mjd()
+            self.condition_features['Current_filter'] = features.Current_filter()
+        else:
+            self.condition_features = condition_features
+
+        super(Hour_angle_basis_function_cost, self).__init__(survey_features=survey_features,
+                                                           condition_features=self.condition_features)
+        self.nside = nside
+        # Make the RA, Dec map
+        indx = np.arange(hp.nside2npix(self.nside))
+        self.ra, self.dec = _hpid2RaDec(nside, indx)
+        self.lon = lsst_lon
+
+    def __call__(self, indx=None):
+        result = np.zeros(hp.nside2npix(self.nside), dtype=float)
+        if indx is None:
+            indx = np.arange(result.size)
+        mjd = self.condition_features['Current_mjd'].feature
+        ha = utils.hour_angle(self.ra, self.lon, mjd)
+        result = np.abs(ha)
+        return result
+
+
+
+class Target_map_basis_function_cost(Base_basis_function):  #F6
+    """
+    Return a healpix map of the cost function based on normalized number of observations
+    """
+    def __init__(self, filtername='r', nside=default_nside, target_map=None, softening=1.,
+                 survey_features=None, condition_features=None, visits_per_point=10.,
+                 out_of_bounds_val=-10., survey_filters= ['r']):
+        """
+        Parameters
+        ----------
+        visits_per_point : float (10.)
+            How many visits can a healpixel be ahead or behind before it counts as 1 point.
+        target_map : numpy array (None)
+            A healpix map showing the ratio of observations desired for all points on the sky
+        out_of_bounds_val : float (10.)
+            Point value to give regions where there are no observations requested
+        """
+        if survey_features is None:
+            self.survey_features = {}
+            for f in survey_filters:
+                self.survey_features['N_obs', f] = features.N_observations(filtername=f)
+        super(Target_map_basis_function_cost, self).__init__(survey_features=self.survey_features,
+                                                        condition_features=condition_features)
+        self.visits_per_point = visits_per_point
+        self.nside = nside
+        self.softening = softening
+        if target_map is None:
+            self.target_map = utils.generate_goal_map(filtername=filtername)
+        else:
+            self.target_map = target_map
+        self.out_of_bounds_area = np.where(self.target_map == 0)[0]
+        self.out_of_bounds_val = out_of_bounds_val
+        self.filtername = filtername
+        self.survey_filters = survey_filters
+
+    def __call__(self, indx=None):
+        """
+        Parameters
+        ----------
+        indx : list (None)
+            Index values to compute, if None, full map is computed
+
+        Returns
+        -------
+        Healpix reward map
+        """
+        # Should probably update this to be as masked array.
+        result = np.zeros(hp.nside2npix(self.nside), dtype=float)
+        N_filter = np.zeros_like(result, dtype=float)
+        N_all_filter = np.zeros_like(result, dtype=float); max_N_all_filter = 0
+        if indx is None:
+            indx = np.arange(result.size)
+
+        N_filter[indx] = self.survey_features['N_obs', self.filtername].feature[indx]
+        max_N_filter = np.max(N_filter[indx])
+        for f in self.survey_filters:
+            poten_max_N_all_filter = np.max(self.survey_features['N_obs', f].feature[indx])
+            N_all_filter[indx] += self.survey_features['N_obs', f].feature[indx]
+            if poten_max_N_all_filter > max_N_all_filter:
+                max_N_all_filter = poten_max_N_all_filter
+
+        result[indx] = 1./(max_N_filter - N_filter[indx]+self.softening) \
+                     + 1./(max_N_all_filter - N_all_filter[indx]+self.softening)
+
+        # field independent filter urgency factor
+        max_sum_N_all_filter = 0
+        for f in self.survey_filters:
+            temp = np.sum(self.survey_features['N_obs', f].feature[indx])
+            if temp > max_sum_N_all_filter:
+                max_sum_N_all_filter = temp
+
+        sum_N_filter = np.sum(N_filter[indx])
+        filter_urgency_factor =  5. / (max_sum_N_all_filter - sum_N_filter + 1)
+        result[indx] += filter_urgency_factor
+        return result
 

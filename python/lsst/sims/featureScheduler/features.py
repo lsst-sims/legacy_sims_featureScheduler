@@ -128,12 +128,13 @@ class N_obs_night(BaseSurveyFeature):
         """
         self.filtername = filtername
         self.feature = np.zeros(hp.nside2npix(nside), dtype=int)
-        self.night = -1
+        self.night = None
 
     def add_observation(self, observation, indx=None):
-        if observation.filter in self.filtername:
-            if observation.night != self.night:
-                self.feature *= 0
+        if observation['night'][0] != self.night:
+            self.feature *= 0
+            self.night = observation['night'][0]
+        if observation['filter'][0] in self.filtername:
             self.feature[indx] += 1
 
 
@@ -162,13 +163,14 @@ class Pair_in_night(BaseSurveyFeature):
             if indx is None:
                 indx = self.indx
             # Clear values if on a new night
-            if self.night != observation['night']:
+            if self.night != observation['night'][0]:
                 self.feature *= 0.
-                self.night = observation['night']
+                self.night = observation['night'][0]
             tdiff = observation['mjd'] - self.last_observed.feature[indx]
-            good = np.where((tdiff >= self.gap_min) & (tdiff <= self.gap_max))[0]
+            good = np.where((tdiff  >= self.gap_min) & (tdiff <= self.gap_max))[0]
             self.feature[indx[good]] += 1.
             self.last_observed.add_observation(observation, indx=indx)
+
 
 
 class N_obs_reference(BaseSurveyFeature):
@@ -366,5 +368,4 @@ class Rotator_angle(BaseSurveyFeature):
         if observation['filter'][0] == self.filtername:
             # I think this is how to broadcast things properly.
             self.feature[indx, :] += np.histogram(observation.rotSkyPos, bins=self.bins)[0]
-
 
