@@ -16,9 +16,9 @@ if __name__ == "__main__":
         bfs.append(fs.Target_map_basis_function_cost(filtername=f, survey_filters=survey_filters))
         bfs.append(fs.Normalized_alt_basis_function_cost(filtername=f))
         bfs.append(fs.Hour_angle_basis_function_cost())
-        bfs.append(fs.Depth_percentile_basis_function())
+        bfs.append(fs.Depth_percentile_basis_function_cost())
         weights = np.array([3,1,1,2,1,1])
-        surveys.append(fs.Simple_greedy_survey_fields_cost(bfs, weights, filtername=f))
+        surveys.append(fs.Simple_greedy_survey_fields_cost(bfs, weights, filtername=f, block_size= 5))
 
     scheduler = fs.Core_scheduler_cost(surveys)
     observatory = Speed_observatory()
