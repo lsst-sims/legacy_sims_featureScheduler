@@ -441,7 +441,7 @@ class BaseSurvey_cost(object):
                 # -inf/inf cost means it is not an option.
                 if np.any(np.isinf(self.cost)):
                     self.cost = np.inf
-            self.cost = np.where(self.cost > -1e10, self.cost, np.inf)
+            self.cost = np.where(self.cost != hp.UNSEEN, self.cost, np.inf)
         else:
             # If not feasable, infinity cost
             self.cost = np.inf

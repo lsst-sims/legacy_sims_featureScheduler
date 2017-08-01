@@ -341,7 +341,7 @@ class Slewtime_basis_function_cost(Base_basis_function):  #F1
         else:
             result = self.condition_features['slewtime'].feature/5.
 
-        if self.condition_features['Current_filter'].feature == self.filtername:
+        if self.condition_features['Current_filter'].feature == self.filtername or self.condition_features['Current_filter'].feature is None:
             return result
         else:
             result += 5.
@@ -503,7 +503,7 @@ class Normalized_alt_basis_function_cost(Base_basis_function):  #F4
             indx = np.arange(result.size)
         mjd = self.condition_features['Current_mjd'].feature
         self.alt, self.az = utils.stupidFast_RaDec2AltAz(self.ra, self.dec, self.lat, self.lon, mjd)
-        result = utils.alt_allocation(self.alt,self.dec, self.lat, self.filtername) + ((1./(1-np.cos(self.alt))) -1)
+        result = utils.alt_allocation(self.alt,self.dec, self.lat, self.filtername) + 2*((1./(1-np.cos(self.alt))) -1)
         return result
 
 
@@ -605,5 +605,29 @@ class Target_map_basis_function_cost(Base_basis_function):  #F6 & F3
         max_sum_N_all_filter = self.survey_features['N_in_f'].max_n_in_filter
         filter_urgency_factor =  5. / (max_sum_N_all_filter - sum_N_filter + 1)
         result[indx] += filter_urgency_factor
+        print(sum_N_filter,filter_urgency_factor)
         return result
 
+
+class Depth_percentile_basis_function_cost(Base_basis_function):
+    """
+    Return a healpix map of the reward function based on 5-sigma limiting depth percentile
+    """
+    def __init__(self, survey_features=None, condition_features=None, filtername='r', nside=default_nside):
+        self.filtername = filtername
+        self.nside = nside
+        if condition_features is None:
+            self.condition_features = {}
+            self.condition_features['M5Depth_percentile'] = features.M5Depth_percentile(filtername=filtername)
+        super(Depth_percentile_basis_function_cost, self).__init__(survey_features=survey_features,
+                                                              condition_features=self.condition_features)
+
+    def __call__(self, indx=None):
+
+        result = np.empty(hp.nside2npix(self.nside), dtype=float)
+        result.fill(hp.UNSEEN)
+        if indx is None:
+            indx = np.arange(result.size)
+        result[indx] = self.condition_features['M5Depth_percentile'].feature[indx]
+        result = ma.masked_values(result, hp.UNSEEN)
+        return -result

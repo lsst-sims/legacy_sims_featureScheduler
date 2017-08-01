@@ -354,7 +354,6 @@ class Core_scheduler_cost(object):
         # Take a min here, so the surveys will be executed in the order they are
         # entered if there is a tie.
         good = np.min(np.where(costs == np.min(costs)))
-        #print(costs[costs > -1e10])
 
         # Survey could return list of observations, or a survey
         result = self.surveys[good]()
