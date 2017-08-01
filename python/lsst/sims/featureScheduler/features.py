@@ -260,6 +260,58 @@ class DD_feasability(BaseConditionsFeature):
     """
 
 
+class Time_continuously_available(BaseConditionsFeature):
+    """Calculate the time until a healpixel hits the airmass limit or the altitude limit
+    """
+    def __init__(self, nside=default_nside, alt_min=20., alt_max=86.5):
+        """
+        Parameters
+        ----------
+        alt_min : float
+            The minimum altitude one can point the telescope (degrees)
+        alt_max : float
+            The maximum altitude one can point the telescope (degrees)
+        """
+        self.ra, self.dec = _hpid2RaDec(nside, np.arange(hp.nside2npix(nside)))
+        self.min_alt = np.radians(alt_min)
+        self.max_alt = np.radians(alt_max)
+
+        self.sin_dec = np.sin(self.dec)
+        self.cos_dec = np.cos(self.dec)
+
+        site = Site('LSST')
+        self.sin_lat = np.sin(site.latitude_rad)
+        self.cos_lat = np.cos(site.latitude_rad)
+        self.lon = site.longitude_rad
+
+        # compute the hour angle when a point hits the alt_max
+        ha_alt_max = np.arccos((np.sin(self.max_alt) - self.sin_dec*self.sin_lat)/(self.cos_dec*self.cos_lat))
+
+        # Compute hour angle when field hits the alt_min
+        ha_alt_min = np.arccos((np.sin(self.min_alt) - self.sin_dec*self.sin_lat)/(self.cos_dec*self.cos_lat))
+
+        
+
+    def update_conditions(self, conditions):
+        pass
+        lmst = conditions['lmst']/12.*np.pi  # convert to rad
+        ha = lmst - self.ra
+        sinalt = self.sin_dec*self.sin_lat+self.cos_dec*self.cos_lat*np.cos(ha)
+
+        # Find the time until the point hits the min altitude
+
+
+        # Find time until it hits the maximum
+
+
+        # Combine the two
+
+
+
+
+
+
+
 class Time_observable_in_night(BaseConditionsFeature):
     """
     For every healpixel, calculate the time left observable in the night
