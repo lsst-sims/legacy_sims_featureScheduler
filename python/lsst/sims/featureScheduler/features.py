@@ -260,6 +260,8 @@ class DD_feasability(BaseConditionsFeature):
 
 class Time_to_set(BaseConditionsFeature):
     """Map of how much time until things set.
+
+    Warning, using very fast alt/az transformation ignoring refraction, aberration, etc.
     """
     def __init__(self, nside=default_nside, alt_min=20.):
         """
@@ -303,6 +305,8 @@ class Time_to_set(BaseConditionsFeature):
 
 class Time_to_alt_limit(BaseConditionsFeature):
     """Map of how much time until things set.
+
+    Warning, using very fast alt/az transformation ignoring refraction, aberration, etc.
     """
     def __init__(self, nside=default_nside, alt_max=86.5):
         """
