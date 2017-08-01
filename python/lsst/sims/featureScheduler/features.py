@@ -166,10 +166,9 @@ class Pair_in_night(BaseSurveyFeature):
                 self.feature *= 0.
                 self.night = observation['night'][0]
             tdiff = observation['mjd'] - self.last_observed.feature[indx]
-            good = np.where((tdiff  >= self.gap_min) & (tdiff <= self.gap_max))[0]
+            good = np.where((tdiff >= self.gap_min) & (tdiff <= self.gap_max))[0]
             self.feature[indx[good]] += 1.
             self.last_observed.add_observation(observation, indx=indx)
-
 
 
 class N_obs_reference(BaseSurveyFeature):
@@ -259,20 +258,58 @@ class DD_feasability(BaseConditionsFeature):
     """
 
 
-class Time_continuously_available(BaseConditionsFeature):
-    """Calculate the time until a healpixel hits the airmass limit or the altitude limit
+class Time_to_set(BaseConditionsFeature):
+    """Map of how much time until things set.
     """
-    def __init__(self, nside=default_nside, alt_min=20., alt_max=86.5):
+    def __init__(self, nside=default_nside, alt_min=20.):
         """
         Parameters
         ----------
         alt_min : float
             The minimum altitude one can point the telescope (degrees)
+        """
+        self.ra, self.dec = _hpid2RaDec(nside, np.arange(hp.nside2npix(nside)))
+        self.min_alt = np.radians(alt_min)
+
+        self.sin_dec = np.sin(self.dec)
+        self.cos_dec = np.cos(self.dec)
+
+        site = Site('LSST')
+        self.sin_lat = np.sin(site.latitude_rad)
+        self.cos_lat = np.cos(site.latitude_rad)
+        self.lon = site.longitude_rad
+
+        # Compute hour angle when field hits the alt_min
+        ha_alt_min = -np.arccos((np.sin(self.min_alt) - self.sin_dec*self.sin_lat)/(self.cos_dec*self.cos_lat))
+        self.ha_alt_min = ha_alt_min
+        lmst_alt_min = ha_alt_min + self.ra
+        lmst_alt_min[np.where(lmst_alt_min < 0)] += 2.*np.pi
+        self.lmst_min = lmst_alt_min
+
+    def update_conditions(self, conditions):
+        """feature = time to set in hours
+        """
+        lmst = conditions['lmst']
+
+        rad_to_limit = self.lmst_min - lmst
+        rad_to_limit[np.where(rad_to_limit < 0)] += 2.*np.pi
+
+        self.feature = rad_to_limit * 12./np.pi
+        self.feature *= 12/np.pi * 365.24/366.24
+        self.feature[self.nans] = hp.UNSEEN
+
+
+class Time_to_alt_limit(BaseConditionsFeature):
+    """Map of how much time until things set.
+    """
+    def __init__(self, nside=default_nside, alt_max=86.5):
+        """
+        Parameters
+        ----------
         alt_max : float
             The maximum altitude one can point the telescope (degrees)
         """
         self.ra, self.dec = _hpid2RaDec(nside, np.arange(hp.nside2npix(nside)))
-        self.min_alt = np.radians(alt_min)
         self.max_alt = np.radians(alt_max)
 
         self.sin_dec = np.sin(self.dec)
@@ -284,29 +321,21 @@ class Time_continuously_available(BaseConditionsFeature):
         self.lon = site.longitude_rad
 
         # compute the hour angle when a point hits the alt_max
-        ha_alt_max = np.arccos((np.sin(self.max_alt) - self.sin_dec*self.sin_lat)/(self.cos_dec*self.cos_lat))
-
-        # Compute hour angle when field hits the alt_min
-        ha_alt_min = np.arccos((np.sin(self.min_alt) - self.sin_dec*self.sin_lat)/(self.cos_dec*self.cos_lat))
-
-        
+        cos_ha = (np.sin(self.max_alt) - self.sin_dec*self.sin_lat)/(self.cos_dec * self.cos_lat)
+        self.lmst_max = np.arccos(cos_ha) + self.ra
+        self.nans = np.isnan(self.lmst_max)
 
     def update_conditions(self, conditions):
-        pass
-        lmst = conditions['lmst']/12.*np.pi  # convert to rad
-        ha = lmst - self.ra
-        sinalt = self.sin_dec*self.sin_lat+self.cos_dec*self.cos_lat*np.cos(ha)
+        """feature = time to set in hours
+        """
+        lmst = conditions['lmst']
 
-        # Find the time until the point hits the min altitude
+        rad_to_limit = self.lmst_max - lmst
+        rad_to_limit[np.where(rad_to_limit < 0)] += 2.*np.pi
 
-
-        # Find time until it hits the maximum
-
-
-        # Combine the two
-
-
-
+        self.feature = rad_to_limit * 12./np.pi
+        self.feature *= 12/np.pi * 365.24/366.24
+        self.feature[self.nans] = hp.UNSEEN
 
 
 
