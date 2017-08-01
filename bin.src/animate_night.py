@@ -25,7 +25,6 @@ def Fields_local_coordinate(Field_ra, Field_dec, t, Site):
     azimuth = curr_obj.az
     return altitude, azimuth
 
-
 def update_moon(t, Site):
     Moon = ephem.Moon()
     Site.date = t
@@ -34,23 +33,15 @@ def update_moon(t, Site):
     r = Moon.size / 3600 * np.pi / 180 * 2
     return X, Y, r, Moon.alt
 
-
 def AltAz2XY(Alt, Az):
     X = np.cos(Alt) * np.cos(Az) * -1
     Y = np.cos(Alt) * np.sin(Az)
     #Y = Alt * 2/ np.pi
     #X = Az / (2*np.pi)
-
     return -1.*Y, -1.*X
-
 
 def visualize(night, file_name, PlotID = 1,FPS = 15,Steps = 20,MP4_quality = 300, Name = "Visualization.mp4", showClouds = False):
 
-    # Import data
-    '''
-    All_Fields = np.loadtxt("NightDataInLIS/Constants/UnlabelledFields.lis", unpack = True)
-    N_Fields   = len(All_Fields[0])
-    '''
     Site            = ephem.Observer()
     Site.lon        = -1.2320792
     Site.lat        = -0.517781017

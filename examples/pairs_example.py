@@ -2,7 +2,6 @@ import numpy as np
 import lsst.sims.featureScheduler as fs
 from lsst.sims.featureScheduler.observatory import Speed_observatory
 
-
 if __name__ == "__main__":
 
     survey_length = 5  # days
@@ -24,3 +23,5 @@ if __name__ == "__main__":
     observatory, scheduler, observations = fs.sim_runner(observatory, scheduler,
                                                          survey_length=survey_length,
                                                          filename='pairs_survey.db')
+
+
