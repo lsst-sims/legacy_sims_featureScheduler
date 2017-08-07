@@ -1,0 +1,66 @@
+\documentclass[12pt,preprint]{aastex}
+%\documentclass{emulateapj}
+\usepackage{url}
+%\usepackage{natbib}
+%\usepackage{xspace}
+\def\arcsec{$^{\prime\prime}$}
+\bibliographystyle{apj}
+\newcommand\degree{{^\circ}}
+\newcommand\surfb{$\mathrm{mag}/\square$\arcsec}
+\newcommand\Gyr{\rm{~Gyr}}
+\newcommand\msun{\rm{M}_\odot}
+\newcommand\kms{km s$^{-1}$}
+\newcommand\al{$\alpha$}
+\newcommand\ha{$\rm{H}\alpha$}
+\newcommand\hb{$\rm{H}\beta$}
+
+
+
+%\shorttitle{Short Title}
+%\shortauthors{Yoachim et al.}
+
+\begin{document}
+
+\title{An Object Oriented Feature-Based Scheduler}
+
+
+\author{Peter Yoachim, Elahesadat Naghib}
+%\altaffiltext{1}{Department of Astronomy, University of Washington, Box 351580,
+%Seattle WA, 98195; {yoachim@uw.edu} }
+
+\section{Features}
+Features can 
+
+\section{Basis Functions}
+
+
+
+\section{Reward and Decision Functions}
+
+
+\section{Performance Function and Optimization}
+
+\section{Discussion}
+In the sims_featureScheduler package, we have implemented features and basis functions as python classes. We have then added a survey class which takes a list of basis functions and weights to compute a reward function. Each filter can then be it's own survey instantiation.
+
+Some advantages of a feature-based scheduler:
+\begin{itemize}
+    \item{OO-nature of the code makes it possible to include other arbitrary schedulers (e.g., pre-scheduled deep drilling field observations)}
+    \item{High spatial resolution features make it possible to easily include dithering options on the scheduling algorithm}
+    \item{HEALpixel based features make it easy to compute the cost function efficiently with numpy}
+    \item{We can queue multiple observations at a time, thus making it so we do not have to compute the reward function after each individual observation.}
+    \item{All our data structures should be picklable, so we can use python multiproccessing to get a factor of 6 speedup computing reward functions by running each survey on it's own processor.}
+\end{itemize}
+
+
+
+
+%\begin{figure}
+%\epsscale{.5}
+%\caption{ \emph{continued}.}
+%\end{figure}
+
+
+
+
+\end{document}
