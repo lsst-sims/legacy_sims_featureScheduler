@@ -431,17 +431,15 @@ class BaseSurvey_cost(object):
         self.cost_count += 1
         self.cost_checked = True
         if self._check_feasability():
-            self.cost = 0
             indx = np.arange(hp.nside2npix(default_nside))
+            self.cost = np.zeros(indx.size)
             for bf, weight in zip(self.basis_functions, self.basis_weights):
-                self.cost += bf(indx=indx)*weight
-                # might be faster to pull this out into the feasabiliity check?
+                basis_value = bf(indx=indx)
+                self.cost += basis_value*weight
+                self.cost = np.where((basis_value == hp.UNSEEN), np.inf, self.cost)
                 if hasattr(self.cost, 'mask'):
                     indx = np.where(self.cost.mask == False)[0]
-                # -inf/inf cost means it is not an option.
-                if np.any(np.isinf(self.cost)):
-                    self.cost = np.inf
-            self.cost = np.where(self.cost != hp.UNSEEN, self.cost, np.inf)
+            self.cost = np.where(self.cost == 0, np.inf, self.cost)
         else:
             # If not feasable, infinity cost
             self.cost = np.inf

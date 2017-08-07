@@ -125,7 +125,7 @@ class Obs_ratio_basis_function(Base_basis_function):
             self.survey_features['N_obs_reference'] = features.N_obs_reference(ra=ref_ra, dec=ref_dec)
             self.survey_features['N_obs_DD'] = features.N_obs_reference(ra=dd_ra, dec=dd_dec)
 
-        super(Visit_repeat_basis_function, self).__init__(survey_features=self.survey_features,
+        super(Obs_ratio_basis_function, self).__init__(survey_features=self.survey_features,
                                                           condition_features=condition_features)
 
     def __call__(self, **kwargs):
@@ -422,53 +422,58 @@ class Visit_repeat_basis_function_cost(Base_basis_function):  #F2
         cat1 = np.where(WFD_cat & (self.since_t_last_all_filters <= smooth_gap_min) & (self.t_to_invis >= smooth_gap_max))
         cat2 = np.where(WFD_cat & (self.since_t_last_all_filters <= smooth_gap_min) & (self.t_to_invis <= smooth_gap_max))
         cat3 = np.where(WFD_cat & (self.since_t_last_all_filters >= smooth_gap_min))
+        cat4 = np.where(np.isfinite(self.t_to_invis))
         cat1 = np.intersect1d(self.n_one, cat1)
         cat2 = np.intersect1d(self.n_one, cat2)
         cat3 = np.intersect1d(self.n_one, cat3)
+        cat4 = np.intersect1d(self.n_zero, cat4)
         self.result[indx[cat1]] += (5 - 1./3. * self.since_t_last_all_filters[cat1] /60./24.)
         self.result[indx[cat2]] *= 0.
         self.result[indx[cat3]] *= 0.
+        self.result[indx[cat4]] -= 10.*self.t_to_invis[cat4]
 
         # WFD infeasibility
         bad1 = np.where(WFD_cat & (self.since_t_last_all_filters < self.gap_min) & (self.since_t_last_all_filters > self.gap_max) & (self.n_night_all_filters >= max_n_night))
         bad2 = np.where(WFD_cat & (self.t_to_invis <= min_t_observable))
         bad2 = np.intersect1d(self.n_one, bad2)
-        self.result[indx[bad1]] = np.inf
-        self.result[indx[bad2]] = np.inf
-
+        self.result[indx[bad1]] = hp.UNSEEN
+        self.result[indx[bad2]] = hp.UNSEEN
 
     def NES_modification(self, indx, smooth_gap_min=15./ 60./24., mid_gap=20. /60./24., smooth_gap_max=75./ 60./24., max_n_night=3, min_t_observable=30. / 60./24.):
         NES_cat = np.in1d(indx, self.WFD_indx)
         cat1 = np.where(NES_cat & (self.since_t_last_all_filters <= smooth_gap_min) & (self.t_to_invis >= smooth_gap_max))
         cat2 = np.where(NES_cat & (self.since_t_last_all_filters <= smooth_gap_min) & (self.t_to_invis <= smooth_gap_max))
         cat3 = np.where(NES_cat & (self.since_t_last_all_filters >= smooth_gap_min))
+        cat4 = np.where(np.isfinite(self.t_to_invis))
         cat1 = np.intersect1d(self.n_one, cat1)
         cat2 = np.intersect1d(self.n_one, cat2)
         cat3 = np.intersect1d(self.n_one, cat3)
+        cat4 = np.intersect1d(self.n_zero, cat4)
         self.result[indx[cat1]] += (5 - 1./3. * self.since_t_last_all_filters[cat1] /60./24.)
         self.result[indx[cat2]] *= 0.
         self.result[indx[cat3]] *= 0.
+        self.result[indx[cat4]] -= 10.*self.t_to_invis[cat4]
 
         # NES infeasibility
         bad1 = np.where(NES_cat & (self.since_t_last_all_filters < self.gap_min) & (self.since_t_last_all_filters > self.gap_max) & (self.n_night_all_filters >= max_n_night))
         bad2 = np.where(NES_cat & (self.t_to_invis <= min_t_observable))
         bad2 = np.setdiff1d(bad2, self.n_zero)
-        self.result[indx[bad1]] = np.inf
-        self.result[indx[bad2]] = np.inf
+        self.result[indx[bad1]] = hp.UNSEEN
+        self.result[indx[bad2]] = hp.UNSEEN
 
     def GP_modification(self, indx, max_n_night=1):
         GP_cat = np.in1d(indx, self.GP_indx)
 
         # GP feasibility
         bad = np.where(GP_cat & (self.n_night_all_filters >= max_n_night))
-        self.result[indx[bad]] = np.inf
+        self.result[indx[bad]] = hp.UNSEEN
 
     def SCP_modification(self, indx, max_n_night=1):
         SCP_cat = np.in1d(indx, self.SCP_indx)
 
         # SCP feasibility
         bad = np.where(SCP_cat & (self.n_night_all_filters >= max_n_night))
-        self.result[indx[bad]] = np.inf
+        self.result[indx[bad]] = hp.UNSEEN
 
 class Normalized_alt_basis_function_cost(Base_basis_function):  #F4
     """
@@ -498,13 +503,50 @@ class Normalized_alt_basis_function_cost(Base_basis_function):  #F4
         self.lat = lsst_lat; self.lon = lsst_lon
 
     def __call__(self, indx=None):
-        result = np.zeros(hp.nside2npix(self.nside), dtype=float)
+        self.result = np.zeros(hp.nside2npix(self.nside), dtype=float)
         if indx is None:
-            indx = np.arange(result.size)
+            indx = np.arange(self.result.size)
         mjd = self.condition_features['Current_mjd'].feature
         self.alt, self.az = utils.stupidFast_RaDec2AltAz(self.ra, self.dec, self.lat, self.lon, mjd)
-        result = utils.alt_allocation(self.alt,self.dec, self.lat, self.filtername) + 2*((1./(1-np.cos(self.alt))) -1)
-        return result
+        self.common_val(indx)
+        self.WFD_modification(indx)
+        self.NES_modification(indx)
+        self.GP_modification(indx)
+        self.SCP_modification(indx)
+        return self.result
+
+    def common_val(self, indx):
+        # common basis function
+        self.result = utils.alt_allocation(self.alt,self.dec, self.lat, self.filtername) + 2*((1./(1-np.cos(self.alt))) -1)
+
+
+    def WFD_modification(self, indx, alt_lim = 45*np.pi/180.):
+        WFD_cat = np.in1d(indx, self.WFD_indx)
+        # WFD infeasibility
+        bad1 = np.where(WFD_cat & (self.alt < alt_lim))
+        self.result[indx[bad1]] = hp.UNSEEN
+
+
+    def NES_modification(self, indx, alt_lim = 20*np.pi/180.):
+        NES_cat = np.in1d(indx, self.NES_indx)
+        # WFD infeasibility
+        bad1 = np.where(NES_cat & (self.alt < alt_lim))
+        self.result[indx[bad1]] = hp.UNSEEN
+
+
+    def GP_modification(self, indx, alt_lim = 45*np.pi/180.):
+        GP_cat = np.in1d(indx, self.GP_indx)
+        # WFD infeasibility
+        bad1 = np.where(GP_cat & (self.alt < alt_lim))
+        self.result[indx[bad1]] = hp.UNSEEN
+
+
+    def SCP_modification(self, indx, alt_lim = 20*np.pi/180.):
+        SCP_cat = np.in1d(indx, self.SCP_indx)
+        # WFD infeasibility
+        bad1 = np.where(SCP_cat & (self.alt < alt_lim))
+        self.result[indx[bad1]] = hp.UNSEEN
+
 
 
 class Hour_angle_basis_function_cost(Base_basis_function):  #F5
@@ -605,7 +647,6 @@ class Target_map_basis_function_cost(Base_basis_function):  #F6 & F3
         max_sum_N_all_filter = self.survey_features['N_in_f'].max_n_in_filter
         filter_urgency_factor =  5. / (max_sum_N_all_filter - sum_N_filter + 1)
         result[indx] += filter_urgency_factor
-        print(sum_N_filter,filter_urgency_factor)
         return result
 
 
