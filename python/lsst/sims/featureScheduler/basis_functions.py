@@ -386,6 +386,7 @@ class Visit_repeat_basis_function_cost(Base_basis_function):  #F2
             # Current MJD
             self.condition_features['Current_mjd'] = features.Current_mjd()
             self.condition_features['Time_observable_night'] = features.Time_observable_in_night()
+            self.condition_features['Time_to_alt_limit'] = features.Time_to_alt_limit()
         super(Visit_repeat_basis_function_cost , self).__init__(survey_features=self.survey_features,
                                                           condition_features=self.condition_features)
 
@@ -395,7 +396,9 @@ class Visit_repeat_basis_function_cost(Base_basis_function):  #F2
             indx = np.arange(self.result.size)
 
         # Required features
-        self.t_to_invis = self.condition_features['Time_observable_night'].feature[indx] /24.
+        t_to_twilight = self.condition_features['Time_observable_night'].feature[indx] /24.
+        t_to_alt_lim = self.condition_features['Time_to_alt_limit'].feature[indx] /24.
+        self.t_to_invis = np.minimum(t_to_alt_lim,t_to_twilight)
         t_last_night_all_filters = np.max([self.survey_features['Last_observed', f].feature[indx] for f in self.survey_filters],0)
         self.since_t_last_all_filters = self.condition_features['Current_mjd'].feature - t_last_night_all_filters
         self.n_night_all_filters = np.zeros_like(indx, dtype=float)
