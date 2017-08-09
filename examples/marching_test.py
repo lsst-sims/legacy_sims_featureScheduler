@@ -5,7 +5,7 @@ import healpy as hp
 
 if __name__ == "__main__":
 
-    survey_length = 365  # days
+    survey_length = 20  # days
     # Define what we want the final visit ratio map to look like
     target_map = fs.standard_goals()['r']
 
@@ -22,7 +22,7 @@ if __name__ == "__main__":
     observatory = Speed_observatory()
     observatory, scheduler, observations = fs.sim_runner(observatory, scheduler,
                                                          survey_length=survey_length,
-                                                         filename='marching_block_1.db',
+                                                         filename='marching_d%i.db' % survey_length,
                                                          delete_past=True)
 
 # block_size=10, surveylength of 365 had runtime of 163 min. and got 0.26e6 observations. So, 10 years would be 27 hours.
