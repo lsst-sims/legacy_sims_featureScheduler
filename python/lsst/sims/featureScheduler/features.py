@@ -39,6 +39,33 @@ class BaseConditionsFeature(object):
         pass
 
 
+class AltAzFeature(BaseConditionsFeature):
+    """Compute the alt and az of all the pixels
+    """
+    def __init__(self, nside=default_nside, lat=None, lon=None):
+        """
+        Parameters
+        ----------
+        nside : int (32)
+            The nside of the healpixel map to use
+        """
+        self.ra, self.dec = utils.ra_dec_hp_map(nside)
+        if lat is None:
+            site = Site(name='LSST')
+            self.lat = site.latitude_rad
+            self.lon = site.longitude_rad
+        else:
+            self.lat = lat
+            self.lon = lon
+
+    def update_conditions(self, conditions, *kwargs):
+        self.feature = {}
+        alt, az = utils.stupidFast_RaDec2AltAz(self.ra, self.dec,
+                                               self.lat, self.lon, conditions['mjd'])
+        self.feature['alt'] = alt
+        self.feature['az'] = az
+
+
 class N_observations(BaseSurveyFeature):
     """
     Track the number of observations that have been made accross the sky.
@@ -136,6 +163,7 @@ class N_obs_night(BaseSurveyFeature):
             self.night = observation['night'][0]
         if observation['filter'][0] in self.filtername:
             self.feature[indx] += 1
+
 
 class Pair_in_night(BaseSurveyFeature):
     """

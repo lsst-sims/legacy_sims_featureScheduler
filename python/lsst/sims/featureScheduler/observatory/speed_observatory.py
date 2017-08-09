@@ -7,6 +7,7 @@ import healpy as hp
 import lsst.sims.featureScheduler.utils as utils
 import ephem
 from slew_pre import Slewtime_pre
+from lsst.sims.utils import m5_flat_sed
 
 
 __all__ = ['Speed_observatory']
@@ -158,16 +159,17 @@ class Speed_observatory(object):
         Check an observation, if there is enough time, execute it and return it, otherwise, return none.
         """
         # If we were in a parked position, assume no time lost to slew, settle, filter change
+
         observation = observation_in.copy()
+        alt, az = utils.stupidFast_RaDec2AltAz(np.array([observation['RA']]),
+                                               np.array([observation['dec']]),
+                                               self.obs.lat, self.obs.lon, self.mjd)
         if self.ra is not None:
             if self.filtername != observation['filter']:
                 ft = self.f_change_time
                 st = 0.
             else:
                 ft = 0.
-                alt, az = utils.stupidFast_RaDec2AltAz(np.array([observation['RA']]),
-                                                       np.array([observation['dec']]),
-                                                       self.obs.lat, self.obs.lon, self.mjd)
                 st = self.slew_time(alt, az)
         else:
             st = 0.
@@ -203,6 +205,13 @@ class Speed_observatory(object):
             observation['skybrightness'] = self.status['skybrightness'][self.filtername][hpid]
             observation['FWHMeff'] = self.status['FWHMeff'][hpid]
             observation['airmass'] = self.status['airmass'][hpid]
+            observation['fivesigmadepth'] = m5_flat_sed(observation['filter'][0],
+                                                        observation['skybrightness'],
+                                                        observation['FWHMeff'],
+                                                        observation['exptime'],
+                                                        observation['airmass'])
+            observation['alt'] = alt
+            observation['az'] = az
             return observation
         else:
             self.mjd = jump_mjd

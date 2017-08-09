@@ -74,9 +74,11 @@ def empty_observation():
         The night number of the observation (days)
     """
     names = ['RA', 'dec', 'mjd', 'exptime', 'filter', 'rotSkyPos', 'nexp',
-             'airmass', 'FWHMeff', 'FWHM_geometric', 'skybrightness', 'night', 'slewtime']
+             'airmass', 'FWHMeff', 'FWHM_geometric', 'skybrightness', 'night', 'slewtime', 'fivesigmadepth',
+             'alt', 'az']
     # units of rad, rad,   days,  seconds,   string, radians (E of N?)
-    types = [float, float, float, float, '|1S', float, int, float, float, float, float, int, float]
+    types = [float, float, float, float, '|1S', float, int, float, float, float, float, int, float, float,
+             float, float]
     result = np.zeros(1, dtype=list(zip(names, types)))
     return result
 
@@ -414,6 +416,8 @@ def observations2sqlite(observations, filename='observations.db', delete_past=Fa
     # Convert to degrees for output
     observations['RA'] = np.degrees(observations['RA'])
     observations['dec'] = np.degrees(observations['dec'])
+    observations['alt'] = np.degrees(observations['alt'])
+    observations['az'] = np.degrees(observations['az'])
     observations['rotSkyPos'] = np.degrees(observations['rotSkyPos'])
 
     if filename is not None:
