@@ -5,7 +5,7 @@ import numpy as np
 import healpy as hp
 import pandas as pd
 from scipy.spatial import cKDTree as kdtree
-from lsst.sims.utils import _hpid2RaDec, calcLmstLast
+from lsst.sims.utils import _hpid2RaDec, calcLmstLast, _raDec2Hpid
 from astropy.coordinates import SkyCoord
 from astropy import units as u
 import ephem
@@ -593,85 +593,107 @@ def hour_angle(ra, lsst_lon, mjd, lmst=None):
 
 
 def mutually_exclusive_regions(nside=set_default_nside()):
-    SCP_indx = SCP_healpixels(nside)
-    NES_indx = NES_healpixels(nside)
-    GP_indx = galactic_plane_healpixels(nside)
-    all_butWFD = reduce(np.union1d, (SCP_indx, NES_indx, GP_indx))
-    GP_NES     = np.union1d(GP_indx, NES_indx)
+    indx = np.arange(hp.nside2npix(nside))
+    all_true = np.ones(np.size(indx), dtype=bool)
+    SCP_indx = is_SCP(nside)
+    NES_indx = is_NES(nside)
+    GP_indx = is_GP(nside)
 
-    WFD_indx = np.setdiff1d(WFD_healpixels(nside), all_butWFD, assume_unique=True)
-    SCP_indx = np.setdiff1d(SCP_indx, GP_NES, assume_unique=True)
-    NES_indx = np.setdiff1d(NES_indx, GP_indx, assume_unique=True)
+    all_butWFD = SCP_indx + NES_indx + GP_indx
+    GP_NES     = GP_indx + NES_indx
 
-    return SCP_indx, NES_indx, GP_indx, WFD_indx
+    WFD_indx = all_true - all_butWFD
+    SCP_indx = SCP_indx - GP_NES*SCP_indx - NES_indx*SCP_indx
+    NES_indx = NES_indx - GP_indx*SCP_indx
+
+    return indx[SCP_indx], indx[NES_indx], indx[GP_indx], indx[WFD_indx]
+
+def is_WFD(nside=set_default_nside(), dec_min=-60., dec_max=0.):
+    """
+    Define a wide fast deep region. Return a healpix map with WFD pixels as true.
+    """
+    ra, dec = ra_dec_hp_map(nside=nside)
+    WFD_indx =((dec >= np.radians(dec_min)) & (dec <= np.radians(dec_max)))
+    return WFD_indx
 
 
-def pix2region(indx, nside):
-    ra = np.arange(hp.nside2npix(nside)); dec = np.arange(hp.nside2npix(nside))
-    ra[indx], dec[indx] = _hpid2RaDec(indx)
-    SE_indx = [i for i in indx if is_SE(dec[i])]
-    NE_indx = [i for i in indx if (is_NE(ra[i], dec[i]) and i not in SE_indx)]
-    GP_indx = [i for i in indx if (is_GP(ra[i], dec[i]) and i not in NE_indx and i not in SE_indx)]
-    WFD_indx= [i for i in indx if (i not in SE_indx and i not in NE_indx and i not in GP_indx)]
-    return SE_indx, NE_indx, GP_indx, WFD_indx
+def is_SCP(nside=set_default_nside(), dec_max=-60.):
+    """
+    Define the South Celestial Pole region. Return a healpix map with SCP pixels as true.
+    """
+    ra, dec = ra_dec_hp_map(nside=nside)
+    result = np.zeros(ra.size)
+    good = np.where(dec < np.radians(dec_max))
+    result[good] += 1
+
+    SCP_indx = (result == 1)
+    return SCP_indx
 
 
-def is_DD(field_id): #TODO temporarily just by id, later by label or location
-    if field_id in [744, 2412, 1427, 2786, 290]:
-        return True
-    return False
+def is_NES(nside=set_default_nside(), width=15, dec_min=0., fill_gap=True):
+    """
+    Define the North Ecliptic Spur region. Return a healpix map with NES pixels as true.
+    """
+    ra, dec = ra_dec_hp_map(nside=nside)
+    result = np.zeros(ra.size)
+    coord = SkyCoord(ra=ra*u.rad, dec=dec*u.rad)
+    eclip_lat = coord.barycentrictrueecliptic.lat.radian
+    good = np.where((np.abs(eclip_lat) <= np.radians(width)) & (dec > dec_min))
+    result[good] += 1
 
-def is_SE(dec):
-    SE_dec_lim = -65. # must be less than this
-    if dec < SE_dec_lim:
-        return True
-    return False
+    if fill_gap:
+        good = np.where((dec > np.radians(dec_min)) & (ra < np.radians(180)) &
+                        (dec < np.radians(width)))
+        result[good] = 1
 
-def is_NE(ra, dec):
-    NE_dec_lim = 0 # must be more than this
-    NE_lat_lim = np.deg2rad(7)# must be less than this
-    str_ra = str(ra * 24 / 360); str_dec = str(dec)
-    Eq_body     = ephem.Equatorial(str_ra, str_dec)
-    Ec_body     = ephem.Ecliptic(Eq_body)
-    if dec >= NE_dec_lim and Ec_body.lat <= NE_lat_lim:
-        return True
-    return False
+    NES_indx = (result==1)
 
-def is_GP(ra, dec):
-    GP_lat_max = np.deg2rad(5)
-    GP_lat_min = np.deg2rad(0)
-    GP_lon_max = np.deg2rad(70)
-    str_ra = str(ra * 24 / 360); str_dec = str(dec)
-    Eq_body     = ephem.Equatorial(str_ra, str_dec)
-    Ga_body     = ephem.Galactic(Eq_body)
-    corrected_GP_lon = Ga_body.lon.real + np.deg2rad(180)
-    if corrected_GP_lon > 2 * np.pi:
-        corrected_GP_lon -= np.deg2rad(360)
-    corrected_GP_lon -= np.deg2rad(180)
-    '''
-    if Ga_body.lat.real <= GP_lat_max or Ga_body.lat.real >= -GP_lat_max:
-        if corrected_GP_lon <= GP_lon_max or corrected_GP_lon >= -GP_lon_max:
-            return True
-    return False
+    return NES_indx
 
-    '''
-    if Ga_body.lat.real > GP_lat_max or Ga_body.lat.real < -GP_lat_max:
-        return False
-    if corrected_GP_lon > GP_lon_max or corrected_GP_lon < -GP_lon_max:
-        return False
-    if Ga_body.lat.real >= 0 and corrected_GP_lon >= 0:
-        if Ga_body.lat.real <= GP_lat_max + float(GP_lat_min - GP_lat_max)/(GP_lon_max - 0) * Ga_body.lat.real:
-            return True
-        return False
-    if Ga_body.lat.real < 0 and corrected_GP_lon < 0:
-        if Ga_body.lat.real >= -GP_lat_max + float(-GP_lon_max + GP_lat_min)/(0 + GP_lon_max) * Ga_body.lat.real:
-            return True
-        return False
-    if Ga_body.lat.real < 0 and corrected_GP_lon > 0:
-        if Ga_body.lat.real >= -GP_lat_max + float(-GP_lat_min + GP_lat_max)/(GP_lon_max - 0) * Ga_body.lat.real:
-            return True
-        return False
-    if Ga_body.lat.real > 0 and corrected_GP_lon < 0:
-        if Ga_body.lat.real <= GP_lat_max + float(GP_lat_min - GP_lat_max)/(0 + GP_lon_max) * Ga_body.lat.real:
-            return True
-        return False
+
+def is_GP(nside=set_default_nside(), center_width=10., end_width=4.,
+                              gal_long1=70., gal_long2=290.):
+    """
+    Define the Galactic Plane region. Return a healpix map with GP pixels as true.
+    """
+    ra, dec = ra_dec_hp_map(nside=nside)
+    result = np.zeros(ra.size)
+    coord = SkyCoord(ra=ra*u.rad, dec=dec*u.rad)
+    g_long, g_lat = coord.galactic.l.radian, coord.galactic.b.radian
+    good = np.where((g_long < np.radians(gal_long1)) & (np.abs(g_lat) < np.radians(center_width)))
+    result[good] += 1
+    good = np.where((g_long > np.radians(gal_long2)) & (np.abs(g_lat) < np.radians(center_width)))
+    result[good] += 1
+    # Add tapers
+    slope = -(np.radians(center_width)-np.radians(end_width))/(np.radians(gal_long1))
+    lat_limit = slope*g_long+np.radians(center_width)
+    outside = np.where((g_long < np.radians(gal_long1)) & (np.abs(g_lat) > np.abs(lat_limit)))
+    result[outside] = 0
+    slope = (np.radians(center_width)-np.radians(end_width))/(np.radians(360. - gal_long2))
+    b = np.radians(center_width)-np.radians(360.)*slope
+    lat_limit = slope*g_long+b
+    outside = np.where((g_long > np.radians(gal_long2)) & (np.abs(g_lat) > np.abs(lat_limit)))
+    result[outside] = 0
+
+    GP_inx =(result==1)
+
+    return GP_inx
+
+def RaDec2region(ra, dec, nside):
+
+    result = np.array(np.size(ra), dtype = str)
+    SCP_indx, NES_indx, GP_indx, WFD_indx = mutually_exclusive_regions(nside)
+    indices = _raDec2Hpid(ra, dec, nside)
+
+    SCP = np.searchsorted(indices,SCP_indx)
+    NES = np.searchsorted(indices,NES_indx)
+    GP  = np.searchsorted(indices,GP_indx)
+    WFD = np.searchsorted(indices,WFD_indx)
+
+    result[SCP] = 'SCP'
+    result[NES] = 'NES'
+    result[GP]  = 'GP'
+    result[WFD] = 'WFD'
+
+    return result
+

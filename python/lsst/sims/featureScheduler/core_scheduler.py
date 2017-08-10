@@ -205,7 +205,6 @@ class Core_scheduler_cost(object):
             if min_cost < np.inf or min_cost > -np.inf:
                 good = np.min(np.where(costs == np.min(costs)))
                 result = self.scripted_surveys[good]()
-
         return result
 
     def request_observation(self):
