@@ -645,12 +645,14 @@ class Target_map_basis_function_cost(Base_basis_function):  #F6 & F3
 
         result[indx] = 1./(max_N_filter - N_filter[indx]+self.softening) \
                      + 1./(max_N_all_filter - N_all_filter[indx]+self.softening)
+        print(np.mean(result[indx]), np.var(result[indx]))
 
         # field independent filter urgency factor
         sum_N_filter = self.survey_features['N_in_f'].feature[self.filtername]
         max_sum_N_all_filter = self.survey_features['N_in_f'].max_n_in_filter
         filter_urgency_factor =  5. / (max_sum_N_all_filter - sum_N_filter + 1)
         result[indx] += filter_urgency_factor
+        print(filter_urgency_factor)
         return result
 
 
