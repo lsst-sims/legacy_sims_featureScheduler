@@ -396,9 +396,10 @@ class Visit_repeat_basis_function_cost(Base_basis_function):  #F2
             indx = np.arange(self.result.size)
 
         # Required features
-        t_to_twilight = self.condition_features['Time_observable_night'].feature[indx] /24.
-        t_to_alt_lim = self.condition_features['Time_to_alt_limit'].feature[indx] /24.
-        self.t_to_invis = np.minimum(t_to_alt_lim,t_to_twilight)
+        #t_to_twilight = self.condition_features['Time_observable_night'].feature[indx] /24.
+        #t_to_alt_lim = self.condition_features['Time_to_alt_limit'].feature[indx] /24.
+        #self.t_to_invis = np.minimum(t_to_alt_lim,t_to_twilight)
+        self.t_to_invis = self.condition_features['Time_observable_night'].feature[indx] /24.
         t_last_night_all_filters = np.max([self.survey_features['Last_observed', f].feature[indx] for f in self.survey_filters],0)
         self.since_t_last_all_filters = self.condition_features['Current_mjd'].feature - t_last_night_all_filters
         self.n_night_all_filters = np.zeros_like(indx, dtype=float)
@@ -433,7 +434,7 @@ class Visit_repeat_basis_function_cost(Base_basis_function):  #F2
         self.result[indx[cat1]] += (5 - 1./3. * self.since_t_last_all_filters[cat1] /60./24.)
         self.result[indx[cat2]] *= 0.
         self.result[indx[cat3]] *= 0.
-        self.result[indx[cat4]] -= 10.*self.t_to_invis[cat4]
+        self.result[indx[cat4]] -= 15.*self.t_to_invis[cat4]
 
         # WFD infeasibility
         bad1 = np.where(WFD_cat & (self.since_t_last_all_filters < self.gap_min) & (self.since_t_last_all_filters > self.gap_max) & (self.n_night_all_filters >= max_n_night))
@@ -455,7 +456,7 @@ class Visit_repeat_basis_function_cost(Base_basis_function):  #F2
         self.result[indx[cat1]] += (5 - 1./3. * self.since_t_last_all_filters[cat1] /60./24.)
         self.result[indx[cat2]] *= 0.
         self.result[indx[cat3]] *= 0.
-        self.result[indx[cat4]] -= 10.*self.t_to_invis[cat4]
+        self.result[indx[cat4]] -= 15.*self.t_to_invis[cat4]
 
         # NES infeasibility
         bad1 = np.where(NES_cat & (self.since_t_last_all_filters < self.gap_min) & (self.since_t_last_all_filters > self.gap_max) & (self.n_night_all_filters >= max_n_night))

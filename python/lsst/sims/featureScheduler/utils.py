@@ -5,7 +5,7 @@ import numpy as np
 import healpy as hp
 import pandas as pd
 from scipy.spatial import cKDTree as kdtree
-from lsst.sims.utils import _hpid2RaDec, calcLmstLast
+from lsst.sims.utils import _hpid2RaDec, calcLmstLast, _raDec2Hpid
 from astropy.coordinates import SkyCoord
 from astropy import units as u
 import ephem
@@ -674,4 +674,22 @@ def is_GP(nside=set_default_nside(), center_width=10., end_width=4.,
     GP_inx =(result==1)
 
     return GP_inx
+
+def RaDec2region(ra, dec, nside):
+
+    result = np.array(np.size(ra), dtype = str)
+    SCP_indx, NES_indx, GP_indx, WFD_indx = mutually_exclusive_regions(nside)
+    indices = _raDec2Hpid(ra, dec, nside)
+
+    SCP = np.searchsorted(indices,SCP_indx)
+    NES = np.searchsorted(indices,NES_indx)
+    GP  = np.searchsorted(indices,GP_indx)
+    WFD = np.searchsorted(indices,WFD_indx)
+
+    result[SCP] = 'SCP'
+    result[NES] = 'NES'
+    result[GP]  = 'GP'
+    result[WFD] = 'WFD'
+
+    return result
 
