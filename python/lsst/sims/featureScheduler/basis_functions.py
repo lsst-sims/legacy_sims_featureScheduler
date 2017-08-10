@@ -654,7 +654,6 @@ class Target_map_basis_function_cost(Base_basis_function):  #F6 & F3
         max_sum_N_all_filter = self.survey_features['N_in_f'].max_n_in_filter
         filter_urgency_factor =  5. / (max_sum_N_all_filter - sum_N_filter + 1)
         result[indx] += filter_urgency_factor
-        print(sum_N_filter,filter_urgency_factor)
         return result
 
 
