@@ -50,7 +50,7 @@ class Quadrant_basis_function(Base_basis_function):
     """
     """
     def __init__(self, nside=default_nside, condition_features=None, minAlt=20., maxAlt=82.,
-                 azWidth=15., survey_features=None,):
+                 azWidth_meridian=15., azWidth_off=30., survey_features=None,):
         if survey_features is None:
             self.survey_features = {}
         if condition_features is None:
@@ -58,7 +58,8 @@ class Quadrant_basis_function(Base_basis_function):
             self.condition_features['altaz'] = features.AltAzFeature()
         self.minAlt = np.radians(minAlt)
         self.maxAlt = np.radians(maxAlt)
-        self.azWidth = np.radians(azWidth)
+        self.azWidth_meridian = np.radians(azWidth_meridian)
+        self.azWidth_off = np.radians(azWidth_off)
         self.nside = nside
 
     def __call__(self, indx=None):
@@ -74,25 +75,23 @@ class Quadrant_basis_function(Base_basis_function):
         alt_limit = np.where((alt > self.minAlt) &
                              (alt < self.maxAlt))[0]
 
-        q1 = np.where((az[alt_limit] > np.pi-self.azWidth) &
-                      (az[alt_limit] < np.pi+self.azWidth))[0]
+        q1 = np.where((az[alt_limit] > np.pi-self.azWidth_meridian) &
+                      (az[alt_limit] < np.pi+self.azWidth_meridian))[0]
         result[alt_limit[q1]] = 1
 
-        q2 = np.where((az[alt_limit] > np.pi/2.-self.azWidth) &
-                      (az[alt_limit] < np.pi/2.+self.azWidth))[0]
+        q2 = np.where((az[alt_limit] > np.pi/2.-self.azWidth_off) &
+                      (az[alt_limit] < np.pi/2.+self.azWidth_off))[0]
         result[alt_limit[q2]] = 1
 
-        q3 = np.where((az[alt_limit] > 3*np.pi/2.-self.azWidth) &
-                      (az[alt_limit] < 3*np.pi/2.+self.azWidth))[0]
+        q3 = np.where((az[alt_limit] > 3*np.pi/2.-self.azWidth_off) &
+                      (az[alt_limit] < 3*np.pi/2.+self.azWidth_off))[0]
         result[alt_limit[q3]] = 1
 
-        q4 = np.where((az[alt_limit] < self.azWidth) |
-                      (az[alt_limit] > 2*np.pi - self.azWidth))[0]
+        q4 = np.where((az[alt_limit] < self.azWidth_meridian) |
+                      (az[alt_limit] > 2*np.pi - self.azWidth_meridian))[0]
         result[alt_limit[q4]] = 1
 
         return result
-
-
 
 
 class Target_map_basis_function(Base_basis_function):
