@@ -214,7 +214,7 @@ def RaDec2region(ra, dec, nside):
 
     return result
 
-def visualize(night, file_name, PlotID = 1,FPS = 15,Steps = 20,MP4_quality = 300, Name = "Visualization.mp4", showClouds = False, nside = 64, fancyslow = False):
+def visualize(night, file_name, PlotID = 1,FPS = 15,Steps = 20,MP4_quality = 300, Name = "Visualization.mp4", showClouds = False, nside = 64, fancy_slow = False):
 
     Site            = ephem.Observer()
     Site.lon        = -1.2320792
@@ -446,7 +446,7 @@ def visualize(night, file_name, PlotID = 1,FPS = 15,Steps = 20,MP4_quality = 300
                         visit_filter  = filter
 
             # F3  coordinate:
-            if fancyslow:
+            if fancy_slow:
                 Alt, Az = stupidFast_RaDec2AltAz(ra, dec, t)
                 for al, az,i in zip(Alt,Az,hpid):
                     if al > 0:
@@ -597,5 +597,5 @@ if __name__ == '__main__':
         MP4_quality = 300   # MP4 size and quality
 
         PlotID = 1        # 1 for one Plot, 2 for including covering pattern
-        visualize(night, file_name, PlotID ,FPS, Steps, MP4_quality, 'LSST1plot{}.mp4'.format(i + 1), showClouds= False, fancyslow=args.fancy_slow)
+        visualize(night, file_name, PlotID ,FPS, Steps, MP4_quality, 'LSST1plot{}.mp4'.format(i + 1), showClouds= False, fancy_slow=args.fancy_slow)
 

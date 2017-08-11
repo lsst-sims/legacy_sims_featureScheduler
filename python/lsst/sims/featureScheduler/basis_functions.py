@@ -434,7 +434,7 @@ class Visit_repeat_basis_function_cost(Base_basis_function):  #F2
         self.result[indx[cat1]] += (5 - 1./3. * self.since_t_last_all_filters[cat1] /60./24.)
         self.result[indx[cat2]] *= 0.
         self.result[indx[cat3]] *= 0.
-        self.result[indx[cat4]] -= 15.*self.t_to_invis[cat4]
+        self.result[indx[cat4]] -= 24.*self.t_to_invis[cat4]
 
         # WFD infeasibility
         bad1 = np.where(WFD_cat & (self.since_t_last_all_filters < self.gap_min) & (self.since_t_last_all_filters > self.gap_max) & (self.n_night_all_filters >= max_n_night))
@@ -645,14 +645,12 @@ class Target_map_basis_function_cost(Base_basis_function):  #F6 & F3
 
         result[indx] = 1./(max_N_filter - N_filter[indx]+self.softening) \
                      + 1./(max_N_all_filter - N_all_filter[indx]+self.softening)
-        print(np.mean(result[indx]), np.var(result[indx]))
 
         # field independent filter urgency factor
         sum_N_filter = self.survey_features['N_in_f'].feature[self.filtername]
         max_sum_N_all_filter = self.survey_features['N_in_f'].max_n_in_filter
         filter_urgency_factor =  5. / (max_sum_N_all_filter - sum_N_filter + 1)
         result[indx] += filter_urgency_factor
-        print(filter_urgency_factor)
         return result
 
 

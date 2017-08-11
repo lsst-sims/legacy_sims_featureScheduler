@@ -74,7 +74,8 @@ class DE_optimizer(object):
     def make_random_individual(self):
             delta  = self.evaluator.domain[:,1] - self.evaluator.domain[:,0]
             offset = self.evaluator.domain[:,0]
-            return np.multiply(np.random.rand(1,self.D), delta) + offset
+            ind =  np.multiply(np.random.rand(1,self.D), delta) + offset
+            return ind
 
     def score_population(self):
         for indiv in range(self.population_size):
@@ -241,13 +242,21 @@ class DE_optimizer(object):
 
     def print_ind(self, ind_index, score, indiv, refined_indiv):
         #print("{}: Objective: {},\nCandidate: {},\nRefined candidate: {}".format(ind_index +1, score, indiv, refined_indiv))
-        print("{}: Objective: {},\nCandidate: {}".format(ind_index +1, score, indiv))
+        print("{}: Objective: {},\nCandidate: {}".format(ind_index +1, -1.*score, indiv))
+        with open("Training/Output.txt", "a") as text_file:
+            text_file.write("{}: Objective: {},\nCandidate: {}\n".format(ind_index +1, -1.*score, indiv))
+            text_file.close()
 
     def print_status(self):
         print('********************************************************************************************')
         print('iter {}:best performance: {}, best candidate no.: {}\nbest candidate: {}'.
               format(self.count, self.best_val * -1, self.best_index +1, self.best_ind))
         print('')
+        with open("Training/Output.txt", "a") as text_file:
+            text_file.write('********************************************************************************************')
+            text_file.write('iter {}:best performance: {}, best candidate no.: {}\nbest candidate: {}\n'.
+              format(self.count, self.best_val * -1, self.best_index +1, self.best_ind))
+            text_file.close()
 
     def final_print(self):
         print('')
@@ -265,3 +274,17 @@ class DE_optimizer(object):
         print('eps        : {}'.format(self.eps))
         print('vtr        : {}'.format(self.vtr))
         print('')
+        with open("Training/Output.txt", "a") as text_file:
+            text_file.write('\n* Problem Specifications\n'); text_file.close()
+            text_file.write('Date           : {}\n'.format(self.evaluator.scheduler.Date)); text_file.close()
+            text_file.write('Preferences    : {}\n'.format(self.evaluator.pref)); text_file.close()
+            text_file.write('\n\n'); text_file.close()
+            text_file.write('* DE parameters\n')
+            text_file.write('F          : {}\n'.format(self.f)); text_file.close()
+            text_file.write('Cr         : {}\n'.format(self.cr)); text_file.close()
+            text_file.write('Pop Size   : {}\n'.format(self.population_size)); text_file.close()
+            text_file.write('No. of eval: {}\n'.format(self.nfeval)); text_file.close()
+            text_file.write('No. of Iter: {}\n'.format(self.count)); text_file.close()
+            text_file.write('Termination: {}\n'.format(self.termination)); text_file.close()
+            text_file.write('eps        : {}\n'.format(self.eps)); text_file.close()
+            text_file.write('vtr        : {}\n'.format(self.vtr)); text_file.close()
