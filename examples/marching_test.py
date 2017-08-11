@@ -5,7 +5,7 @@ import healpy as hp
 
 if __name__ == "__main__":
 
-    survey_length = 20  # days
+    survey_length = 366  # days
     # Define what we want the final visit ratio map to look like
     target_map = fs.standard_goals()['r']
 
@@ -27,3 +27,4 @@ if __name__ == "__main__":
 
 # block_size=10, surveylength of 365 had runtime of 163 min. and got 0.26e6 observations. So, 10 years would be 27 hours.
 # Going to block_size=1, runtime of 211 min, and 0.33e6 observations. So, 35 hours. Not too shabby! 
+# Up to 221 min after adding in a few more columns
