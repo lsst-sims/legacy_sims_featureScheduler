@@ -1,11 +1,11 @@
 import numpy as np
 import lsst.sims.featureScheduler as fs
-from lsst.sims.featureScheduler.observatory import Speed_observatory
+from lsst.sims.speedObservatory import Speed_observatory
 import healpy as hp
 
 if __name__ == "__main__":
 
-    survey_length = 366  # days
+    survey_length = 5  # days
     # Define what we want the final visit ratio map to look like
     target_map = fs.standard_goals()['r']
 
