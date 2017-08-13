@@ -5,7 +5,7 @@ import healpy as hp
 
 if __name__ == "__main__":
 
-    survey_length = 5  # days
+    survey_length = 5 # days
     # Define what we want the final visit ratio map to look like
     target_map = fs.standard_goals()['r']
 
