@@ -243,7 +243,7 @@ class DE_optimizer(object):
     def print_ind(self, ind_index, score, indiv, refined_indiv):
         #print("{}: Objective: {},\nCandidate: {},\nRefined candidate: {}".format(ind_index +1, score, indiv, refined_indiv))
         print("{}: Objective: {},\nCandidate: {}".format(ind_index +1, -1.*score, indiv))
-        with open("Training/Output.txt", "a") as text_file:
+        with open("Output/Output.txt", "a") as text_file:
             text_file.write("{}: Objective: {},\nCandidate: {}\n".format(ind_index +1, -1.*score, indiv))
             text_file.close()
 
@@ -252,7 +252,7 @@ class DE_optimizer(object):
         print('iter {}:best performance: {}, best candidate no.: {}\nbest candidate: {}'.
               format(self.count, self.best_val * -1, self.best_index +1, self.best_ind))
         print('')
-        with open("Training/Output.txt", "a") as text_file:
+        with open("Output/Output.txt", "a") as text_file:
             text_file.write('********************************************************************************************')
             text_file.write('iter {}:best performance: {}, best candidate no.: {}\nbest candidate: {}\n'.
               format(self.count, self.best_val * -1, self.best_index +1, self.best_ind))
@@ -274,7 +274,7 @@ class DE_optimizer(object):
         print('eps        : {}'.format(self.eps))
         print('vtr        : {}'.format(self.vtr))
         print('')
-        with open("Training/Output.txt", "a") as text_file:
+        with open("Output/Output.txt", "a") as text_file:
             text_file.write('\n* Problem Specifications\n'); text_file.close()
             text_file.write('Date           : {}\n'.format(self.evaluator.scheduler.Date)); text_file.close()
             text_file.write('Preferences    : {}\n'.format(self.evaluator.pref)); text_file.close()

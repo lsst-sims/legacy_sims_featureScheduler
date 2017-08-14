@@ -1,5 +1,5 @@
 import numpy as np
-import lsst.sims.featureScheduler as fs
+import lsst.sims.featureScheduler.Training as opt
 from lsst.sims.featureScheduler.observatory import Speed_observatory
 
 
@@ -16,14 +16,14 @@ class BlackTraining(object):
         survey_filters = ['r']
         for f in survey_filters:
             self.bfs = []
-            self.bfs.append(fs.Slewtime_basis_function_cost(filtername=f))
-            self.bfs.append(fs.Visit_repeat_basis_function_cost(filtername=f,survey_filters=survey_filters))
-            self.bfs.append(fs.Target_map_basis_function_cost(filtername=f, survey_filters=survey_filters))
-            self.bfs.append(fs.Normalized_alt_basis_function_cost(filtername=f))
-            self.bfs.append(fs.Hour_angle_basis_function_cost())
-            self.bfs.append(fs.Depth_percentile_basis_function_cost())
+            self.bfs.append(opt.Slewtime_basis_function_cost(filtername=f))
+            self.bfs.append(opt.Visit_repeat_basis_function_cost(filtername=f,survey_filters=survey_filters))
+            self.bfs.append(opt.Target_map_basis_function_cost(filtername=f, survey_filters=survey_filters))
+            self.bfs.append(opt.Normalized_alt_basis_function_cost(filtername=f))
+            self.bfs.append(opt.Hour_angle_basis_function_cost())
+            self.bfs.append(opt.Depth_percentile_basis_function_cost())
             weights = np.array([5,2,1,1,2,1])
-            self.surveys.append(fs.Simple_greedy_survey_fields_cost(self.bfs, weights, filtername=f, block_size= 10))
+            self.surveys.append(opt.Simple_greedy_survey_fields_cost(self.bfs, weights, filtername=f, block_size= 10))
 
     def DE_opt(self, N_p, F, Cr, maxIter, D, domain, gray_trianing = False):
         self.D               = D
@@ -34,11 +34,11 @@ class BlackTraining(object):
         x[0] = 5 # reduce redundant solutions
         for survey in self.surveys:
             survey.basis_weights = x
-        scheduler = fs.Core_scheduler_cost(self.surveys)
+        scheduler = opt.Core_scheduler_cost(self.surveys)
         observatory = Speed_observatory()
-        observatory, scheduler, observations = fs.sim_runner(observatory, scheduler,
+        observatory, scheduler, observations = opt.sim_runner(observatory, scheduler,
                                                          survey_length=self.survey_length)
-        return -1 * fs.simple_performance_measure(observations, self.pref)
+        return -1 * opt.simple_performance_measure(observations, self.pref)
 
     def refined_individual(self):
         return np.zeros(self.D)
