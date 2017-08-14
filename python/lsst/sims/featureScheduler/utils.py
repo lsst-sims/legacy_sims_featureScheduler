@@ -13,6 +13,7 @@ import os
 import sys
 from lsst.utils import getPackageDir
 import sqlite3 as db
+from lsst.sims.utils import haversine
 
 
 def set_default_nside(nside=None):
@@ -696,4 +697,25 @@ def RaDec2region(ra, dec, nside):
     result[WFD] = 'WFD'
 
     return result
+
+def simple_performance_measure(observations, preferences):
+    # survey length
+    t_decimals = np.modf(observations['mjd'])[0]
+    t_dec_shifted = np.roll(t_decimals, -1)
+    deltas = t_dec_shifted - t_decimals
+    interval = np.sum(deltas[deltas>0]) *24.*60.*60.
+    # avg of slew times
+    avg_slew = np.sum(observations['slewtime'])/interval
+    # performance
+    return preferences[0]* (1-avg_slew)
+
+def slew_time(ra0, dec0, ra1, dec1):
+    ang_speed = np.radians(5.)
+    """
+    Compute slew time to new ra, dec position
+    """
+    dist = haversine(ra1, dec1, ra0, dec0)
+    time = dist / ang_speed
+    return time
+
 

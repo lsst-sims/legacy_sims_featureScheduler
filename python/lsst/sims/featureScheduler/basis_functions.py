@@ -6,6 +6,7 @@ from . import features
 from . import utils
 import healpy as hp
 from lsst.sims.utils import haversine, _hpid2RaDec
+import ephem
 
 default_nside = utils.set_default_nside()
 
@@ -337,14 +338,14 @@ class Slewtime_basis_function_cost(Base_basis_function):  #F1
         if np.size(self.condition_features['slewtime'].feature) > 1:
             result = np.zeros(np.size(self.condition_features['slewtime'].feature), dtype=float)
             good = np.where(self.condition_features['slewtime'].feature != hp.UNSEEN)
-            result[good] = self.condition_features['slewtime'].feature[good]/5.
+            result[good] = self.condition_features['slewtime'].feature[good]/2.
         else:
-            result = self.condition_features['slewtime'].feature/5.
+            result = self.condition_features['slewtime'].feature/2.
 
         if self.condition_features['Current_filter'].feature == self.filtername or self.condition_features['Current_filter'].feature is None:
             return result
         else:
-            result += 5.
+            result += 10.
             return result
 
 
@@ -434,7 +435,7 @@ class Visit_repeat_basis_function_cost(Base_basis_function):  #F2
         self.result[indx[cat1]] += (5 - 1./3. * self.since_t_last_all_filters[cat1] /60./24.)
         self.result[indx[cat2]] *= 0.
         self.result[indx[cat3]] *= 0.
-        self.result[indx[cat4]] -= 15.*self.t_to_invis[cat4]
+        self.result[indx[cat4]] -= 24.*self.t_to_invis[cat4]
 
         # WFD infeasibility
         bad1 = np.where(WFD_cat & (self.since_t_last_all_filters < self.gap_min) & (self.since_t_last_all_filters > self.gap_max) & (self.n_night_all_filters >= max_n_night))
@@ -456,7 +457,7 @@ class Visit_repeat_basis_function_cost(Base_basis_function):  #F2
         self.result[indx[cat1]] += (5 - 1./3. * self.since_t_last_all_filters[cat1] /60./24.)
         self.result[indx[cat2]] *= 0.
         self.result[indx[cat3]] *= 0.
-        self.result[indx[cat4]] -= 15.*self.t_to_invis[cat4]
+        self.result[indx[cat4]] -= 24.*self.t_to_invis[cat4]
 
         # NES infeasibility
         bad1 = np.where(NES_cat & (self.since_t_last_all_filters < self.gap_min) & (self.since_t_last_all_filters > self.gap_max) & (self.n_night_all_filters >= max_n_night))
@@ -521,7 +522,7 @@ class Normalized_alt_basis_function_cost(Base_basis_function):  #F4
 
     def common_val(self, indx):
         # common basis function
-        self.result = utils.alt_allocation(self.alt,self.dec, self.lat, self.filtername) + 2*((1./(1-np.cos(self.alt))) -1)
+        self.result = utils.alt_allocation(self.alt,self.dec, self.lat, self.filtername) + 5*((1./(1-np.cos(self.alt))) -1)
 
 
     def WFD_modification(self, indx, alt_lim = 45*np.pi/180.):
@@ -533,21 +534,21 @@ class Normalized_alt_basis_function_cost(Base_basis_function):  #F4
 
     def NES_modification(self, indx, alt_lim = 20*np.pi/180.):
         NES_cat = np.in1d(indx, self.NES_indx)
-        # WFD infeasibility
+        # NES infeasibility
         bad1 = np.where(NES_cat & (self.alt < alt_lim))
         self.result[indx[bad1]] = hp.UNSEEN
 
 
     def GP_modification(self, indx, alt_lim = 45*np.pi/180.):
         GP_cat = np.in1d(indx, self.GP_indx)
-        # WFD infeasibility
+        # GP infeasibility
         bad1 = np.where(GP_cat & (self.alt < alt_lim))
         self.result[indx[bad1]] = hp.UNSEEN
 
 
     def SCP_modification(self, indx, alt_lim = 20*np.pi/180.):
         SCP_cat = np.in1d(indx, self.SCP_indx)
-        # WFD infeasibility
+        # SCP infeasibility
         bad1 = np.where(SCP_cat & (self.alt < alt_lim))
         self.result[indx[bad1]] = hp.UNSEEN
 
@@ -585,7 +586,7 @@ class Hour_angle_basis_function_cost(Base_basis_function):  #F5
             indx = np.arange(result.size)
         mjd = self.condition_features['Current_mjd'].feature
         ha = utils.hour_angle(self.ra, self.lon, mjd)
-        result = np.abs(ha)
+        result = np.abs(ha) + ha
         return result
 
 
@@ -630,30 +631,57 @@ class Target_map_basis_function_cost(Base_basis_function):  #F6 & F3
         -------
         Healpix reward map
         """
-        # Should probably update this to be as masked array.
-        result = np.zeros(hp.nside2npix(self.nside), dtype=float)
-        N_filter = np.zeros_like(result, dtype=float)
-        N_all_filter = np.zeros_like(result, dtype=float); max_N_all_filter = 0
+        self.result = np.zeros(hp.nside2npix(self.nside), dtype=float)
+        self.N_filter = np.zeros_like(self.result, dtype=float)
+        self.N_all_filter = np.zeros_like(self.result, dtype=float)
         if indx is None:
-            indx = np.arange(result.size)
+            indx = np.arange(self.result.size)
 
-        N_filter[indx] = self.survey_features['N_obs'].feature[indx][self.filtername]
-        max_N_filter = self.survey_features['N_obs'].max_n[self.filtername]
-        N_all_filter[indx] = self.survey_features['N_obs'].sum_feature[indx]
-        max_N_all_filter = self.survey_features['N_obs'].max_n_all_f
-
-
-        result[indx] = 1./(max_N_filter - N_filter[indx]+self.softening) \
-                     + 1./(max_N_all_filter - N_all_filter[indx]+self.softening)
-        print(np.mean(result[indx]), np.var(result[indx]))
+        self.N_filter[indx] = self.survey_features['N_obs'].feature[indx][self.filtername]
+        self.max_N_filter = self.survey_features['N_obs'].max_n[self.filtername]
+        self.N_all_filter[indx] = self.survey_features['N_obs'].sum_feature[indx]
+        self.max_N_all_filter = self.survey_features['N_obs'].max_n_all_f
 
         # field independent filter urgency factor
         sum_N_filter = self.survey_features['N_in_f'].feature[self.filtername]
         max_sum_N_all_filter = self.survey_features['N_in_f'].max_n_in_filter
-        filter_urgency_factor =  5. / (max_sum_N_all_filter - sum_N_filter + 1)
-        result[indx] += filter_urgency_factor
-        print(filter_urgency_factor)
-        return result
+        self.filter_urgency_factor =  5. / (max_sum_N_all_filter - sum_N_filter + 1)
+
+        self.common_val(indx)
+        self.WFD_modification(indx)
+        self.NES_modification(indx)
+        self.GP_modification(indx)
+        self.SCP_modification(indx)
+        return self.result
+
+    def common_val(self, indx):
+        # common basis function
+        filter_dep_value = 1./(self.max_N_filter - self.N_filter[indx]+self.softening)
+        self.result[indx] = filter_dep_value # yet to add filter independent value in region modification
+        self.result[indx] += self.filter_urgency_factor
+
+    def WFD_modification(self, indx, N_ratio = 3./2.):
+        WFD_cat = np.in1d(indx, self.WFD_indx)
+        self.result[WFD_cat] += 1./(self.max_N_all_filter - self.N_all_filter[WFD_cat] + self.softening)/N_ratio
+        # WFD infeasibility
+
+
+    def NES_modification(self, indx, bad_filters = ['u','y']):
+        NES_cat = np.in1d(indx, self.NES_indx)
+        self.result[NES_cat] += 1./(self.max_N_all_filter - self.N_all_filter[NES_cat] + self.softening)
+        # NES infeasibility
+        if self.filtername in bad_filters:
+            self.result[NES_cat] = hp.UNSEEN
+
+
+    def GP_modification(self, indx, N_ratio = 3./2.):
+        GP_cat = np.in1d(indx, self.GP_indx)
+        self.result[GP_cat] += 1./(self.max_N_all_filter - self.N_all_filter[GP_cat] + self.softening)/N_ratio
+
+
+    def SCP_modification(self, indx, N_ratio = 3./2.):
+        SCP_cat = np.in1d(indx, self.SCP_indx)
+        self.result[SCP_cat] += 1./(self.max_N_all_filter - self.N_all_filter[SCP_cat] + self.softening)/N_ratio
 
 
 class Depth_percentile_basis_function_cost(Base_basis_function):
@@ -678,3 +706,39 @@ class Depth_percentile_basis_function_cost(Base_basis_function):
         result[indx] = self.condition_features['M5Depth_percentile'].feature[indx]
         result = ma.masked_values(result, hp.UNSEEN)
         return -result
+
+'''
+    def common_val(self, indx):
+        # common basis function
+        self.result[indx] = -self.condition_features['M5Depth_percentile'].feature[indx]
+        self.result = ma.masked_values(self.result, hp.UNSEEN)
+
+    #moon separation hard constraint
+    def WFD_modification(self, indx, alt_lim = 45*np.pi/180.):
+        WFD_cat = np.in1d(indx, self.WFD_indx)
+        # WFD infeasibility
+        bad1 = np.where(WFD_cat & (self.alt < alt_lim))
+        self.result[indx[bad1]] = hp.UNSEEN
+
+
+    def NES_modification(self, indx, alt_lim = 20*np.pi/180.):
+        NES_cat = np.in1d(indx, self.NES_indx)
+        # WFD infeasibility
+        bad1 = np.where(NES_cat & (self.alt < alt_lim))
+        self.result[indx[bad1]] = hp.UNSEEN
+
+
+    def GP_modification(self, indx, alt_lim = 45*np.pi/180.):
+        GP_cat = np.in1d(indx, self.GP_indx)
+        # WFD infeasibility
+        bad1 = np.where(GP_cat & (self.alt < alt_lim))
+        self.result[indx[bad1]] = hp.UNSEEN
+
+
+    def SCP_modification(self, indx, alt_lim = 20*np.pi/180.):
+        SCP_cat = np.in1d(indx, self.SCP_indx)
+        # WFD infeasibility
+        bad1 = np.where(SCP_cat & (self.alt < alt_lim))
+        self.result[indx[bad1]] = hp.UNSEEN
+
+'''
