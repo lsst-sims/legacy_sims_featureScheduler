@@ -35,8 +35,7 @@ class BlackTraining(object):
             survey.basis_weights = x
         scheduler = fs.Core_scheduler_cost(self.surveys)
         observatory = Speed_observatory()
-        observatory, scheduler, observations = fs.sim_runner(observatory, scheduler,
-                                                         survey_length=self.survey_length)
+        observatory, scheduler, observations = fs.sim_runner(observatory, scheduler, survey_length=self.survey_length)
         return -1 * fs.simple_performance_measure(observations, self.pref)
 
     def refined_individual(self):
@@ -45,7 +44,7 @@ class BlackTraining(object):
 
 
 
-N_p     = 3      # number of candidate solutions that are supposed to explore the space of solution in each iteration, rule of thumb: ~10*D
+N_p     = 50      # number of candidate solutions that are supposed to explore the space of solution in each iteration, rule of thumb: ~10*D
 F       = 0.8    # algorithm meta parameter (mutation factor that determines the amount of change for the derivation of candidate solutions of the next iteration)
 Cr      = 0.8    # algorithm meta parameter (crossover rate that determines the rate of mixing of previous candidates to make new candidates)
 maxIter = 100    # maximum number of iterations. maximum number of function evaluations = N_p * maxIter,
