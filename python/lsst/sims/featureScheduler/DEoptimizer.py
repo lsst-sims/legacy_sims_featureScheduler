@@ -45,7 +45,7 @@ class DE_optimizer(object):
     # initialize the population
         self.make_random_population()
     # score initial population
-        self.score_population()
+        #self.score_population()
     # update progress parameters
         self.init_progress()
 

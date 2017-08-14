@@ -1,7 +1,7 @@
 import numpy as np
 import lsst.sims.featureScheduler as fs
 from lsst.sims.featureScheduler.observatory import Speed_observatory
-import os
+
 
 
 
@@ -13,7 +13,7 @@ class BlackTraining(object):
         self.survey_length = 2  # days
         self.surveys = []
         # Define what we want the final visit ratio map to look like
-        survey_filters = ['u','g','r','i','z']
+        survey_filters = ['r']
         for f in survey_filters:
             self.bfs = []
             self.bfs.append(fs.Slewtime_basis_function_cost(filtername=f))
@@ -22,7 +22,7 @@ class BlackTraining(object):
             self.bfs.append(fs.Normalized_alt_basis_function_cost(filtername=f))
             self.bfs.append(fs.Hour_angle_basis_function_cost())
             self.bfs.append(fs.Depth_percentile_basis_function_cost())
-            weights = np.array([1,1,1,1,1,1])
+            weights = np.array([5,2,1,1,2,1])
             self.surveys.append(fs.Simple_greedy_survey_fields_cost(self.bfs, weights, filtername=f, block_size= 10))
 
     def DE_opt(self, N_p, F, Cr, maxIter, D, domain, gray_trianing = False):
