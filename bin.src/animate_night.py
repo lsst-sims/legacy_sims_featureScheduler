@@ -214,7 +214,7 @@ def RaDec2region(ra, dec, nside):
 
     return result
 
-def visualize(night, file_name, PlotID = 1,FPS = 15,Steps = 20,MP4_quality = 300, Name = "Visualization.mp4", showClouds = False, nside = 64, fancy_slow = False):
+def visualize(night, file_name, PlotID = 1,FPS = 15,Steps = 20,MP4_quality = 300, Name = "Visualization.mp4", showClouds = False, nside = 64, fancy_slow = True):
 
     Site            = ephem.Observer()
     Site.lon        = -1.2320792
@@ -581,7 +581,7 @@ if __name__ == '__main__':
     parser.add_argument("file_name", type=str, help="sqlite database")
     parser.add_argument("--night", type=int, default=0, help="the night to start on")
     parser.add_argument("--n_nights", type=int, default=1, help="number of nights to animate")
-    parser.add_argument("--fancy_slow", type=bool, default=False, help="shows sky regions but runs slowly")
+    parser.add_argument("--fancy_slow", type=bool, default=True, help="shows sky regions but runs slowly")
 
     args = parser.parse_args()
     file_name = args.file_name
