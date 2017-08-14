@@ -256,7 +256,7 @@ class M5Depth_percentile(BaseConditionsFeature):
         m5_mask[np.where(conditions['skybrightness'][self.filtername] == hp.UNSEEN)] = True
         good = np.where(conditions['skybrightness'][self.filtername] != hp.UNSEEN)
         m5[good] = m5_flat_sed(self.filtername, conditions['skybrightness'][self.filtername][good],
-                               conditions['FWHMeff'][good],
+                               conditions['FWHMeff_%s' % self.filtername][good],
                                self.expTime, conditions['airmass'][good])
 
         self.feature = self.m5p.m5map2percentile(m5, filtername=self.filtername)
