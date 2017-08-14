@@ -14,7 +14,8 @@ class DE_optimizer(object):
                eps = 0,
                show_progress = 1,
                monitor_cycle = np.inf,
-               gray_training = False):
+               gray_training = False,
+               load_candidate_solution = False):
 
         self.show_progress = show_progress
         self.evaluator = evaluator
@@ -36,6 +37,7 @@ class DE_optimizer(object):
 
         # if population slightly changes while optimization or not
         self.gray_training = gray_training
+        self.load_candidate_solution = load_candidate_solution
 
         self.optimize()
 
@@ -43,13 +45,17 @@ class DE_optimizer(object):
     # initialize optimization
         self.initialize_optimization()
     # initialize the population
-        self.make_random_population()
+        if self.load_candidate_solution:
+            self.load_generation()
+        if not self.load_candidate_solution:
+            self.make_random_population()
+
     # score initial population
         #self.score_population()
     # update progress parameters
         self.init_progress()
 
-    # iteration
+    # iterations
         while not self.terminate():
             self.evolve()
             self.update_progress()
@@ -85,6 +91,7 @@ class DE_optimizer(object):
             self.after_score_pop[indiv,:] = self.evaluator.refined_individual()
             self.print_ind(indiv, self.scores[indiv], self.population[indiv, :], self.after_score_pop[indiv,:])
 
+
     def init_progress(self):
         self.best_index = np.argmin(self.scores)
         self.best_val   = self.scores[self.best_index]
@@ -119,7 +126,9 @@ class DE_optimizer(object):
                 self.population[trial_indx,:] = self.ui[trial_indx,:]
                 self.scores[trial_indx] = trial_score
                 self.after_score_pop[trial_indx,:] = self.after_score_ui[trial_indx,:]
+
             self.print_ind(trial_indx,self.scores[trial_indx], self.population[trial_indx,:], self.after_score_pop[trial_indx,:])
+        self.save_last_generation() # most recent generation
 
     def score_trial(self, trial_indx):
         tempval = self.evaluator.target(self.ui[trial_indx,:])
@@ -217,8 +226,8 @@ class DE_optimizer(object):
         return ui
 
     def regularize_candidate(self,candidate, alternative):
-        lower_bound = np.max(self.evaluator.domain[:,0])
-        upper_bound = np.max(self.evaluator.domain[:,1])
+        lower_bound = self.evaluator.domain[:,0]
+        upper_bound = self.evaluator.domain[:,1]
         candidate = np.where(candidate >= lower_bound, candidate, alternative)
         regularized_cand = np.where(candidate <= upper_bound, candidate, alternative)
         return regularized_cand
@@ -239,6 +248,30 @@ class DE_optimizer(object):
             return True
             '''
         return False
+
+
+    def save_last_generation(self):
+        np.save('last_gen_pop', self.population)
+        np.save('last_gen_scr', self.scores)
+
+    def load_generation(self):
+        #try:
+            temp_population = np.load('last_gen_pop.npy')
+            if np.shape(temp_population)[0] != self.population_size:
+                print('Previous generation is not of the same size of new setting, DE starts with a random initialization')
+                self.load_candidate_solution = False
+            elif np.shape(temp_population)[1] != self.D:
+                print('Previous solution is not of the same size of new solution, DE starts with a random initialization')
+                self.load_candidate_solution = False
+            else:
+                self.population = temp_population
+                self.scores = np.load('last_gen_scr.npy')
+                print('Warm start: DE starts with a previously evolved population')
+
+        #except:
+         #   print('No previous generation is available, DE starts with a random initialization')
+          #  self.load_candidate_solution = False
+
 
     def print_ind(self, ind_index, score, indiv, refined_indiv):
         #print("{}: Objective: {},\nCandidate: {},\nRefined candidate: {}".format(ind_index +1, score, indiv, refined_indiv))
