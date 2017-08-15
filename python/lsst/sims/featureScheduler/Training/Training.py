@@ -55,7 +55,7 @@ D       = 6      # weights dimension
 
 
 train   = BlackTraining()
-train.DE_opt(N_p, F, Cr, maxIter, D, Domain, load_candidate_solution = True)
+train.DE_opt(N_p, F, Cr, maxIter, D, Domain, load_candidate_solution = False)
 
 
 

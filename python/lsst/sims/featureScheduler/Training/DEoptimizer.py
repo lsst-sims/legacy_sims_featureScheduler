@@ -255,7 +255,7 @@ class DE_optimizer(object):
         np.save('last_gen_scr', self.scores)
 
     def load_generation(self):
-        #try:
+        try:
             temp_population = np.load('last_gen_pop.npy')
             if np.shape(temp_population)[0] != self.population_size:
                 print('Previous generation is not of the same size of new setting, DE starts with a random initialization')
@@ -268,9 +268,9 @@ class DE_optimizer(object):
                 self.scores = np.load('last_gen_scr.npy')
                 print('Warm start: DE starts with a previously evolved population')
 
-        #except:
-         #   print('No previous generation is available, DE starts with a random initialization')
-          #  self.load_candidate_solution = False
+        except:
+            print('No previous generation is available, DE starts with a random initialization')
+            self.load_candidate_solution = False
 
 
     def print_ind(self, ind_index, score, indiv, refined_indiv):
