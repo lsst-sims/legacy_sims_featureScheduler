@@ -3,7 +3,6 @@ import healpy as hp
 from scipy.optimize import minimize
 from .utils import treexyz, hp_kd_tree, rad_length, set_default_nside, read_fields
 from lsst.sims.utils import _hpid2RaDec
-import matplotlib.pylab as plt
 
 default_nside = set_default_nside()
 

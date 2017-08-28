@@ -78,7 +78,7 @@ def empty_observation():
              'airmass', 'FWHMeff', 'FWHM_geometric', 'skybrightness', 'night', 'slewtime', 'fivesigmadepth',
              'alt', 'az']
     # units of rad, rad,   days,  seconds,   string, radians (E of N?)
-    types = [float, float, float, float, '|1S', float, int, float, float, float, float, int, float, float,
+    types = [float, float, float, float, '|U1', float, int, float, float, float, float, int, float, float,
              float, float]
     result = np.zeros(1, dtype=list(zip(names, types)))
     return result
