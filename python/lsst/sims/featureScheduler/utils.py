@@ -76,10 +76,10 @@ def empty_observation():
     """
     names = ['RA', 'dec', 'mjd', 'exptime', 'filter', 'rotSkyPos', 'nexp',
              'airmass', 'FWHMeff', 'FWHM_geometric', 'skybrightness', 'night', 'slewtime', 'fivesigmadepth',
-             'alt', 'az']
+             'alt', 'az', 'clouds']
     # units of rad, rad,   days,  seconds,   string, radians (E of N?)
     types = [float, float, float, float, '|U1', float, int, float, float, float, float, int, float, float,
-             float, float]
+             float, float, float]
     result = np.zeros(1, dtype=list(zip(names, types)))
     return result
 
