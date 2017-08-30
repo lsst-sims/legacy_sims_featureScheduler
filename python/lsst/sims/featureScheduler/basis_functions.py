@@ -47,6 +47,53 @@ class Base_basis_function(object):
         pass
 
 
+class Quadrant_basis_function(Base_basis_function):
+    """
+    """
+    def __init__(self, nside=default_nside, condition_features=None, minAlt=20., maxAlt=82.,
+                 azWidth=15., survey_features=None,):
+        if survey_features is None:
+            self.survey_features = {}
+        if condition_features is None:
+            self.condition_features = {}
+            self.condition_features['altaz'] = features.AltAzFeature()
+        self.minAlt = np.radians(minAlt)
+        self.maxAlt = np.radians(maxAlt)
+        self.azWidth = np.radians(azWidth)
+        self.nside = nside
+
+    def __call__(self, indx=None):
+        result = np.empty(hp.nside2npix(self.nside), dtype=float)
+        result.fill(hp.UNSEEN)
+
+        # for now, let's just make 4 quadrants accessable. In the future
+        # maybe look ahead to where the moon will be, etc
+
+        alt = self.condition_features['altaz'].feature['alt']
+        az = self.condition_features['altaz'].feature['az']
+
+        alt_limit = np.where((alt > self.minAlt) &
+                             (alt < self.maxAlt))[0]
+
+        q1 = np.where((az[alt_limit] > np.pi-self.azWidth) &
+                      (az[alt_limit] < np.pi+self.azWidth))[0]
+        result[alt_limit[q1]] = 1
+
+        q2 = np.where((az[alt_limit] > np.pi/2.-self.azWidth) &
+                      (az[alt_limit] < np.pi/2.+self.azWidth))[0]
+        result[alt_limit[q2]] = 1
+
+        q3 = np.where((az[alt_limit] > 3*np.pi/2.-self.azWidth) &
+                      (az[alt_limit] < 3*np.pi/2.+self.azWidth))[0]
+        result[alt_limit[q3]] = 1
+
+        q4 = np.where((az[alt_limit] < self.azWidth) |
+                      (az[alt_limit] > 2*np.pi - self.azWidth))[0]
+        result[alt_limit[q4]] = 1
+
+        return result
+
+
 class Target_map_basis_function(Base_basis_function):
     """
     Generate a map that rewards survey areas falling behind.
