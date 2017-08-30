@@ -8,7 +8,6 @@ from scipy.spatial import cKDTree as kdtree
 from lsst.sims.utils import _hpid2RaDec, calcLmstLast, _raDec2Hpid
 from astropy.coordinates import SkyCoord
 from astropy import units as u
-import ephem
 import os
 import sys
 from lsst.utils import getPackageDir
@@ -119,7 +118,7 @@ def read_fields():
 def treexyz(ra, dec):
     """
     Utility to convert RA,dec postions in x,y,z space, useful for constructing KD-trees.
-    
+
     Parameters
     ----------
     ra : float or array
@@ -517,6 +516,7 @@ def sort_pointings(observations, order_first='azimuth'):
     # does a greedy walk do a good job?
     return
 
+
 def max_altitude(dec, lsst_lat):
     """
     evaluates the maximum altitude that fields can ever achieve.
@@ -588,7 +588,7 @@ def hour_angle(ra, lsst_lon, mjd, lmst=None):
     if lmst is None:
         lmst, last = calcLmstLast(mjd, lsst_lon)
     ha = lmst-ra * 12./np.pi
-    ha = np.where(ha < -12, ha +24, ha)
+    ha = np.where(ha < -12, ha + 24, ha)
     ha = np.where(ha > 12, ha - 24, ha)
     return ha
 
@@ -601,7 +601,7 @@ def mutually_exclusive_regions(nside=set_default_nside()):
     GP_indx = is_GP(nside)
 
     all_butWFD = SCP_indx + NES_indx + GP_indx
-    GP_NES     = GP_indx + NES_indx
+    GP_NES = GP_indx + NES_indx
 
     WFD_indx = all_true - all_butWFD
     SCP_indx = SCP_indx - GP_NES*SCP_indx - NES_indx*SCP_indx
@@ -609,12 +609,13 @@ def mutually_exclusive_regions(nside=set_default_nside()):
 
     return indx[SCP_indx], indx[NES_indx], indx[GP_indx], indx[WFD_indx]
 
+
 def is_WFD(nside=set_default_nside(), dec_min=-60., dec_max=0.):
     """
     Define a wide fast deep region. Return a healpix map with WFD pixels as true.
     """
     ra, dec = ra_dec_hp_map(nside=nside)
-    WFD_indx =((dec >= np.radians(dec_min)) & (dec <= np.radians(dec_max)))
+    WFD_indx = ((dec >= np.radians(dec_min)) & (dec <= np.radians(dec_max)))
     return WFD_indx
 
 
@@ -647,13 +648,13 @@ def is_NES(nside=set_default_nside(), width=15, dec_min=0., fill_gap=True):
                         (dec < np.radians(width)))
         result[good] = 1
 
-    NES_indx = (result==1)
+    NES_indx = (result == 1)
 
     return NES_indx
 
 
 def is_GP(nside=set_default_nside(), center_width=10., end_width=4.,
-                              gal_long1=70., gal_long2=290.):
+          gal_long1=70., gal_long2=290.):
     """
     Define the Galactic Plane region. Return a healpix map with GP pixels as true.
     """
@@ -676,9 +677,10 @@ def is_GP(nside=set_default_nside(), center_width=10., end_width=4.,
     outside = np.where((g_long > np.radians(gal_long2)) & (np.abs(g_lat) > np.abs(lat_limit)))
     result[outside] = 0
 
-    GP_inx =(result==1)
+    GP_inx = (result == 1)
 
     return GP_inx
+
 
 def RaDec2region(ra, dec, nside):
 
@@ -686,28 +688,30 @@ def RaDec2region(ra, dec, nside):
     SCP_indx, NES_indx, GP_indx, WFD_indx = mutually_exclusive_regions(nside)
     indices = _raDec2Hpid(ra, dec, nside)
 
-    SCP = np.searchsorted(indices,SCP_indx)
-    NES = np.searchsorted(indices,NES_indx)
-    GP  = np.searchsorted(indices,GP_indx)
-    WFD = np.searchsorted(indices,WFD_indx)
+    SCP = np.searchsorted(indices, SCP_indx)
+    NES = np.searchsorted(indices, NES_indx)
+    GP = np.searchsorted(indices, GP_indx)
+    WFD = np.searchsorted(indices, WFD_indx)
 
     result[SCP] = 'SCP'
     result[NES] = 'NES'
-    result[GP]  = 'GP'
+    result[GP] = 'GP'
     result[WFD] = 'WFD'
 
     return result
+
 
 def simple_performance_measure(observations, preferences):
     # survey length
     t_decimals = np.modf(observations['mjd'])[0]
     t_dec_shifted = np.roll(t_decimals, -1)
     deltas = t_dec_shifted - t_decimals
-    interval = np.sum(deltas[deltas>0]) *24.*60.*60.
+    interval = np.sum(deltas[deltas > 0]) * 24.*60.*60.
     # avg of slew times
     avg_slew = np.sum(observations['slewtime'])/interval
     # performance
-    return preferences[0]* (1-avg_slew)
+    return preferences[0] * (1-avg_slew)
+
 
 def slew_time(ra0, dec0, ra1, dec1):
     ang_speed = np.radians(5.)
