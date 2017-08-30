@@ -310,7 +310,8 @@ class Time_to_set(BaseConditionsFeature):
         self.lon = site.longitude_rad
 
         # Compute hour angle when field hits the alt_min
-        ha_alt_min = -np.arccos((np.sin(self.min_alt) - self.sin_dec*self.sin_lat)/(self.cos_dec*self.cos_lat))
+        ha_alt_min = -np.arccos((np.sin(self.min_alt) -
+                                 self.sin_dec*self.sin_lat)/(self.cos_dec*self.cos_lat))
         self.ha_alt_min = ha_alt_min
         lmst_alt_min = ha_alt_min + self.ra
         lmst_alt_min[np.where(lmst_alt_min < 0)] += 2.*np.pi
@@ -482,12 +483,11 @@ class Rotator_angle(BaseSurveyFeature):
             self.feature[indx, :] += np.histogram(observation.rotSkyPos, bins=self.bins)[0]
 
 
-
 class N_observations_cost(BaseSurveyFeature):
     """
     Track the number of observations that have been made accross the sky.
     """
-    def __init__(self, survey_filters='r',nside=default_nside, mask_indx=None):
+    def __init__(self, survey_filters='r', nside=default_nside, mask_indx=None):
         """
         Parameters
         ----------
@@ -504,7 +504,7 @@ class N_observations_cost(BaseSurveyFeature):
         self.mask_indx = mask_indx
         self.survey_filters = survey_filters
 
-        self.max_n = np.zeros(1,dtype=self.dt)
+        self.max_n = np.zeros(1, dtype=self.dt)
         self.max_n_all_f = 0
 
     def add_observation(self, observation, indx=None):
@@ -514,7 +514,7 @@ class N_observations_cost(BaseSurveyFeature):
         indx : ints
             The indices of the healpixel map that have been observed by observation
         """
-        self.sum_feature[indx] +=1
+        self.sum_feature[indx] += 1
 
         for f in self.survey_filters:
             if observation['filter'][0] == f:
@@ -535,7 +535,7 @@ class N_in_filter_cost(BaseSurveyFeature):
     """
     Track the number of observations that have been made accross the sky.
     """
-    def __init__(self, survey_filters='r',nside=default_nside, mask_indx=None):
+    def __init__(self, survey_filters='r', nside=default_nside, mask_indx=None):
         """
         Parameters
         ----------
@@ -584,7 +584,7 @@ class N_obs_night_cost(BaseSurveyFeature):
         self.sum_feature = np.zeros(len(self.feature), dtype=int)
         self.survey_filters = survey_filters
 
-        self.max_n = np.zeros(1,dtype=self.dt)
+        self.max_n = np.zeros(1, dtype=self.dt)
         self.max_n_all_f = 0
         self.night = None
 
@@ -595,16 +595,13 @@ class N_obs_night_cost(BaseSurveyFeature):
             self.sum_feature *= 0
             self.night = observation['night'][0]
 
-        self.sum_feature[indx] +=1
+        self.sum_feature[indx] += 1
 
         for f in self.survey_filters:
             if observation['filter'][0] == f:
                 self.feature[indx][f] += 1
             self.max_n[f] = np.max(self.feature[f])
         self.max_n_all_f = np.max(self.sum_feature)
-
-
-
 
         if observation['filter'][0] in self.survey_filters:
             self.feature[indx] += 1
