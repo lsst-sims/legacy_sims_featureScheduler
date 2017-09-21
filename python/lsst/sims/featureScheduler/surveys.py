@@ -2,11 +2,12 @@ from __future__ import absolute_import
 from builtins import zip
 from builtins import object
 import numpy as np
-from .utils import empty_observation, set_default_nside, read_fields, simple_performance_measure
+from .utils import empty_observation, set_default_nside, read_fields, simple_performance_measure, stupidFast_altAz2RaDec
 from lsst.sims.utils import _hpid2RaDec, _raDec2Hpid
 import healpy as hp
 from . import features
 from . import dithering
+import matplotlib.pylab as plt
 
 
 default_nside = set_default_nside()
@@ -90,14 +91,22 @@ class BaseSurvey(object):
         if self._check_feasability():
             self.reward = 0
             indx = np.arange(hp.nside2npix(default_nside))
+            # keep track of masked pixels
+            mask = np.zeros(indx.size, dtype=bool)
             for bf, weight in zip(self.basis_functions, self.basis_weights):
-                self.reward += bf(indx=indx)*weight
+                basis_value = bf(indx=indx)
+                mask[np.where(basis_value == hp.UNSEEN)] = True
+                if hasattr(basis_value, 'mask'):
+                    mask[np.where(basis_value.mask == True)] = True
+                self.reward += basis_value*weight
                 # might be faster to pull this out into the feasabiliity check?
                 if hasattr(self.reward, 'mask'):
                     indx = np.where(self.reward.mask == False)[0]
-                # inf reward means it trumps everything.
-                if np.any(np.isinf(self.reward)):
-                    self.reward = np.inf
+            self.reward[mask] = hp.UNSEEN
+            # inf reward means it trumps everything.
+            if np.any(np.isinf(self.reward)):
+                self.reward = np.inf
+
         else:
             # If not feasable, negative infinity reward
             self.reward = -np.inf
@@ -127,6 +136,68 @@ class BaseSurvey(object):
         # XXX--zomg, we should have a method that goes through all the objects and
         # makes plots/prints info so there can be a little notebook showing the config!
         pass
+
+
+class Marching_army_survey(BaseSurvey):
+    """
+    """
+    def __init__(self, basis_functions, basis_weights, extra_features=None, smoothing_kernel=None,
+                 nside=default_nside, filtername='y', npick=40):
+        super(Marching_army_survey, self).__init__(basis_functions=basis_functions,
+                                                   basis_weights=basis_weights,
+                                                   extra_features=extra_features,
+                                                   smoothing_kernel=smoothing_kernel)
+        if extra_features is None:
+            self.extra_features = []
+            self.extra_features.append(features.Current_mjd())
+        self._set_altaz_fields()
+        self.nside = nside
+        self.filtername = filtername
+        self.npick = npick
+
+    def _set_altaz_fields(self):
+        """
+        Have a fixed grid of alt,az pointings to use
+        """
+        tmp = read_fields()
+        names = ['alt', 'az']
+        types = [float, float]
+        self.fields = np.zeros(tmp.size, dtype=list(zip(names, types)))
+        self.fields['alt'] = tmp['dec']
+        self.fields['az'] = tmp['RA']
+
+    def _field_rewards(self):
+        self.ra, self.dec = stupidFast_altAz2RaDec(self.fields['alt'], self.fields['az'],
+                                                   lat, lon,
+                                                   self.extra_features[0].feature)
+        field_hpids = _raDec2Hpid(self.nside, self.ra, self.dec)
+        field_rewards = self.reward[field_hpids]
+        return field_rewards
+
+    # Maybe make an alt-az tesselation, convert that to ra,dec, convert that to healpix
+    # and mask everything except for those indices. Sure, why not?
+
+    def __call__(self):
+        if not self.reward_checked:
+            self.reward = self.calc_reward_function()
+        field_rewards = self._field_rewards()
+        order = np.argsort(field_rewards)
+        final_ra = self.ra[order][self.npick]
+        final_dec = self.dec[order][self.npick]
+        final_alt = self.fields['alt'][order][self.npick]
+        final_az = self.fields['az'][order][self.npick]
+        # Now to loop over and stick all of those in a list of observations
+        observations = []
+        for ra, dec in zip(final_ra, final_dec):
+            obs = empty_observation()
+            obs['RA'] = ra
+            obs['dec'] = dec
+            obs['filter'] = self.filtername
+            obs['nexp'] = 2.
+            obs['exptime'] = 30.
+            observations.append(obs)
+
+        return observations
 
 
 class Smooth_area_survey(BaseSurvey):

@@ -51,7 +51,11 @@ class Quadrant_basis_function(Base_basis_function):
     """
     """
     def __init__(self, nside=default_nside, condition_features=None, minAlt=20., maxAlt=82.,
-                 azWidth=15., survey_features=None,):
+                 azWidth=15., survey_features=None, quadrants='All'):
+        if quadrants == 'All':
+            self.quadrants = ['N', 'E', 'S', 'W']
+        else:
+            self.quadrants = quadrants
         if survey_features is None:
             self.survey_features = {}
         if condition_features is None:
@@ -63,6 +67,7 @@ class Quadrant_basis_function(Base_basis_function):
         self.nside = nside
 
     def __call__(self, indx=None):
+        
         result = np.empty(hp.nside2npix(self.nside), dtype=float)
         result.fill(hp.UNSEEN)
 
@@ -75,21 +80,25 @@ class Quadrant_basis_function(Base_basis_function):
         alt_limit = np.where((alt > self.minAlt) &
                              (alt < self.maxAlt))[0]
 
-        q1 = np.where((az[alt_limit] > np.pi-self.azWidth) &
-                      (az[alt_limit] < np.pi+self.azWidth))[0]
-        result[alt_limit[q1]] = 1
+        if 'S' in self.quadrants:
+            q1 = np.where((az[alt_limit] > np.pi-self.azWidth) &
+                          (az[alt_limit] < np.pi+self.azWidth))[0]
+            result[alt_limit[q1]] = 1
 
-        q2 = np.where((az[alt_limit] > np.pi/2.-self.azWidth) &
-                      (az[alt_limit] < np.pi/2.+self.azWidth))[0]
-        result[alt_limit[q2]] = 1
+        if 'E' in self.quadrants:
+            q2 = np.where((az[alt_limit] > np.pi/2.-self.azWidth) &
+                          (az[alt_limit] < np.pi/2.+self.azWidth))[0]
+            result[alt_limit[q2]] = 1
 
-        q3 = np.where((az[alt_limit] > 3*np.pi/2.-self.azWidth) &
-                      (az[alt_limit] < 3*np.pi/2.+self.azWidth))[0]
-        result[alt_limit[q3]] = 1
+        if 'W' in self.quadrants:
+            q3 = np.where((az[alt_limit] > 3*np.pi/2.-self.azWidth) &
+                          (az[alt_limit] < 3*np.pi/2.+self.azWidth))[0]
+            result[alt_limit[q3]] = 1
 
-        q4 = np.where((az[alt_limit] < self.azWidth) |
-                      (az[alt_limit] > 2*np.pi - self.azWidth))[0]
-        result[alt_limit[q4]] = 1
+        if 'N' in self.quadrants:
+            q4 = np.where((az[alt_limit] < self.azWidth) |
+                          (az[alt_limit] > 2*np.pi - self.azWidth))[0]
+            result[alt_limit[q4]] = 1
 
         return result
 

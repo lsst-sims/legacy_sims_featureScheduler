@@ -448,6 +448,41 @@ def inrange(inval, minimum=-1., maximum=1.):
     return inval
 
 
+def stupidFast_altAz2RaDec(alt, az, lat, lon, mjd):
+    """
+    Convert alt, az to RA, Dec without taking into account abberation, precesion, diffraction, ect.
+
+    Parameters
+    ----------
+    alt : numpy.array
+        Altitude, same length as `ra` and `dec`. Radians.
+    az : numpy.array
+        Azimuth, same length as `ra` and `dec`. Must be same length as `alt`. Radians.
+    lat : float
+        Latitude of the observatory in radians.
+    lon : float
+        Longitude of the observatory in radians.
+    mjd : float
+        Modified Julian Date.
+
+    Returns
+    -------
+    ra : array_like
+        RA, in radians.
+    dec : array_like
+        Dec, in radians.
+    """
+    lmst, last = calcLmstLast(mjd, lon)
+    lmst = lmst/12.*np.pi  # convert to rad
+    sindec = np.sin(lat)*np.sin(alt) + np.cos(lat)*np.cos(alt)*np.cos(az)
+    sindec = inrange(sindec)
+    dec = np.arcsin(sindec)
+    ha = np.arctan2(-np.sin(az)*np.cos(alt), -np.cos(az)*np.sin(lat)*np.cos(alt)+np.sin(alt)*np.cos(lat))
+    ra = (lmst-ha)
+    raneg = np.where(ra < 0)
+    ra[raneg] = ra[raneg] + 2.*np.pi
+    return ra, dec
+
 def stupidFast_RaDec2AltAz(ra, dec, lat, lon, mjd, lmst=None):
     """
     Convert Ra,Dec to Altitude and Azimuth.
