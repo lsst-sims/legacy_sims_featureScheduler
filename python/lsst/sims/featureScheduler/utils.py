@@ -31,6 +31,44 @@ def set_default_nside(nside=None):
     return set_default_nside.side
 
 
+def raster_sort(x0, order=['x', 'y']):
+    """Do a quick sort to scan a grid up and down
+
+    Parameters
+    ----------
+    x0 : array
+    order : list
+        Keys for the order x0 should be sorted in.
+
+    returns
+    -------
+    x,y sorted
+    """
+    coords = x0.copy()
+    coords.sort(order=order)
+    places_to_invert = np.where(np.diff(coords[order[-1]]) < 0)[0]
+    indx = np.arange(coords.size)
+    if np.size(places_to_invert) > 0:
+        places_to_invert += 1
+        index_sorted = np.zeros(indx.size, dtype=int)
+        index_sorted[0:places_to_invert[0]] = indx[0:places_to_invert[0]]
+
+        for i, inv_pt in enumerate(places_to_invert[:-1]):
+            if i % 2 == 0:
+                index_sorted[inv_pt:places_to_invert[i+1]] = indx[inv_pt:places_to_invert[i+1]][::-1]
+            else:
+                index_sorted[inv_pt:places_to_invert[i+1]] = indx[inv_pt:places_to_invert[i+1]]
+
+        if np.size(places_to_invert) % 2 != 0:
+            index_sorted[places_to_invert[-1]:] = indx[places_to_invert[-1]:][::-1]
+        else:
+            index_sorted[places_to_invert[-1]:] = indx[places_to_invert[-1]:]
+        return index_sorted
+    else:
+        return indx
+
+
+
 def empty_observation():
     """
     Return a numpy array that could be a handy observation record

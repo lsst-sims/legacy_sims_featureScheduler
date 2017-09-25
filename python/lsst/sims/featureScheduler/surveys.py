@@ -2,8 +2,8 @@ from __future__ import absolute_import
 from builtins import zip
 from builtins import object
 import numpy as np
-from .utils import empty_observation, set_default_nside, read_fields, simple_performance_measure, stupidFast_altAz2RaDec
-from lsst.sims.utils import _hpid2RaDec, _raDec2Hpid
+from .utils import empty_observation, set_default_nside, read_fields, stupidFast_altAz2RaDec, raster_sort
+from lsst.sims.utils import _hpid2RaDec, _raDec2Hpid, Site
 import healpy as hp
 from . import features
 from . import dithering
@@ -142,7 +142,7 @@ class Marching_army_survey(BaseSurvey):
     """
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, smoothing_kernel=None,
-                 nside=default_nside, filtername='y', npick=40):
+                 nside=default_nside, filtername='y', npick=40, site='LSST'):
         super(Marching_army_survey, self).__init__(basis_functions=basis_functions,
                                                    basis_weights=basis_weights,
                                                    extra_features=extra_features,
@@ -154,6 +154,9 @@ class Marching_army_survey(BaseSurvey):
         self.nside = nside
         self.filtername = filtername
         self.npick = npick
+        site = Site(name=site)
+        self.lat_rad = site.latitude_rad
+        self.lon_rad = site.longitude_rad
 
     def _set_altaz_fields(self):
         """
@@ -168,7 +171,7 @@ class Marching_army_survey(BaseSurvey):
 
     def _field_rewards(self):
         self.ra, self.dec = stupidFast_altAz2RaDec(self.fields['alt'], self.fields['az'],
-                                                   lat, lon,
+                                                   self.lat_rad, self.lon_rad,
                                                    self.extra_features[0].feature)
         field_hpids = _raDec2Hpid(self.nside, self.ra, self.dec)
         field_rewards = self.reward[field_hpids]
@@ -186,9 +189,14 @@ class Marching_army_survey(BaseSurvey):
         final_dec = self.dec[order][self.npick]
         final_alt = self.fields['alt'][order][self.npick]
         final_az = self.fields['az'][order][self.npick]
+        # Now to sort the positions so that we raster in altitude, then az
+        coords = np.empty(final_alt.size, dtype=[('alt', float), ('az', float)])
+        coords['alt'] = final_alt
+        coords['az'] = final_az
+        indx = raster_sort(coords, order=['alt', 'az'])
         # Now to loop over and stick all of those in a list of observations
         observations = []
-        for ra, dec in zip(final_ra, final_dec):
+        for ra, dec in zip(final_ra[indx], final_dec[indx]):
             obs = empty_observation()
             obs['RA'] = ra
             obs['dec'] = dec
