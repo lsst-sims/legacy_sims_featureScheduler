@@ -31,25 +31,31 @@ def set_default_nside(nside=None):
     return set_default_nside.side
 
 
-def raster_sort(x0, order=['x', 'y']):
-    """Do a quick sort to scan a grid up and down
+def raster_sort(x0, order=['x', 'y'], xbin=1.):
+    """Do a sort to scan a grid up and down. Simple starting guess to traveling salesman.
 
     Parameters
     ----------
     x0 : array
     order : list
         Keys for the order x0 should be sorted in.
+    xbin : float (1.)
+        The binsize to round off the first coordinate into
 
     returns
     -------
-    x,y sorted
+    array sorted so that it rasters up and down.
     """
     coords = x0.copy()
-    coords.sort(order=order)
+    bins = np.arange(coords[order[0]].min()-xbin/2., coords[order[0]].max()+3.*xbin/2., xbin)
+    # digitize my bins
+    coords[order[0]] = np.digitize(coords[order[0]], bins)
+    order1 = np.argsort(coords, order=order)
+    coords = coords[order1]
     places_to_invert = np.where(np.diff(coords[order[-1]]) < 0)[0]
-    indx = np.arange(coords.size)
     if np.size(places_to_invert) > 0:
         places_to_invert += 1
+        indx = np.arange(coords.size)
         index_sorted = np.zeros(indx.size, dtype=int)
         index_sorted[0:places_to_invert[0]] = indx[0:places_to_invert[0]]
 
@@ -63,10 +69,9 @@ def raster_sort(x0, order=['x', 'y']):
             index_sorted[places_to_invert[-1]:] = indx[places_to_invert[-1]:][::-1]
         else:
             index_sorted[places_to_invert[-1]:] = indx[places_to_invert[-1]:]
-        return index_sorted
+        return x0[order1][index_sorted]
     else:
-        return indx
-
+        return x0[order1]
 
 
 def empty_observation():
@@ -79,6 +84,9 @@ def empty_observation():
     XXX-Could add a bool flag for "observed". Then easy to track all proposed
     observations. Could also add an mjd_min, mjd_max for when an observation should be observed.
     That way we could drop things into the queue for DD fields.
+
+    XXX--might be nice to add a generic "sched_note" str field, to record any metadata that 
+    would be useful to the scheduler once it's observed. and/or observationID.
 
     Returns
     -------

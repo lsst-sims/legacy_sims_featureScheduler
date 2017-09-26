@@ -180,7 +180,7 @@ class Marching_army_survey(BaseSurvey):
     # Maybe make an alt-az tesselation, convert that to ra,dec, convert that to healpix
     # and mask everything except for those indices. Sure, why not?
 
-    def __call__(self):
+    def _make_obs_list(self):
         if not self.reward_checked:
             self.reward = self.calc_reward_function()
         field_rewards = self._field_rewards()
@@ -204,7 +204,22 @@ class Marching_army_survey(BaseSurvey):
             obs['nexp'] = 2.
             obs['exptime'] = 30.
             observations.append(obs)
+        return observations
 
+    def __call__(self):
+        observations = self._make_obs_list()
+        return observations
+
+
+class Marching_army_survey_pairs(Marching_army_survey):
+    """Same as marching army, only repeat the block twice
+    """
+    def __call__(self):
+        # XXX--simple "typewriter" style where it rasters, then does
+        # A long slew back to the start. Could imagine doing every-other observation, then
+        # the other half in reverse order, or some other more complicated style of looping back
+        observations = self._make_obs_list()
+        observations.extend(observations)
         return observations
 
 

@@ -12,11 +12,10 @@ if __name__ == "__main__":
     bfs.append(fs.Target_map_basis_function(target_map=target_map))
     # Mask everything but the South
     bfs.append(fs.Quadrant_basis_function(quadrants=['S']))
-    # throw in the depth percentile for god measure
+    # throw in the depth percentile for good measure
     bfs.append(fs.Depth_percentile_basis_function())
     weights = np.array([1., 1., 1.])
 
-    
     survey = fs.Marching_army_survey(bfs, weights)
     scheduler = fs.Core_scheduler([survey])
 
@@ -24,3 +23,4 @@ if __name__ == "__main__":
     observatory, scheduler, observations = fs.sim_runner(observatory, scheduler,
                                                          survey_length=survey_length,
                                                          filename='y_marching_south.db')
+    
