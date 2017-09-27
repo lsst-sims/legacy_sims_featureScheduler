@@ -48,10 +48,22 @@ class Base_basis_function(object):
 
 
 class Quadrant_basis_function(Base_basis_function):
-    """
+    """Mask regions of the sky so only certain quadrants are visible
     """
     def __init__(self, nside=default_nside, condition_features=None, minAlt=20., maxAlt=82.,
                  azWidth=15., survey_features=None, quadrants='All'):
+        """
+        Parameters
+        ----------
+        minAlt : float (20.)
+            The minimum altitude to consider (degrees)
+        maxAlt : float (82.)
+            The maximum altitude to leave unmasked (degrees)
+        azWidth : float (15.)
+            The full-width azimuth to leave unmasked (degrees)
+        quadrants : str ('All')
+            can be 'All' or a list including any of 'N', 'E', 'S', 'W'
+        """
         if quadrants == 'All':
             self.quadrants = ['N', 'E', 'S', 'W']
         else:
@@ -63,11 +75,12 @@ class Quadrant_basis_function(Base_basis_function):
             self.condition_features['altaz'] = features.AltAzFeature()
         self.minAlt = np.radians(minAlt)
         self.maxAlt = np.radians(maxAlt)
-        self.azWidth = np.radians(azWidth)
+        # Convert to half-width for convienence
+        self.azWidth = np.radians(azWidth /2.)
         self.nside = nside
 
     def __call__(self, indx=None):
-        
+
         result = np.empty(hp.nside2npix(self.nside), dtype=float)
         result.fill(hp.UNSEEN)
 

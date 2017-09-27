@@ -92,7 +92,6 @@ class N_observations(BaseSurveyFeature):
         indx : ints
             The indices of the healpixel map that have been observed by observation
         """
-
         if observation['filter'][0] in self.filtername:
             self.feature[indx] += 1
 

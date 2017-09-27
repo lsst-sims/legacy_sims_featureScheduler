@@ -386,7 +386,7 @@ def standard_goals(nside=set_default_nside()):
     return result
 
 
-def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3., filename=None, delete_past=False):
+def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3., filename=None, delete_past=True):
     """
     run a simulation
     """

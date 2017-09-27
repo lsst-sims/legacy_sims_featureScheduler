@@ -196,7 +196,7 @@ class Marching_army_survey(BaseSurvey):
         coords = np.empty(final_alt.size, dtype=[('alt', float), ('az', float)])
         coords['alt'] = final_alt
         coords['az'] = final_az
-        indx = raster_sort(coords, order=['az', 'alt'], xbin=np.radians(2.))
+        indx = raster_sort(coords, order=['az', 'alt'], xbin=np.radians(5.))
         # Now to loop over and stick all of those in a list of observations
         observations = []
         for ra, dec in zip(final_ra[indx], final_dec[indx]):
