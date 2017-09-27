@@ -69,9 +69,9 @@ def raster_sort(x0, order=['x', 'y'], xbin=1.):
             index_sorted[places_to_invert[-1]:] = indx[places_to_invert[-1]:][::-1]
         else:
             index_sorted[places_to_invert[-1]:] = indx[places_to_invert[-1]:]
-        return x0[order1][index_sorted]
+        return order1[index_sorted]
     else:
-        return x0[order1]
+        return order1
 
 
 def empty_observation():
@@ -151,8 +151,8 @@ def read_fields():
     numpy.array
         With RA and dec in radians.
     """
-    names = ['id', 'RA', 'dec']
-    types = [int, float, float]
+    names = ['RA', 'dec']
+    types = [float, float]
     data_dir = os.path.join(getPackageDir('sims_featureScheduler'), 'python/lsst/sims/featureScheduler/')
     filepath = os.path.join(data_dir, 'fieldID.lis')
     fields = np.loadtxt(filepath, dtype=list(zip(names, types)))

@@ -184,16 +184,19 @@ class Marching_army_survey(BaseSurvey):
         if not self.reward_checked:
             self.reward = self.calc_reward_function()
         field_rewards = self._field_rewards()
-        order = np.argsort(field_rewards)
-        final_ra = self.ra[order][self.npick]
-        final_dec = self.dec[order][self.npick]
-        final_alt = self.fields['alt'][order][self.npick]
-        final_az = self.fields['az'][order][self.npick]
+        order = np.argsort(field_rewards)[::-1]
+        # make sure we don't point at any masked pixels
+        unmasked = np.where(field_rewards[order] != hp.UNSEEN)[0]
+        npick = np.min([self.npick, np.max(unmasked)])
+        final_ra = self.ra[order][0:npick]
+        final_dec = self.dec[order][0:npick]
+        final_alt = self.fields['alt'][order][0:npick]
+        final_az = self.fields['az'][order][0:npick]
         # Now to sort the positions so that we raster in altitude, then az
         coords = np.empty(final_alt.size, dtype=[('alt', float), ('az', float)])
         coords['alt'] = final_alt
         coords['az'] = final_az
-        indx = raster_sort(coords, order=['alt', 'az'])
+        indx = raster_sort(coords, order=['az', 'alt'], xbin=np.radians(2.))
         # Now to loop over and stick all of those in a list of observations
         observations = []
         for ra, dec in zip(final_ra[indx], final_dec[indx]):
