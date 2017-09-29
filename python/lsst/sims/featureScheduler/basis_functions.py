@@ -136,7 +136,6 @@ class Target_map_basis_function(Base_basis_function):
         if survey_features is None:
             self.survey_features = {}
             self.survey_features['N_obs'] = features.N_observations(filtername=filtername)
-            self.survey_features['N_obs_reference'] = features.N_obs_reference()
         super(Target_map_basis_function, self).__init__(survey_features=self.survey_features,
                                                         condition_features=condition_features)
         self.visits_per_point = visits_per_point
@@ -148,6 +147,8 @@ class Target_map_basis_function(Base_basis_function):
             self.target_map = target_map
         self.out_of_bounds_area = np.where(self.target_map == 0)[0]
         self.out_of_bounds_val = out_of_bounds_val
+
+        self.ref_obs_sum = np.sum(self.target_map[np.where(self.target_map > 0)])
 
     def __call__(self, indx=None):
         """
@@ -165,17 +166,14 @@ class Target_map_basis_function(Base_basis_function):
         if indx is None:
             indx = np.arange(result.size)
 
+        pix_count_sum = np.sum(self.survey_features['N_obs'].feature)
+
         # Find out how many observations we want now at those points
-        scale = np.max([self.softening, self.survey_features['N_obs_reference'].feature])
-        goal_N = self.target_map[indx] * scale
+        goal_N = self.target_map[indx] * pix_count_sum/self.ref_obs_sum
         result[indx] = goal_N - self.survey_features['N_obs'].feature[indx]
         result[indx] /= self.visits_per_point
 
         result[self.out_of_bounds_area] = self.out_of_bounds_val
-
-        #result[indx] = -self.survey_features['N_obs'].feature[indx]
-        #result[indx] /= (self.survey_features['N_obs_reference'].feature + self.softening)
-        #result[indx] += self.target_map[indx]
         return result
 
 

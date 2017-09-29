@@ -2,8 +2,8 @@ from __future__ import absolute_import
 from builtins import zip
 from builtins import object
 import numpy as np
-from .utils import empty_observation, set_default_nside, read_fields, stupidFast_altAz2RaDec, raster_sort, stupidFast_RaDec2AltAz, treexyz
-from lsst.sims.utils import _hpid2RaDec, _raDec2Hpid, Site
+from .utils import empty_observation, set_default_nside, read_fields, stupidFast_altAz2RaDec, raster_sort, stupidFast_RaDec2AltAz, gnomonic_project_toxy, treexyz
+from lsst.sims.utils import _hpid2RaDec, _raDec2Hpid, Site, _angularSeparation
 import healpy as hp
 from . import features
 from . import dithering
@@ -139,6 +139,29 @@ class BaseSurvey(object):
         pass
 
 
+def roundx(x, y, binstart=0.1):
+    """Round off to try and grid-up nearly gridded data
+    """
+    bins = np.arange(x.min(), x.max()+binstart, binstart)
+    counts, bin_edges = np.histogram(x, bins=bins)
+
+    # merge together bins that are nighboring and have counts
+    new_bin_edges = []
+    new_bin_edges.append(bin_edges[0])
+    for i, b in enumerate(bin_edges[1:]):
+        if (counts[i] > 0) & (counts[i-1] > 0):
+            pass
+        else:
+            new_bin_edges.append(bin_edges[i])
+    if bin_edges[-1] != new_bin_edges[-1]:
+        new_bin_edges.append(bin_edges[-1])
+    indx = np.digitize(x, new_bin_edges)
+    new_bin_edges = np.array(new_bin_edges)
+    bin_centers = (new_bin_edges[1:]-new_bin_edges[:-1])/2. + new_bin_edges[:-1]
+    new_x = bin_centers[indx-1]
+    return new_x
+
+
 class Marching_army_survey(BaseSurvey):
     """
     """
@@ -176,16 +199,12 @@ class Marching_army_survey(BaseSurvey):
         hpids = np.arange(hp.nside2npix(self.nside))
         self.reward_ra, self.reward_dec = _hpid2RaDec(self.nside, hpids)
 
-    def _field_rewards(self):
+    def _make_obs_list(self):
         """
-        Parameters
-        ----------
-        unmasked : array
-            The indices of the healpix map to compute fields for
         """
+        if not self.reward_checked:
+            self.reward = self.calc_reward_function()
 
-        # Need to match each healpix to a pointing position, then find the max reward value for
-        # each pointing.
         unmasked = np.where(self.reward != hp.UNSEEN)
         reward_alt, reward_az = stupidFast_RaDec2AltAz(self.reward_ra[unmasked],
                                                        self.reward_dec[unmasked],
@@ -199,32 +218,39 @@ class Marching_army_survey(BaseSurvey):
 
         unique_fields = np.unique(indx)
         bins = np.concatenate(([np.min(unique_fields)-1], unique_fields))+.5
+        # XXX--note, this might make it possible to select a field that is in a masked region, but which
+        # overlaps a healpixel that is unmasked. May need to pad out any masks my an extra half-FoV.
         field_rewards, be, bi = binned_statistic(indx, field_rewards, bins=bins, statistic='max')
 
-        return unique_fields, field_rewards
+        # Ah, I can just find the distance to the max and take the nop npix
+        unmasked_alt = self.fields['alt'][unique_fields]
+        unmasked_az = self.fields['az'][unique_fields]
 
-    # Maybe make an alt-az tesselation, convert that to ra,dec, convert that to healpix
-    # and mask everything except for those indices. Sure, why not?
+        field_max = np.max(np.where(field_rewards == np.max(field_rewards))[0])
+        ang_distances = _angularSeparation(unmasked_az[field_max], unmasked_alt[field_max],
+                                           unmasked_az, unmasked_alt)
+        final_indx = np.argsort(ang_distances)[0:self.npick]
 
-    def _make_obs_list(self):
-        if not self.reward_checked:
-            self.reward = self.calc_reward_function()
-        field_indx, field_rewards = self._field_rewards()
-        order = np.argsort(field_rewards)[::-1]
-        npick = np.min([self.npick, np.size(order)])
+        final_alt = unmasked_alt[final_indx]
+        final_az = unmasked_az[final_indx]
 
-        final_alt = self.fields['alt'][field_indx][order][0:npick]
-        final_az = self.fields['az'][field_indx][order][0:npick]
         final_ra, final_dec = stupidFast_altAz2RaDec(final_alt, final_az,
                                                      self.lat_rad, self.lon_rad,
                                                      self.extra_features[0].feature)
 
+        # Only want to send RA,Dec positions to the observatory
         # Now to sort the positions so that we raster in altitude, then az
         coords = np.empty(final_alt.size, dtype=[('alt', float), ('az', float)])
-        coords['alt'] = final_alt
-        coords['az'] = final_az
-        # XXX--horrible horrible magic number
-        indx = raster_sort(coords, order=['az', 'alt'], xbin=np.radians(5.))
+        x, y = gnomonic_project_toxy(final_az, final_alt, np.median(final_az), np.median(final_alt))
+
+        # Expect things to be mostly vertical in alt
+        x_deg = np.degrees(x)
+        x_new = roundx(x_deg, y)
+        coords['alt'] = y
+        coords['az'] = np.radians(x_new)
+
+        # XXX--horrible horrible magic number xbin
+        indx = raster_sort(coords, order=['az', 'alt'], xbin=np.radians(1.))
         # Now to loop over and stick all of those in a list of observations
         observations = []
         for ra, dec in zip(final_ra[indx], final_dec[indx]):
@@ -237,6 +263,10 @@ class Marching_army_survey(BaseSurvey):
             observations.append(obs)
         # plt.plot(np.degrees(final_az[indx]), np.degrees(final_alt[indx]), 'o-')
         # plt.scatter(np.degrees(final_az[indx]), np.degrees(final_alt[indx]), c=field_rewards[order][0:npick][indx])
+
+        # Could do something like look at current position and see if observation[0] or [-1] is closer to 
+        # the current pointing, then reverse if needed.
+
         return observations
 
     def __call__(self):
