@@ -220,7 +220,7 @@ class Marching_army_survey(BaseSurvey):
         bins = np.concatenate(([np.min(unique_fields)-1], unique_fields))+.5
         # XXX--note, this might make it possible to select a field that is in a masked region, but which
         # overlaps a healpixel that is unmasked. May need to pad out any masks my an extra half-FoV.
-        field_rewards, be, bi = binned_statistic(indx, field_rewards, bins=bins, statistic='max')
+        field_rewards, be, bi = binned_statistic(indx, field_rewards, bins=bins, statistic='mean')
 
         # Ah, I can just find the distance to the max and take the nop npix
         unmasked_alt = self.fields['alt'][unique_fields]
@@ -278,6 +278,24 @@ class Marching_army_survey(BaseSurvey):
 
     def __call__(self):
         observations = self._make_obs_list()
+        return observations
+
+
+class Marching_experiment(Marching_army_survey):
+    def __init__(self, basis_functions, basis_weights, extra_features=None, smoothing_kernel=None,
+                 nside=default_nside, filtername='y', npick=20, site='LSST'):
+        super(Marching_experiment, self).__init__(basis_functions=basis_functions,
+                                                  basis_weights=basis_weights,
+                                                  extra_features=extra_features,
+                                                  smoothing_kernel=smoothing_kernel,
+                                                  npick=npick, nside=nside, filtername=filtername)
+
+    def __call_(self):
+        observations = self._make_obs_list()
+        # Only selecting 20 fields by default, so let's trace out the 20, then backtrack on them
+        observations.extend(observations[::-1])
+        # and now to make sure we get pairs
+        observations.extend(observations)
         return observations
 
 
