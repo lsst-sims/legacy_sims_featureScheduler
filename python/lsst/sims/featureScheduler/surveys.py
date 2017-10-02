@@ -237,12 +237,19 @@ class Marching_army_survey(BaseSurvey):
         final_ra, final_dec = stupidFast_altAz2RaDec(final_alt, final_az,
                                                      self.lat_rad, self.lon_rad,
                                                      self.extra_features[0].feature)
+        if final_ra.max() > 2.*np.pi:
+            import pdb; pdb.set_trace()
 
         # Only want to send RA,Dec positions to the observatory
         # Now to sort the positions so that we raster in altitude, then az
+        # if we have wrap-aroud, just project at az=0, because median will pull it the wrong way
+        if final_az.max()-final_az.min() > np.pi:
+            fudge = 0.
+        else:
+            fudge = np.median(final_az)
         coords = np.empty(final_alt.size, dtype=[('alt', float), ('az', float)])
-        x, y = gnomonic_project_toxy(final_az, final_alt, np.median(final_az), np.median(final_alt))
-
+        x, y = gnomonic_project_toxy(final_az, final_alt,
+                                     fudge, np.median(final_alt))
         # Expect things to be mostly vertical in alt
         x_deg = np.degrees(x)
         x_new = roundx(x_deg, y)

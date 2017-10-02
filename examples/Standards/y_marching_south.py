@@ -8,7 +8,6 @@ import matplotlib.pylab as plt
 if __name__ == "__main__":
 
     az_widths = [15., 30.]
-
     for az_width in az_widths:
         outdir = 'y_march_south_%i' % az_width
         survey_length = 366  # days
@@ -44,3 +43,4 @@ if __name__ == "__main__":
         plt.title('mean = %.2fs' % np.mean(observations['slewtime']))
         plt.savefig(outdir+'/time_hist.pdf')
 
+# real    378m17.093s timing for 2-years

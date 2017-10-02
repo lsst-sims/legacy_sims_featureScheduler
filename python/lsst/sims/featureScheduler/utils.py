@@ -547,6 +547,8 @@ def stupidFast_altAz2RaDec(alt, az, lat, lon, mjd):
     ra = (lmst-ha)
     raneg = np.where(ra < 0)
     ra[raneg] = ra[raneg] + 2.*np.pi
+    raover = np.where(ra > 2.*np.pi)
+    ra[raover] -= 2.*np.pi
     return ra, dec
 
 def stupidFast_RaDec2AltAz(ra, dec, lat, lon, mjd, lmst=None):
