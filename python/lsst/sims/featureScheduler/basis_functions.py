@@ -116,6 +116,68 @@ class Quadrant_basis_function(Base_basis_function):
         return result
 
 
+class North_south_patch_basis_function(Base_basis_function):
+    """Similar to the Quadrant_basis_function, but make it easier to 
+    pick up the region that passes through the zenith
+    """
+    def __init__(self, nside=default_nside, condition_features=None, minAlt=20., maxAlt=82.,
+                 azWidth=15., survey_features=None, lat=-30.2444, zenith_pad=15.):
+        """
+        Parameters
+        ----------
+        minAlt : float (20.)
+            The minimum altitude to consider (degrees)
+        maxAlt : float (82.)
+            The maximum altitude to leave unmasked (degrees)
+        azWidth : float (15.)
+            The full-width azimuth to leave unmasked (degrees)
+        """
+        self.lat = np.radians(lat)
+
+        if survey_features is None:
+            self.survey_features = {}
+        if condition_features is None:
+            self.condition_features = {}
+            self.condition_features['altaz'] = features.AltAzFeature()
+        self.minAlt = np.radians(minAlt)
+        self.maxAlt = np.radians(maxAlt)
+        # Convert to half-width for convienence
+        self.azWidth = np.radians(azWidth / 2.)
+        self.nside = nside
+
+        self.zenith_map = np.empty(hp.nside2npix(self.nside), dtype=float)
+        self.zenith_map.fill(hp.UNSEEN)
+        hpids = np.arange(self.zenith_map.size)
+        ra, dec = _hpid2RaDec(nside, hpids)
+        close_dec = np.where(np.abs(dec - np.radians(lat)) < np.radians(zenith_pad))
+        self.zenith_map[close_dec] = 1
+
+    def __call__(self, indx=None):
+        result = np.empty(hp.nside2npix(self.nside), dtype=float)
+        result.fill(hp.UNSEEN)
+
+        result[np.where(self.zenith_map == 1)] = 1
+
+        alt = self.condition_features['altaz'].feature['alt']
+        az = self.condition_features['altaz'].feature['az']
+
+        result[np.where(alt > self.maxAlt)] = hp.UNSEEN
+        result[np.where(alt < self.minAlt)] = hp.UNSEEN
+
+        alt_limit = np.where((alt > self.minAlt) &
+                             (alt < self.maxAlt))[0]
+
+        q1 = np.where((az[alt_limit] > np.pi-self.azWidth) &
+                      (az[alt_limit] < np.pi+self.azWidth))[0]
+        result[alt_limit[q1]] = 1
+
+        q4 = np.where((az[alt_limit] < self.azWidth) |
+                      (az[alt_limit] > 2*np.pi - self.azWidth))[0]
+        result[alt_limit[q4]] = 1
+
+        return result
+
+
 class Target_map_basis_function(Base_basis_function):
     """
     Generate a map that rewards survey areas falling behind.
