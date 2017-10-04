@@ -66,6 +66,23 @@ class AltAzFeature(BaseConditionsFeature):
         self.feature['az'] = az
 
 
+class N_obs_count(BaseSurveyFeature):
+    """Count the number of observations. Good for normalizing across filters
+    """
+    def __init__(self, filtername=None):
+        self.feature = 0
+        self.filtername = filtername
+
+    def add_obsevation(self, observation, indx=None):
+        # Track all observations
+        if self.filtername is None:
+            self.feature += 1
+        else:
+            if observation['filter'][0] in self.filtername:
+                self.feature += 1
+
+
+
 class N_observations(BaseSurveyFeature):
     """
     Track the number of observations that have been made accross the sky.

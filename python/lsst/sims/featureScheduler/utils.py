@@ -406,6 +406,20 @@ def standard_goals(nside=set_default_nside()):
     return result
 
 
+def filter_count_ratios(target_maps):
+    """Given the goal maps, compute the ratio of observations we want in each filter.
+    """
+    results = {}
+    all_norm = 0.
+    for key in target_maps:
+        good = target_maps[key] > 0
+        results[key] = np.sum(target_maps[key][good])
+        all_norm += results[key]
+    for key in results:
+        results[key] /= all_norm
+    return results
+
+
 def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3., filename=None, delete_past=True):
     """
     run a simulation

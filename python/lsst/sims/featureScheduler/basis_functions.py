@@ -186,7 +186,8 @@ class Target_map_basis_function(Base_basis_function):
     """
     Generate a map that rewards survey areas falling behind.
     """
-    def __init__(self, filtername='r', nside=default_nside, target_map=None, softening=1.,
+    def __init__(self, filtername='r', nside=default_nside, target_map=None,
+                 filter_ratios=None, softening=1.,
                  survey_features=None, condition_features=None, visits_per_point=10.,
                  out_of_bounds_val=-10.):
         """
@@ -202,8 +203,12 @@ class Target_map_basis_function(Base_basis_function):
         if survey_features is None:
             self.survey_features = {}
             self.survey_features['N_obs'] = features.N_observations(filtername=filtername)
+            self.survey_features['Count_in_filt'] = features.N_obs_count(filtername=filtername)
+            self.survey_features['Count_all'] = features.N_obs_count(filtername=None)
         super(Target_map_basis_function, self).__init__(survey_features=self.survey_features,
                                                         condition_features=condition_features)
+        self.filter_ratios = filter_ratios
+        self.filtername = filtername
         self.visits_per_point = visits_per_point
         self.nside = nside
         self.softening = softening
@@ -238,6 +243,13 @@ class Target_map_basis_function(Base_basis_function):
         goal_N = self.target_map[indx] * pix_count_sum/self.ref_obs_sum
         result[indx] = goal_N - self.survey_features['N_obs'].feature[indx]
         result[indx] /= self.visits_per_point
+
+        # If we need to scale for number of observations in filter
+        #if self.filter_ratios is not None:
+        #    # number of observations desired in filter
+        #    goal_N = self.filter_ratios[self.filtername] * self.survey_features['Count_all'].feature
+        #    scale = (goal_N+self.softening)/(self.survey_features['Count_all'].feature + self.softening)
+        #    result *= scale
 
         result[self.out_of_bounds_area] = self.out_of_bounds_val
         return result
