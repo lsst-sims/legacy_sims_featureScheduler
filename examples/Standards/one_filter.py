@@ -11,22 +11,24 @@ from lsst.sims.speedObservatory import Speed_observatory
 # Greedy selection of opsim fields
 
 
-survey_length = 365.25*2 # days
-# Define what we want the final visit ratio map to look like
-target_map = fs.standard_goals()['r']
+if __name__ == "__main__":
 
-bfs = []
-bfs.append(fs.Depth_percentile_basis_function())
-bfs.append(fs.Target_map_basis_function(target_map=target_map))
-bfs.append(fs.North_south_patch_basis_function())
-bfs.append(fs.Slewtime_basis_function())
+    survey_length = 365.25*2  # days
+    # Define what we want the final visit ratio map to look like
+    target_map = fs.standard_goals()['r']
 
-weights = np.array([.5, 1., 1., 1.])
-survey = fs.Simple_greedy_survey_fields(bfs, weights, block_size=1)
-scheduler = fs.Core_scheduler([survey])
+    bfs = []
+    bfs.append(fs.Depth_percentile_basis_function())
+    bfs.append(fs.Target_map_basis_function(target_map=target_map))
+    bfs.append(fs.North_south_patch_basis_function())
+    bfs.append(fs.Slewtime_basis_function())
 
-observatory = Speed_observatory()
-observatory, scheduler, observations = fs.sim_runner(observatory, scheduler,
-                                                     survey_length=survey_length,
-                                                     filename='one_filter.db',
-                                                     delete_past=True)
+    weights = np.array([.5, 1., 1., 1.])
+    survey = fs.Simple_greedy_survey_fields(bfs, weights, block_size=1, filtername='r')
+    scheduler = fs.Core_scheduler([survey])
+
+    observatory = Speed_observatory()
+    observatory, scheduler, observations = fs.sim_runner(observatory, scheduler,
+                                                         survey_length=survey_length,
+                                                         filename='one_filter.db',
+                                                         delete_past=True)
