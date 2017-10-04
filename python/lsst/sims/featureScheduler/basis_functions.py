@@ -121,7 +121,7 @@ class North_south_patch_basis_function(Base_basis_function):
     pick up the region that passes through the zenith
     """
     def __init__(self, nside=default_nside, condition_features=None, minAlt=20., maxAlt=82.,
-                 azWidth=15., survey_features=None, lat=-30.2444, zenith_pad=15.):
+                 azWidth=15., survey_features=None, lat=-30.2444, zenith_pad=15., zenith_min_alt=40.):
         """
         Parameters
         ----------
@@ -150,16 +150,20 @@ class North_south_patch_basis_function(Base_basis_function):
         hpids = np.arange(self.zenith_map.size)
         ra, dec = _hpid2RaDec(nside, hpids)
         close_dec = np.where(np.abs(dec - np.radians(lat)) < np.radians(zenith_pad))
+        self.zenith_min_alt = np.radians(zenith_min_alt)
         self.zenith_map[close_dec] = 1
 
     def __call__(self, indx=None):
         result = np.empty(hp.nside2npix(self.nside), dtype=float)
         result.fill(hp.UNSEEN)
 
+        # Put in the region around the 
         result[np.where(self.zenith_map == 1)] = 1
 
         alt = self.condition_features['altaz'].feature['alt']
         az = self.condition_features['altaz'].feature['az']
+
+        result[np.where(alt < self.zenith_min_alt)] = hp.UNSEEN
 
         result[np.where(alt > self.maxAlt)] = hp.UNSEEN
         result[np.where(alt < self.minAlt)] = hp.UNSEEN
