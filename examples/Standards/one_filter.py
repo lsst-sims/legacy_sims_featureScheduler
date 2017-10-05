@@ -16,15 +16,16 @@ if __name__ == "__main__":
     survey_length = 365.25*2  # days
     # Define what we want the final visit ratio map to look like
     target_map = fs.standard_goals()['r']
+    filtername = 'r'
 
     bfs = []
-    bfs.append(fs.Depth_percentile_basis_function())
-    bfs.append(fs.Target_map_basis_function(target_map=target_map))
-    bfs.append(fs.North_south_patch_basis_function())
-    bfs.append(fs.Slewtime_basis_function())
+    bfs.append(fs.Depth_percentile_basis_function(filtername=filtername))
+    bfs.append(fs.Target_map_basis_function(target_map=target_map, filtername=filtername))
+    bfs.append(fs.North_south_patch_basis_function(zenith_min_alt=50.))
+    bfs.append(fs.Slewtime_basis_function(filtername=filtername))
 
     weights = np.array([.5, 1., 1., 1.])
-    survey = fs.Simple_greedy_survey_fields(bfs, weights, block_size=1, filtername='r')
+    survey = fs.Simple_greedy_survey_fields(bfs, weights, block_size=1, filtername=filtername)
     scheduler = fs.Core_scheduler([survey])
 
     observatory = Speed_observatory()
@@ -32,3 +33,7 @@ if __name__ == "__main__":
                                                          survey_length=survey_length,
                                                          filename='one_filter.db',
                                                          delete_past=True)
+
+# real    438m51.454s
+# user    433m27.425s
+# sys     2m3.193s

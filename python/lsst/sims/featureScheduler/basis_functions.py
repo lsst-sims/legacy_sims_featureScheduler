@@ -164,6 +164,7 @@ class North_south_patch_basis_function(Base_basis_function):
         az = self.condition_features['altaz'].feature['az']
 
         result[np.where(alt < self.zenith_min_alt)] = hp.UNSEEN
+        result[np.where(alt > self.maxAlt)] = hp.UNSEEN
 
         result[np.where(alt > self.maxAlt)] = hp.UNSEEN
         result[np.where(alt < self.minAlt)] = hp.UNSEEN

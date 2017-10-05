@@ -26,11 +26,11 @@ if __name__ == "__main__":
         bfs.append(fs.Target_map_basis_function(filtername=filtername,
                                                 target_map=target_map[filtername]))
 
-        bfs.append(fs.North_south_patch_basis_function())
+        bfs.append(fs.North_south_patch_basis_function(zenith_min_alt=50.))
         bfs.append(fs.Slewtime_basis_function(filtername=filtername))
         bfs.append(fs.Filter_change_basis_function(filtername=filtername))
 
-        weights = np.array([0.5, 1., 1., 1., 0.3])
+        weights = np.array([0.5, 2., 1., 1., 0.5])
         surveys.append(fs.Simple_greedy_survey_fields(bfs, weights, block_size=1, filtername=filtername))
 
     scheduler = fs.Core_scheduler(surveys)
@@ -40,3 +40,4 @@ if __name__ == "__main__":
                                                          survey_length=survey_length,
                                                          filename='six_filter.db',
                                                          delete_past=True)
+# real    560m57.716s
