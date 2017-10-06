@@ -30,7 +30,7 @@ if __name__ == "__main__":
         bfs.append(fs.Slewtime_basis_function(filtername=filtername))
         bfs.append(fs.Filter_change_basis_function(filtername=filtername))
 
-        weights = np.array([0.5, 2., 1., 1., 0.5])
+        weights = np.array([0.5, 2., 1., 1., 5.])
         surveys.append(fs.Simple_greedy_survey_fields(bfs, weights, block_size=1, filtername=filtername))
 
     scheduler = fs.Core_scheduler(surveys)

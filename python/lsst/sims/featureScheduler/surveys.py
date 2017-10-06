@@ -162,6 +162,85 @@ def roundx(x, y, binstart=0.1):
     return new_x
 
 
+class Scripted_survey(BaseSurvey):
+    """
+    Take a set of scheduled observations and serve them up.
+    """
+    def __init__(self, basis_functions, basis_weights, extra_features=None,
+                 smoothing_kernel=None, reward=1e6):
+        # All we need to know is the current time
+        self.reward_val = reward
+        self.reward = -reward
+        if extra_features is None:
+            extra_features = [features.Current_mjd()]
+        super(Scripted_survey, self).__init__(basis_functions=basis_functions,
+                                              basis_weights=basis_weights,
+                                              extra_features=extra_features,
+                                              smoothing_kernel=smoothing_kernel)
+
+    def add_observation(self, observation, indx=None):
+        """Check if this matches a scripted observation
+        """
+        dt = self.obs_wanted['mjd'] - observation['mjd']
+        # was it taken in the right time window, and hasn't already been marked as observed.
+        time_matches = np.where((np.abs(dt) < self.mjd_tol) & (~self.obs_log))[0]
+        for match in time_matches:
+            # Might need to change this to an angular distance calc and and another tolerance?
+            if (self.obs_wanted[match]['RA'] == observation['RA']) & (self.obs_wanted[match]['dec'] == observation['dec']) & (self.obs_wanted[match]['filter'] == observation['filter']):
+                self.obs_log[match] = True
+                break
+
+    def calc_reward_function(self):
+        """If there is an observation ready to go, execute it, otherwise, -inf
+        """
+        observation = self._check_list()
+        if observation is None:
+            self.reward = -np.inf
+        else:
+            self.reward = self.reward_val
+        return self.reward
+
+    def _slice2obs(self, obs_row):
+        """take a slice and return a full observation object
+        """
+        observation = empty_observation()
+        observation['RA'] = obs_row['RA']
+        observation['dec'] = obs_row['dec']
+        observation['filter'] = obs_row['filter']
+        return observation
+
+    def _check_list(self):
+        """Check to see if the current mjd is good
+        """
+        dt = self.obs_wanted['mjd'] - self.extra_features[0].feature
+        matches = np.where((np.abs(dt) < self.mjd_tol) & (~self.obs_log))[0]
+        if matches.size > 0:
+            observation = self._slice2obs(self.obs_wanted[matches[0]])
+        else:
+            observation = None
+        return observation
+
+    def set_script(self, obs_wanted, mjd_tol=15.):
+        """
+        Parameters
+        ----------
+        obs_arr : np.array
+            The observations that should be executed
+        mjds : np.array
+            The MJDs for the observaitons, should be same length as obs_list
+        mjd_tol : float (15.)
+            The tolerance to consider an observation as still good to observe (min)
+        """
+        self.mjd_tol = mjd_tol/60./24.  # to days
+        self.obs_wanted = obs_wanted
+        # Set something to record when things have been observed
+        self.obs_log = np.zeros(obs_wanted.size, dtype=bool)
+
+    def __call__(self):
+        observation = self._check_list()
+        return [observation]
+
+
 class Marching_army_survey(BaseSurvey):
     """
     """
@@ -478,58 +557,6 @@ class Simple_greedy_survey_fields(BaseSurvey):
         return observations
 
 
-class Deep_drill_survey(BaseSurvey):
-    """
-    Class to make deep drilling fields.
-
-    Rather than a single observation, the DD surveys return Scheduled Survey objects.
-    """
-    def __init__(self, basis_functions, basis_weights, extra_features=None,
-                 RA=0, dec=0, scripted_survey=None):
-        """
-        Parameters
-        ----------
-        RA : float (0.)
-            The RA of the drilling field (degrees).
-        dec : float (0.)
-            The Dec of the drilling field (degrees).
-        scripted_survey : survey object
-            A survey objcet that will return observations
-        """
-
-        # Need a basis function to see if DD is good to go
-
-        super(Deep_drill_survey, self).__init__(basis_functions=basis_functions,
-                                                basis_weights=basis_weights,
-                                                extra_features=extra_features)
-        self.RA = np.radians(RA)
-        self.dec = np.radians(dec)
-
-        self.scripted_survey = scripted_survey
-
-    def __call__(self):
-        
-        # If there are no other scripted surveys of this type in the 
-        # scripted_survey list, then send one over
-        return self.scripted_survey.copy()
-
-
-class Scripted_survey(BaseSurvey):
-    """
-    A class that will return observations from a script. And possibly self-destruct when needed.
-    """
-    def __init__(self):
-        """
-        Need to put in all the logic for if there are observations left in the sequence. 
-        """
-
-    def __call__(self):
-        obs = empty_observation()
-        obs['RA'] = self.RA
-        obs['dec'] = self.dec
-        obs['filter'] = 'z'
-
-        return [obs]*5
 
 
 
