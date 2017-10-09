@@ -47,6 +47,34 @@ class Base_basis_function(object):
         pass
 
 
+class Zenith_mask_basis_function(Base_basis_function):
+    """Just remove the area near zenith
+    """
+    def __init__(self, nside=default_nside, condition_features=None,
+                 survey_features=None, minAlt=20., maxAlt=82., penalty=0.):
+        """
+        """
+        self.penalty = penalty
+        self.nside = nside
+        if survey_features is None:
+            self.survey_features = {}
+        if condition_features is None:
+            self.condition_features = {}
+            self.condition_features['altaz'] = features.AltAzFeature()
+        self.minAlt = np.radians(minAlt)
+        self.maxAlt = np.radians(maxAlt)
+
+    def __call__(self, indx=None):
+
+        result = np.empty(hp.nside2npix(self.nside), dtype=float)
+        result.fill(self.penalty)
+        alt = self.condition_features['altaz'].feature['alt']
+        alt_limit = np.where((alt > self.minAlt) &
+                             (alt < self.maxAlt))[0]
+        result[alt_limit] = 1
+        return result
+
+
 class Quadrant_basis_function(Base_basis_function):
     """Mask regions of the sky so only certain quadrants are visible
     """
@@ -288,7 +316,7 @@ class Visit_repeat_basis_function(Base_basis_function):
     """
     Basis function to reward re-visiting an area on the sky. Looking for Solar System objects.
     """
-    def __init__(self, survey_features=None, condition_features=None, gap_min=15., gap_max=45.,
+    def __init__(self, survey_features=None, condition_features=None, gap_min=25., gap_max=45.,
                  filtername='r', nside=default_nside, npairs=1):
         """
         survey_features : dict of features (None)
@@ -358,7 +386,7 @@ class Depth_percentile_basis_function(Base_basis_function):
         return result
 
 
-class Strict_fitler_basis_function(Base_basis_function):
+class Strict_filter_basis_function(Base_basis_function):
     """Only change filter under strict conditions
     """
     def __init__(self, survey_features=None, condition_features=None, time_lag=10., filtername='r', twi_change=-18.):
@@ -382,7 +410,7 @@ class Strict_fitler_basis_function(Base_basis_function):
             self.survey_features = {}
             self.survey_features['Last_observation'] = features.Last_observation()
 
-        super(Strict_fitler_basis_function, self).__init__(survey_features=self.survey_features,
+        super(Strict_filter_basis_function, self).__init__(survey_features=self.survey_features,
                                                            condition_features=self.condition_features)
 
     def __call__(self, **kwargs):
