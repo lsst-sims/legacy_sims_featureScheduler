@@ -82,6 +82,16 @@ class N_obs_count(BaseSurveyFeature):
                 self.feature += 1
 
 
+class Last_observation(BaseSurveyFeature):
+    """When was the last observation
+    """
+    def __init__(self):
+        # Start out with an empty observation
+        self.feature = utils.empty_observation()
+
+    def add_observation(self, observation, indx=None):
+        self.feature = observation
+
 
 class N_observations(BaseSurveyFeature):
     """
@@ -284,6 +294,11 @@ class M5Depth_percentile(BaseConditionsFeature):
 class Current_filter(BaseConditionsFeature):
     def update_conditions(self, conditions):
         self.feature = conditions['filter']
+
+
+class Sun_moon_alts(BaseConditionsFeature):
+    def update_conditions(self, conditions):
+        self.feature = {'moonAlt': conditions['moonAlt'], 'sunAlt': conditions['sunAlt']}
 
 
 class Current_mjd(BaseConditionsFeature):

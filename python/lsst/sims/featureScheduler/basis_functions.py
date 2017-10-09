@@ -358,6 +358,57 @@ class Depth_percentile_basis_function(Base_basis_function):
         return result
 
 
+class Strict_fitler_basis_function(Base_basis_function):
+    """Only change filter under strict conditions
+    """
+    def __init__(self, survey_features=None, condition_features=None, time_lag=10., filtername='r', twi_change=-18.):
+        """
+        Paramters
+        ---------
+        time_lag : float (10.)
+            If there is a gap between observations longer than this, let the filter change (minutes)
+        twi_change : float (-18.)
+            The sun altitude to consider twilight starting/ending
+        """
+        self.time_lag = time_lag/60./24.  # Convert to days
+        self.twi_change = np.radians(twi_change)
+        self.filtername = filtername
+        if condition_features is None:
+            self.condition_features = {}
+            self.condition_features['Current_filter'] = features.Current_filter()
+            self.condition_features['Sun_moon_alts'] = features.Sun_moon_alts()
+            self.condition_features['Current_mjd'] = features.Current_mjd()
+        if survey_features is None:
+            self.survey_features = {}
+            self.survey_features['Last_observation'] = features.Last_observation()
+
+        super(Strict_fitler_basis_function, self).__init__(survey_features=self.survey_features,
+                                                           condition_features=self.condition_features)
+
+    def __call__(self, **kwargs):
+        # Did the moon set or rise since last observation?
+        moon_changed = self.condition_features['Sun_moon_alts'].feature['moonAlt'] * self.survey_features['Last_observation'].feature['moonAlt'] < 0
+
+        # Are we already in the filter (or at start of night)?
+        in_filter = (self.condition_features['Current_filter'].feature == self.filtername) | (self.condition_features['Current_filter'].feature is None)
+
+        # Has enough time past?
+        time_past = (self.condition_features['Current_mjd'].feature - self.survey_features['Last_observation'].feature['mjd']) > self.time_lag
+
+        # Did twilight start/end?
+        twi_changed = (self.condition_features['Sun_moon_alts'].feature['sunAlt'] - self.twi_change) * (self.survey_features['Last_observation'].feature['sunAlt']- self.twi_change) < 0
+
+        if moon_changed | in_filter | time_past | twi_changed:
+            result = 1.
+        else:
+            result = 0.
+
+        #if self.survey_features['Last_observation'].feature['mjd'] != 0:
+        #    import pdb ; pdb.set_trace()
+
+        return result
+
+
 class Filter_change_basis_function(Base_basis_function):
     """
     Reward staying in the current filter.
