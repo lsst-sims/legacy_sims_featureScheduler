@@ -204,9 +204,8 @@ class Scripted_survey(BaseSurvey):
         """take a slice and return a full observation object
         """
         observation = empty_observation()
-        observation['RA'] = obs_row['RA']
-        observation['dec'] = obs_row['dec']
-        observation['filter'] = obs_row['filter']
+        for key in ['RA', 'dec', 'filter', 'exptime', 'nexp']:
+            observation[key] = obs_row[key]
         return observation
 
     def _check_list(self):
