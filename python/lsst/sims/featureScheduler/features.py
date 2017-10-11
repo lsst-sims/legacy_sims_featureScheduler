@@ -195,7 +195,7 @@ class Pair_in_night(BaseSurveyFeature):
     """
     Track how many pairs have been observed within a night
     """
-    def __init__(self, filtername='r', nside=default_nside, gap_min=15., gap_max=45.):
+    def __init__(self, filtername='r', nside=default_nside, gap_min=25., gap_max=45.):
         """
         Parameters
         ----------

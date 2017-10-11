@@ -178,14 +178,22 @@ class Scripted_survey(BaseSurvey):
                                               extra_features=extra_features,
                                               smoothing_kernel=smoothing_kernel)
 
-    def add_observation(self, observation, indx=None):
+    def add_observation(self, observation, indx=None, **kwargs):
         """Check if this matches a scripted observation
         """
+        # From base class
+        for bf in self.basis_functions:
+            bf.add_observation(observation, **kwargs)
+        for feature in self.extra_features:
+            if hasattr(feature, 'add_observation'):
+                feature.add_observation(observation, **kwargs)
+        self.reward_checked = False
+
         dt = self.obs_wanted['mjd'] - observation['mjd']
         # was it taken in the right time window, and hasn't already been marked as observed.
         time_matches = np.where((np.abs(dt) < self.mjd_tol) & (~self.obs_log))[0]
         for match in time_matches:
-            # Might need to change this to an angular distance calc and and another tolerance?
+            # Might need to change this to an angular distance calc and add another tolerance?
             if (self.obs_wanted[match]['RA'] == observation['RA']) & (self.obs_wanted[match]['dec'] == observation['dec']) & (self.obs_wanted[match]['filter'] == observation['filter']):
                 self.obs_log[match] = True
                 break
@@ -223,8 +231,9 @@ class Scripted_survey(BaseSurvey):
         """
         Parameters
         ----------
-        obs_arr : np.array
-            The observations that should be executed
+        obs_wanted : np.array
+            The observations that should be executed. Needs to have columns with dtype names:
+            XXX
         mjds : np.array
             The MJDs for the observaitons, should be same length as obs_list
         mjd_tol : float (15.)
@@ -234,6 +243,22 @@ class Scripted_survey(BaseSurvey):
         self.obs_wanted = obs_wanted
         # Set something to record when things have been observed
         self.obs_log = np.zeros(obs_wanted.size, dtype=bool)
+
+    def add_to_script(self, observation, mjd_tol=15.):
+        """
+        Parameters
+        ----------
+        observation : observation object
+            The observation one would like to add to the scripted surveys
+        mjd_tol : float (15.)
+            The time tolerance on the observation (minutes)
+        """
+        self.mjd_tol = mjd_tol/60./24.  # to days
+        self.obs_wanted = np.concatenate((self.obs_wanted, observation))
+        self.obs_log = np.concatenate((self.obs_log, np.zeros(1, dtype=bool)))
+        # XXX--could do a sort on mjd here if I thought that was a good idea.
+        # XXX-note, there's currently nothing that flushes this, so adding 
+        # observations can pile up nonstop. Should prob flush nightly or something
 
     def __call__(self):
         observation = self._check_list()
@@ -556,5 +581,73 @@ class Simple_greedy_survey_fields(BaseSurvey):
         return observations
 
 
+class Pairs_survey_scripted(Scripted_survey):
+    """Check if incoming observations will need a pair in 30 minutes. If so, add to the queue
+    """
+    def __init__(self, basis_functions, basis_weights, extra_features=None, filt_to_pair='griz',
+                 dt=30., ttol=15., reward_val=10.):
+        """
+        """
+        
+        self.reward_val = reward_val
+        self.ttol = ttol/60./24.
+        self.dt = dt/60./24.  # To days
+        if extra_features is None:
+            self.extra_features = {}
+            self.extra_features['Pair_map'] = features.Pair_in_night(filtername=filt_to_pair)
+            self.extra_features['current_mjd'] = features.Current_mjd()
 
+        super(Pairs_survey_scripted, self).__init__(basis_functions=basis_functions,
+                                                    basis_weights=basis_weights,
+                                                    extra_features=self.extra_features)
+        self.filt_to_pair = filt_to_pair
+        # list to hold observations
+        self.observing_queue = []
+
+    def add_observation(self, observation, indx=None, **kwargs):
+        """Add an observed observation
+        """
+
+        # Update my extra features:
+        for bf in self.basis_functions:
+            bf.add_observation(observation, **kwargs)
+        for feature in self.extra_features:
+            if hasattr(feature, 'add_observation'):
+                feature.add_observation(observation, **kwargs)
+        self.reward_checked = False
+
+        # Check if this observation needs a pair
+        # XXX--only supporting single pairs now. Just start up another scripted survey to grap triples, etc?
+        keys_to_copy = ['RA', 'dec', 'filter', 'exptime', 'nexp']
+        if (observation['filter'][0] in self.filt_to_pair) & (np.max(self.extra_features['Pair_map'].feature[indx]) < 1):
+            obs_to_queue = empty_observation()
+            for key in keys_to_copy:
+                obs_to_queue[key] = observation[key]
+            # Fill in the ideal time we would like this observed
+            obs_to_queue['mjd'] = observation['mjd'] + self.dt
+            self.observing_queue.append(obs_to_queue)
+
+    def _purge_queue(self):
+        while self.observing_queue[0]['mjd'] > (self.extra_features['current_mjd'] + self.ttol):
+            del self.observing_queue[0]
+
+    def calc_reward_function(self):
+        self._purge_queue()
+        if (self.observing_queue[0]['mjd'] > (self.extra_features['current_mjd'] - self.ttol)) & (self.observing_queue[0]['mjd'] < (self.extra_features['current_mjd'] + self.ttol)):
+            return self.reward_val
+        else:
+            return -np.inf
+
+    def __call__(self):
+        
+        # Toss anything in the queue that is too old to pair up:
+        self._purge_queue()
+        # Check for something I want a pair of
+        result = []
+        if len(self.observing_queue > 0):
+            if (self.observing_queue[0]['mjd'] > (self.extra_features['current_mjd'] - self.ttol)) & (self.observing_queue[0]['mjd'] < (self.extra_features['current_mjd'] + self.ttol)):
+                result = self.observing_queue.pop(0)
+
+        # XXX--note, should 
+        return result
 
