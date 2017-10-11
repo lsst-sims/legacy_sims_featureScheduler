@@ -211,6 +211,62 @@ class North_south_patch_basis_function(Base_basis_function):
         return result
 
 
+class Target_map_normed_basis_function(Base_basis_function):
+    """Normalize the maps first to make things smoother
+    """
+    def __init__(self, filtername='r', nside=default_nside, target_map=None,
+                 survey_features=None, condition_features=None,
+                 out_of_bounds_val=-10.):
+        """
+        Parameters
+        ----------
+        visits_per_point : float (10.)
+            How many visits can a healpixel be ahead or behind before it counts as 1 point.
+        target_map : numpy array (None)
+            A healpix map showing the ratio of observations desired for all points on the sky
+        out_of_bounds_val : float (10.)
+            Point value to give regions where there are no observations requested
+        """
+        if survey_features is None:
+            self.survey_features = {}
+            self.survey_features['N_obs'] = features.N_observations(filtername=filtername)
+            self.survey_features['N_obs_all'] = features.N_observations(filtername='ugrizy')
+        super(Target_map_normed_basis_function, self).__init__(survey_features=self.survey_features,
+                                                        condition_features=condition_features)
+        self.nside = nside
+        if target_map is None:
+            self.target_map = utils.generate_goal_map(filtername=filtername)
+        else:
+            self.target_map = target_map
+        self.out_of_bounds_area = np.where(self.target_map == 0)[0]
+        self.out_of_bounds_val = out_of_bounds_val
+
+    def __call__(self, indx=None):
+        """
+        Parameters
+        ----------
+        indx : list (None)
+            Index values to compute, if None, full map is computed
+        Returns
+        -------
+        Healpix reward map
+        """
+        # Should probably update this to be as masked array.
+        result = np.zeros(hp.nside2npix(self.nside), dtype=float)
+        if indx is None:
+            indx = np.arange(result.size)
+
+        # Find out how many observations we want now at those points
+        scale = np.sum(self.survey_features['N_obs_all'].feature)
+        goal_N = self.target_map[indx] * scale
+        result[indx] = goal_N - self.survey_features['N_obs'].feature[indx]
+
+        result[self.out_of_bounds_area] = self.out_of_bounds_val
+
+        return result
+
+
+
 class Target_map_basis_function(Base_basis_function):
     """
     Generate a map that rewards survey areas falling behind.

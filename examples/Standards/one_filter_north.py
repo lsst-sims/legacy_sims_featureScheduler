@@ -20,11 +20,11 @@ if __name__ == "__main__":
 
     bfs = []
     bfs.append(fs.Depth_percentile_basis_function(filtername=filtername))
-    bfs.append(fs.Target_map_basis_function(target_map=target_map, filtername=filtername))
+    bfs.append(fs.Target_map_normed_basis_function(target_map=target_map, filtername=filtername))
     bfs.append(fs.Quadrant_basis_function(quadrants='N', azWidth=15.))
     bfs.append(fs.Slewtime_basis_function(filtername=filtername))
 
-    weights = np.array([1., 1., 1., 2.])
+    weights = np.array([1., 0.1, 1., 2.])
     survey = fs.Simple_greedy_survey_fields(bfs, weights, block_size=1, filtername=filtername)
     scheduler = fs.Core_scheduler([survey])
 

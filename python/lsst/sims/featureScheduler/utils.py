@@ -379,7 +379,7 @@ def generate_goal_map(nside=set_default_nside(), NES_fraction = .3, WFD_fraction
     return result
 
 
-def standard_goals(nside=set_default_nside()):
+def standard_goals(nside=set_default_nside(), norm=True):
     """
     A quick fucntion to generate the "standard" goal maps.
     """
@@ -402,6 +402,13 @@ def standard_goals(nside=set_default_nside()):
     result['y'] = generate_goal_map(nside=nside, NES_fraction=0.,
                                     WFD_fraction=0.9, SCP_fraction=0.15,
                                     GP_fraction=0.15)
+
+    if norm:
+        total = 0
+        for key in result:
+            total += np.sum(result[key])
+        for key in result:
+            result[key] /= total
 
     return result
 
