@@ -548,14 +548,15 @@ class Simple_greedy_survey_fields(BaseSurvey):
     Chop down the reward function to just look at unmasked opsim field locations.
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, filtername='r',
-                 block_size=25, smoothing_kernel=None):
+                 block_size=25, smoothing_kernel=None, nside=default_nside):
         super(Simple_greedy_survey_fields, self).__init__(basis_functions=basis_functions,
                                                           basis_weights=basis_weights,
                                                           extra_features=extra_features,
                                                           smoothing_kernel=smoothing_kernel)
+        self.nside = nside
         self.filtername = filtername
         self.fields = read_fields()
-        self.field_hp = _raDec2Hpid(default_nside, self.fields['RA'], self.fields['dec'])
+        self.field_hp = _raDec2Hpid(self.nside, self.fields['RA'], self.fields['dec'])
         self.block_size = block_size
 
     def __call__(self):
@@ -569,6 +570,55 @@ class Simple_greedy_survey_fields(BaseSurvey):
         reward_fields[np.where(reward_fields.mask == True)] = -np.inf
         order = np.argsort(reward_fields)[::-1]
         best_fields = order[0:self.block_size]
+        observations = []
+        for field in best_fields:
+            obs = empty_observation()
+            obs['RA'] = self.fields['RA'][field]
+            obs['dec'] = self.fields['dec'][field]
+            obs['filter'] = self.filtername
+            obs['nexp'] = 2.
+            obs['exptime'] = 30.
+            observations.append(obs)
+        return observations
+
+
+class Greedy_survey_fields(BaseSurvey):
+    """
+    Chop down the reward function to just look at unmasked opsim field locations.
+    """
+    def __init__(self, basis_functions, basis_weights, extra_features=None, filtername='r',
+                 block_size=25, smoothing_kernel=None, nside=default_nside):
+        super(Greedy_survey_fields, self).__init__(basis_functions=basis_functions,
+                                                          basis_weights=basis_weights,
+                                                          extra_features=extra_features,
+                                                          smoothing_kernel=smoothing_kernel)
+        self.nside = nside
+        self.filtername = filtername
+        self.fields = read_fields()
+        self.field_hp = _raDec2Hpid(self.nside, self.fields['RA'], self.fields['dec'])
+        self.block_size = block_size
+        self._hp2fieldsetup()
+
+    def _hp2fieldsetup(self, leafsize=100):
+        """Map each healpixel to a fieldID
+        """
+        x, y, z = treexyz(self.fields['RA'], self.fields['dec'])
+        tree = kdtree(list(zip(x, y, z)), leafsize=leafsize, balanced_tree=False, compact_nodes=False)
+        hpid = np.arange(hp.nside2npix(self.nside))
+        hp_ra, hp_dec = _hpid2RaDec(self.nside, hpid)
+        x, y, z = treexyz(hp_ra, hp_dec)
+        d, self.hp2fields = tree.query(list(zip(x, y, z)), k=1)
+
+    def __call__(self):
+        """
+        Just point at the highest reward healpix
+        """
+        if not self.reward_checked:
+            self.reward = self.calc_reward_function()
+        # Let's find the best N from the fields
+        order = np.argsort(self.reward)[::-1]
+        best_hp = order[0:self.block_size]
+        best_fields = np.unique(self.hp2fields[best_hp])
         observations = []
         for field in best_fields:
             obs = empty_observation()

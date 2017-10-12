@@ -30,7 +30,6 @@ class TestBasis(unittest.TestCase):
         self.assertEqual(np.max(bf()), 1.)
 
         # Now complete the pair and it should go back to zero
-        obs['mjd'] += delta
         bf.add_observation(obs, indx=indx)
 
         conditions['mjd'] += delta
