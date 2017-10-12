@@ -39,7 +39,7 @@ class BaseSurvey(object):
         self.basis_weights = basis_weights
         self.reward = None
         if extra_features is None:
-            self.extra_features = []
+            self.extra_features = {}
         else:
             self.extra_features = extra_features
         self.reward_checked = False
@@ -57,16 +57,16 @@ class BaseSurvey(object):
         for bf in self.basis_functions:
             bf.add_observation(observation, **kwargs)
         for feature in self.extra_features:
-            if hasattr(feature, 'add_observation'):
-                feature.add_observation(observation, **kwargs)
+            if hasattr(self.extra_features[feature], 'add_observation'):
+                self.extra_features[feature].add_observation(observation, **kwargs)
         self.reward_checked = False
 
     def update_conditions(self, conditions, **kwargs):
         for bf in self.basis_functions:
             bf.update_conditions(conditions, **kwargs)
         for feature in self.extra_features:
-            if hasattr(feature, 'update_conditions'):
-                feature.update_conditions(conditions, **kwargs)
+            if hasattr(self.extra_features[feature], 'update_conditions'):
+                self.extra_features[feature].update_conditions(conditions, **kwargs)
         self.reward_checked = False
 
     def _check_feasability(self):
@@ -172,7 +172,7 @@ class Scripted_survey(BaseSurvey):
         self.reward_val = reward
         self.reward = -reward
         if extra_features is None:
-            extra_features = [features.Current_mjd()]
+            extra_features = {'mjd': features.Current_mjd()}
         super(Scripted_survey, self).__init__(basis_functions=basis_functions,
                                               basis_weights=basis_weights,
                                               extra_features=extra_features,
@@ -185,8 +185,8 @@ class Scripted_survey(BaseSurvey):
         for bf in self.basis_functions:
             bf.add_observation(observation, **kwargs)
         for feature in self.extra_features:
-            if hasattr(feature, 'add_observation'):
-                feature.add_observation(observation, **kwargs)
+            if hasattr(self.extra_features[feature], 'add_observation'):
+                self.extra_features[feature].add_observation(observation, **kwargs)
         self.reward_checked = False
 
         dt = self.obs_wanted['mjd'] - observation['mjd']
@@ -219,7 +219,7 @@ class Scripted_survey(BaseSurvey):
     def _check_list(self):
         """Check to see if the current mjd is good
         """
-        dt = self.obs_wanted['mjd'] - self.extra_features[0].feature
+        dt = self.obs_wanted['mjd'] - self.extra_features['mjd'].feature
         matches = np.where((np.abs(dt) < self.mjd_tol) & (~self.obs_log))[0]
         if matches.size > 0:
             observation = self._slice2obs(self.obs_wanted[matches[0]])
@@ -275,8 +275,8 @@ class Marching_army_survey(BaseSurvey):
                                                    extra_features=extra_features,
                                                    smoothing_kernel=smoothing_kernel)
         if extra_features is None:
-            self.extra_features = []
-            self.extra_features.append(features.Current_mjd())
+            self.extra_features = {}
+            self.extra_features['mjd'] = features.Current_mjd()
         self.nside = nside
         self._set_altaz_fields()
         self.filtername = filtername
@@ -312,7 +312,7 @@ class Marching_army_survey(BaseSurvey):
         reward_alt, reward_az = stupidFast_RaDec2AltAz(self.reward_ra[unmasked],
                                                        self.reward_dec[unmasked],
                                                        self.lat_rad, self.lon_rad,
-                                                       self.extra_features[0].feature)
+                                                       self.extra_features['mjd'].feature)
         x, y, z = treexyz(reward_az, reward_alt)
 
         # map the healpixels to field pointings
@@ -339,10 +339,7 @@ class Marching_army_survey(BaseSurvey):
 
         final_ra, final_dec = stupidFast_altAz2RaDec(final_alt, final_az,
                                                      self.lat_rad, self.lon_rad,
-                                                     self.extra_features[0].feature)
-        if final_ra.max() > 2.*np.pi:
-            import pdb; pdb.set_trace()
-
+                                                     self.extra_features['mjd'].feature)
         # Only want to send RA,Dec positions to the observatory
         # Now to sort the positions so that we raster in altitude, then az
         # if we have wrap-aroud, just project at az=0, because median will pull it the wrong way
@@ -638,7 +635,6 @@ class Pairs_survey_scripted(Scripted_survey):
                  dt=30., ttol=15., reward_val=10.):
         """
         """
-        
         self.reward_val = reward_val
         self.ttol = ttol/60./24.
         self.dt = dt/60./24.  # To days
@@ -660,10 +656,10 @@ class Pairs_survey_scripted(Scripted_survey):
 
         # Update my extra features:
         for bf in self.basis_functions:
-            bf.add_observation(observation, **kwargs)
+            bf.add_observation(observation, indx=indx)
         for feature in self.extra_features:
-            if hasattr(feature, 'add_observation'):
-                feature.add_observation(observation, **kwargs)
+            if hasattr(self.extra_features[feature], 'add_observation'):
+                self.extra_features[feature].add_observation(observation, indx=indx)
         self.reward_checked = False
 
         # Check if this observation needs a pair
@@ -678,26 +674,38 @@ class Pairs_survey_scripted(Scripted_survey):
             self.observing_queue.append(obs_to_queue)
 
     def _purge_queue(self):
-        while self.observing_queue[0]['mjd'] > (self.extra_features['current_mjd'] + self.ttol):
-            del self.observing_queue[0]
+        """Remove any pair where it's too late to observe it
+        """
+        if len(self.observing_queue) > 0:
+            stale = True
+            while stale:
+                if self.observing_queue[0]['mjd'] > (self.extra_features['current_mjd'].feature + self.dt + self.ttol):
+                    del self.observing_queue[0]
+                else:
+                    stale = False
+                if len(self.observing_queue) == 0:
+                    stale = False
 
     def calc_reward_function(self):
         self._purge_queue()
-        if (self.observing_queue[0]['mjd'] > (self.extra_features['current_mjd'] - self.ttol)) & (self.observing_queue[0]['mjd'] < (self.extra_features['current_mjd'] + self.ttol)):
-            return self.reward_val
-        else:
-            return -np.inf
+        result = -np.inf
+        self.reward = result
+        if len(self.observing_queue) > 0:
+            if (self.observing_queue[0]['mjd'] > (self.extra_features['current_mjd'].feature - self.ttol)) & (self.observing_queue[0]['mjd'] < (self.extra_features['current_mjd'].feature + self.ttol)):
+                result = self.reward_val
+                self.reward = self.reward_val
+        self.reward_checked = True
+        return result
 
     def __call__(self):
-        
         # Toss anything in the queue that is too old to pair up:
         self._purge_queue()
         # Check for something I want a pair of
         result = []
-        if len(self.observing_queue > 0):
-            if (self.observing_queue[0]['mjd'] > (self.extra_features['current_mjd'] - self.ttol)) & (self.observing_queue[0]['mjd'] < (self.extra_features['current_mjd'] + self.ttol)):
+        if len(self.observing_queue) > 0:
+            if (self.observing_queue[0]['mjd'] > (self.extra_features['current_mjd'].feature - self.ttol)) & (self.observing_queue[0]['mjd'] < (self.extra_features['current_mjd'].feature + self.ttol)):
                 result = self.observing_queue.pop(0)
-
-        # XXX--note, should 
+                result['note'] = 'scripted'
+                result = [result]
         return result
 

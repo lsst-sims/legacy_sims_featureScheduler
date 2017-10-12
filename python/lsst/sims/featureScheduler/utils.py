@@ -141,10 +141,10 @@ def empty_observation():
     """
     names = ['RA', 'dec', 'mjd', 'exptime', 'filter', 'rotSkyPos', 'nexp',
              'airmass', 'FWHMeff', 'FWHM_geometric', 'skybrightness', 'night', 'slewtime', 'fivesigmadepth',
-             'alt', 'az', 'clouds', 'moonAlt', 'sunAlt']
+             'alt', 'az', 'clouds', 'moonAlt', 'sunAlt', 'note']
     # units of rad, rad,   days,  seconds,   string, radians (E of N?)
     types = [float, float, float, float, '|U1', float, int, float, float, float, float, int, float, float,
-             float, float, float, float, float]
+             float, float, float, float, float, '|U40']
     result = np.zeros(1, dtype=list(zip(names, types)))
     return result
 
@@ -460,6 +460,9 @@ def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3., filenam
             sys.stdout.write(text)
             sys.stdout.flush()
             mjd_track = mjd+0
+        # XXX--handy place to interupt and debug
+        #if len(observations) > 3:
+        #    import pdb ; pdb.set_trace()
 
     print('Completed %i observations' % len(observations))
     observations = np.array(observations)[:, 0]

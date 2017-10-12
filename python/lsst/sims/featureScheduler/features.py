@@ -210,8 +210,15 @@ class Pair_in_night(BaseSurveyFeature):
         self.gap_min = gap_min / (24.*60)  # Days
         self.gap_max = gap_max / (24.*60)  # Days
         self.night = 0
+        # XXX--I could just log healpixels and mjds though the night. Then 
+        # Use search sorted to pull out the relevant mjds quickly, and in1d for the healpixels
+        self.mjd_log = []
+        self.hpid_log = []
 
     def add_observation(self, observation, indx=None):
+        # XXX--fuck, this is not right, need to track more than just the last observation, need to 
+        # keep track of all observations in a night!
+        # I think the easy way to do this is an array with 5 min blocks, and then 
         if observation['filter'][0] in self.filtername:
             if indx is None:
                 indx = self.indx
@@ -219,10 +226,21 @@ class Pair_in_night(BaseSurveyFeature):
             if self.night != observation['night'][0]:
                 self.feature *= 0.
                 self.night = observation['night'][0]
-            tdiff = observation['mjd'] - self.last_observed.feature[indx]
-            good = np.where((tdiff >= self.gap_min) & (tdiff <= self.gap_max))[0]
-            self.feature[indx[good]] += 1.
-            self.last_observed.add_observation(observation, indx=indx)
+                self.mjd_log = []
+                self.hpid_log = []
+
+            # record the mjds and healpixels that were observed
+            self.mjd_log.extend([np.max(observation['mjd'])]*np.size(indx))
+            self.hpid_log.extend(list(indx))
+
+            # Look for the mjds that could possibly pair
+            tmin = observation['mjd'] - self.gap_max
+            tmax = observation['mjd'] - self.gap_min
+            mjd_log = np.array(self.mjd_log)
+            left = np.searchsorted(mjd_log, tmin)
+            right = np.searchsorted(mjd_log, tmax, side='right')
+            matches = np.in1d(indx, self.hpid_log[int(left):int(right)])
+            self.feature[indx[matches]] += 1
 
 
 class N_obs_reference(BaseSurveyFeature):
@@ -302,6 +320,8 @@ class Sun_moon_alts(BaseConditionsFeature):
 
 
 class Current_mjd(BaseConditionsFeature):
+    def __init__(self):
+        self.feature = -1
     def update_conditions(self, conditions):
         self.feature = conditions['mjd']
 
