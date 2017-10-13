@@ -199,9 +199,10 @@ class Pair_in_night(BaseSurveyFeature):
         """
         Parameters
         ----------
-        gap_min : float (15.)
+        gap_min : float (25.)
             The minimum time gap to consider a successful pair in minutes
-        gap_max : float (40.)
+        gap_max : float (45.)
+            The maximum time gap to consider a successful pair (minutes)
         """
         self.filtername = filtername
         self.feature = np.zeros(hp.nside2npix(nside), dtype=float)
@@ -210,15 +211,11 @@ class Pair_in_night(BaseSurveyFeature):
         self.gap_min = gap_min / (24.*60)  # Days
         self.gap_max = gap_max / (24.*60)  # Days
         self.night = 0
-        # XXX--I could just log healpixels and mjds though the night. Then 
-        # Use search sorted to pull out the relevant mjds quickly, and in1d for the healpixels
+        # Need to keep a full record of times and healpixels observed in a night. 
         self.mjd_log = []
         self.hpid_log = []
 
     def add_observation(self, observation, indx=None):
-        # XXX--fuck, this is not right, need to track more than just the last observation, need to 
-        # keep track of all observations in a night!
-        # I think the easy way to do this is an array with 5 min blocks, and then 
         if observation['filter'][0] in self.filtername:
             if indx is None:
                 indx = self.indx
@@ -233,13 +230,16 @@ class Pair_in_night(BaseSurveyFeature):
             self.mjd_log.extend([np.max(observation['mjd'])]*np.size(indx))
             self.hpid_log.extend(list(indx))
 
-            # Look for the mjds that could possibly pair
+            # Look for the mjds that could possibly pair with observation
             tmin = observation['mjd'] - self.gap_max
             tmax = observation['mjd'] - self.gap_min
             mjd_log = np.array(self.mjd_log)
             left = np.searchsorted(mjd_log, tmin)
             right = np.searchsorted(mjd_log, tmax, side='right')
+            # Now check if any of the healpixels taken in the time gap
+            # match the healpixels of the observation.
             matches = np.in1d(indx, self.hpid_log[int(left):int(right)])
+            # XXX--should think if this is the correct (fastest) order to check things in.
             self.feature[indx[matches]] += 1
 
 
