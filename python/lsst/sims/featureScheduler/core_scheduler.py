@@ -44,6 +44,9 @@ class Core_scheduler(object):
         """
 
         # Find the healpixel centers that are included in an observation
+        # XXX-in the future, we may want to refactor to support multiple nside resolutions
+        # I think indx would then be a dict with keys 32,64,128, etc. Then each feature would
+        # say indx = indx[self.nside]
         indx = self.pointing2hpindx(observation['RA'], observation['dec'])
         for survey in self.surveys:
             survey.add_observation(observation, indx=indx)

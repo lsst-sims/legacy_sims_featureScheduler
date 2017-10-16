@@ -388,9 +388,15 @@ class Depth_percentile_basis_function(Base_basis_function):
 
 
 class Strict_filter_basis_function(Base_basis_function):
-    """Only change filter under strict conditions
+    """Remove the bonus for staying in the same filter if certain conditions are met.
+
+    If the moon rises/sets or twilight starts/ends, it makes a lot of sense to consider
+    a filter change. This basis function rewards if it matches the current filter, the moon rises or sets,
+    twilight starts or stops, or there has been a large gap since the last observation.
+
     """
-    def __init__(self, survey_features=None, condition_features=None, time_lag=10., filtername='r', twi_change=-18.):
+    def __init__(self, survey_features=None, condition_features=None, time_lag=10.,
+                 filtername='r', twi_change=-18.):
         """
         Paramters
         ---------
@@ -431,9 +437,6 @@ class Strict_filter_basis_function(Base_basis_function):
             result = 1.
         else:
             result = 0.
-
-        #if self.survey_features['Last_observation'].feature['mjd'] != 0:
-        #    import pdb ; pdb.set_trace()
 
         return result
 

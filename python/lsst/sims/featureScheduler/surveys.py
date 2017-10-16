@@ -632,8 +632,11 @@ class Pairs_survey_scripted(Scripted_survey):
     """Check if incoming observations will need a pair in 30 minutes. If so, add to the queue
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, filt_to_pair='griz',
-                 dt=30., ttol=15., reward_val=10.):
+                 dt=40., ttol=10., reward_val=10.):
         """
+        Parameters
+        ----------
+        
         """
         self.reward_val = reward_val
         self.ttol = ttol/60./24.
