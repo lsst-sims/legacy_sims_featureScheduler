@@ -6,7 +6,8 @@ from . import features
 from . import utils
 import healpy as hp
 from lsst.sims.utils import haversine, _hpid2RaDec
-
+from lsst.sims.skybrightness_pre import M5percentiles
+import matplotlib.pylab as plt
 
 default_nside = utils.set_default_nside()
 
@@ -363,6 +364,45 @@ class Visit_repeat_basis_function(Base_basis_function):
         return result
 
 
+class M5_diff_basis_function(Base_basis_function):
+    """Basis function based on the effective exposure time.
+    Look up the faintest a pixel gets, and compute the teff difference with current conditions
+    """
+    def __init__(self, survey_features=None, condition_features=None, filtername='r', nside=default_nside,
+                 teff=True, texp=30.):
+        """
+        Parameters
+        ----------
+        teff : bool (True)
+            Convert the magnitude difference to an exposure time difference
+        """
+        self.filtername = filtername
+        self.nside = nside
+        self.teff = teff
+        self.texp = texp
+
+        # Need to look up the deepest m5 values for all the healpixels
+        m5p = M5percentiles()
+        self.dark_map = m5p.dark_map(filtername=filtername, nside_out=self.nside)
+        if condition_features is None:
+            self.condition_features = {}
+            self.condition_features['M5Depth'] = features.M5Depth(filtername=filtername, nside=nside)
+        super(M5_diff_basis_function, self).__init__(survey_features=survey_features,
+                                                     condition_features=self.condition_features)
+
+    def __call__(self, indx=None):
+        # No way to get the sign on this right the first time.
+        mag_diff = self.condition_features['M5Depth'].feature - self.dark_map
+        mask = np.where(self.condition_features['M5Depth'].feature.filled() == hp.UNSEEN)
+        if self.teff:
+            result = 10.**(0.8*mag_diff)*self.texp
+        else:
+            result = mag_diff
+        result[mask] = hp.UNSEEN
+        return result
+
+
+
 class Depth_percentile_basis_function(Base_basis_function):
     """
     Return a healpix map of the reward function based on 5-sigma limiting depth percentile
@@ -372,7 +412,8 @@ class Depth_percentile_basis_function(Base_basis_function):
         self.nside = nside
         if condition_features is None:
             self.condition_features = {}
-            self.condition_features['M5Depth_percentile'] = features.M5Depth_percentile(filtername=filtername)
+            self.condition_features['M5Depth_percentile'] = features.M5Depth_percentile(filtername=filtername,
+                                                                                        nside=nside)
         super(Depth_percentile_basis_function, self).__init__(survey_features=survey_features,
                                                               condition_features=self.condition_features)
 

@@ -275,6 +275,38 @@ class SlewtimeFeature(BaseConditionsFeature):
             self.feature = hp.ud_grade(self.feature, nside_out=self.nside)
 
 
+class M5Depth(BaseConditionsFeature):
+    """
+    Given current conditions, return the 5-sigma limiting depth percentile map
+    for a filter.
+    """
+    def __init__(self, filtername='r', expTime=30., nside=default_nside):
+        self.filtername = filtername
+        self.feature = None
+        self.expTime = expTime
+        self.nside = nside
+
+    def update_conditions(self, conditions):
+        """
+        Parameters
+        ----------
+        conditions : dict
+            Keys should include airmass, sky_brightness, seeing.
+        """
+        m5 = np.empty(conditions['skybrightness'][self.filtername].size)
+        m5.fill(hp.UNSEEN)
+        m5_mask = np.zeros(m5.size, dtype=bool)
+        m5_mask[np.where(conditions['skybrightness'][self.filtername] == hp.UNSEEN)] = True
+        good = np.where(conditions['skybrightness'][self.filtername] != hp.UNSEEN)
+        m5[good] = m5_flat_sed(self.filtername, conditions['skybrightness'][self.filtername][good],
+                               conditions['FWHMeff_%s' % self.filtername][good],
+                               self.expTime, conditions['airmass'][good])
+        self.feature = m5
+        self.feature[m5_mask] = hp.UNSEEN
+        self.feature = hp.ud_grade(self.feature, nside_out=self.nside)
+        self.feature = ma.masked_values(self.feature, hp.UNSEEN)
+
+
 class M5Depth_percentile(BaseConditionsFeature):
     """
     Given current conditions, return the 5-sigma limiting depth percentile map
