@@ -636,7 +636,7 @@ class Pairs_survey_scripted(Scripted_survey):
         """
         Parameters
         ----------
-        
+
         """
         self.reward_val = reward_val
         self.ttol = ttol/60./24.
@@ -682,7 +682,7 @@ class Pairs_survey_scripted(Scripted_survey):
         if len(self.observing_queue) > 0:
             stale = True
             while stale:
-                if self.observing_queue[0]['mjd'] > (self.extra_features['current_mjd'].feature + self.dt + self.ttol):
+                if self.observing_queue[0]['mjd'] < (self.extra_features['current_mjd'].feature - self.dt - self.ttol):
                     del self.observing_queue[0]
                 else:
                     stale = False
