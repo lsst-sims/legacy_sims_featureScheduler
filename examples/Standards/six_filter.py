@@ -23,7 +23,7 @@ if __name__ == "__main__":
     for filtername in filters:
 
         bfs = []
-        bfs.append(fs.Depth_percentile_basis_function(filtername=filtername))
+        bfs.append(fs.M5_diff_basis_function(filtername=filtername, teff=False))
         bfs.append(fs.Target_map_basis_function(filtername=filtername,
                                                 target_map=target_map[filtername],
                                                 out_of_bounds_val=hp.UNSEEN))

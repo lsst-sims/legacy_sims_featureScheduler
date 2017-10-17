@@ -10,6 +10,7 @@ from . import dithering
 import matplotlib.pylab as plt
 from scipy.spatial import cKDTree as kdtree
 from scipy.stats import binned_statistic
+from lsst.sims.featureScheduler.thomson import  xyz2thetaphi, thetaphi2xyz
 
 default_nside = set_default_nside()
 
@@ -579,27 +580,75 @@ class Simple_greedy_survey_fields(BaseSurvey):
         return observations
 
 
+def rotx(theta, x, y, z):
+    """rotate the x,y,z points theta radians about x axis"""
+    xp = x
+    yp = -y*np.cos(theta)-z*np.sin(theta)
+    zp = -y*np.sin(theta)+z*np.cos(theta)
+    return xp, yp, zp
+
+
 class Greedy_survey_fields(BaseSurvey):
     """
     Chop down the reward function to just look at unmasked opsim field locations.
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, filtername='r',
-                 block_size=25, smoothing_kernel=None, nside=default_nside):
+                 block_size=25, smoothing_kernel=None, nside=default_nside,
+                 dither=False, seed=42):
+        if extra_features is None:
+            extra_features['night'] = features.Current_night()
         super(Greedy_survey_fields, self).__init__(basis_functions=basis_functions,
-                                                          basis_weights=basis_weights,
-                                                          extra_features=extra_features,
-                                                          smoothing_kernel=smoothing_kernel)
+                                                   basis_weights=basis_weights,
+                                                   extra_features=extra_features,
+                                                   smoothing_kernel=smoothing_kernel)
         self.nside = nside
         self.filtername = filtername
         self.fields = read_fields()
-        self.field_hp = _raDec2Hpid(self.nside, self.fields['RA'], self.fields['dec'])
         self.block_size = block_size
-        self._hp2fieldsetup()
+        self._hp2fieldsetup(self.fields['RA'], self.fields['dec'])
+        np.random.seed(seed)
+        self.dither = dither
+        self.night = extra_features['night'].feature.copy()
 
-    def _hp2fieldsetup(self, leafsize=100):
-        """Map each healpixel to a fieldID
+    def _spin_fields(self, lon=None, lat=None):
+        """Spin the field tesselation
         """
-        x, y, z = treexyz(self.fields['RA'], self.fields['dec'])
+        if lon is None:
+            lon = np.random.rand()*np.pi*2
+        if lat is None:
+            lat = np.random.rand()*np.pi*2
+        # rotate longitude
+        ra = (self.fields['RA'] + lon) % (2.*np.pi)
+        dec = self.fields['dec'] + 0
+
+        # Now to rotate ra and dec about the x-axis
+        x, y, z = thetaphi2xyz(self.fields['RA'], self.fields['dec']+np.pi/2.)
+        xp, yp, zp = rotx(lat, x, y, z)
+        theta, phi = xyz2thetaphi(xp, yp, zp)
+        dec = phi - np.pi/2
+        ra = theta
+
+        # Rebuild the kdtree with the new positions
+        self._hp2fieldsetup(ra, dec)
+
+    def update_conditions(self, conditions, **kwargs):
+        for bf in self.basis_functions:
+            bf.update_conditions(conditions, **kwargs)
+        for feature in self.extra_features:
+            if hasattr(self.extra_features[feature], 'update_conditions'):
+                self.extra_features[feature].update_conditions(conditions, **kwargs)
+        # If we are dithering and need to spin the fields
+        if self.dither:
+            if self.extra_features['night'] != self.night:
+                self._spin_fields()
+                self.night = self.extra_features['night'] + 0
+        self.reward_checked = False
+
+    def _hp2fieldsetup(self, ra, dec, leafsize=100):
+        """Map each healpixel to nearest field. This will only work if healpix
+        resolution is higher than field resolution.
+        """
+        x, y, z = treexyz(ra, dec)
         tree = kdtree(list(zip(x, y, z)), leafsize=leafsize, balanced_tree=False, compact_nodes=False)
         hpid = np.arange(hp.nside2npix(self.nside))
         hp_ra, hp_dec = _hpid2RaDec(self.nside, hpid)

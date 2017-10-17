@@ -354,8 +354,17 @@ class Sun_moon_alts(BaseConditionsFeature):
 class Current_mjd(BaseConditionsFeature):
     def __init__(self):
         self.feature = -1
+
     def update_conditions(self, conditions):
         self.feature = conditions['mjd']
+
+
+class Current_night(BaseConditionsFeature):
+    def __init__(self):
+        self.feature = -1
+
+    def update_conditions(self, conditions):
+        self.feature = conditions['night']
 
 
 class Current_pointing(BaseConditionsFeature):

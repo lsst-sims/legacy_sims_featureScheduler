@@ -204,6 +204,16 @@ def treexyz(ra, dec):
     return x, y, z
 
 
+def xyz2radec(x, y, z):
+    """
+    Convert x, y, z coords back to ra and dec in radians (dec=theta, ra=phi)
+    """
+    r = (x*2 + y**2 + z**2)**0.5
+    ra = np.arctan2(y, x)
+    dec = np.arccos(z/r)
+    return ra, dec
+
+
 def hp_kd_tree(nside=set_default_nside(), leafsize=100):
     """
     Generate a KD-tree of healpixel locations
