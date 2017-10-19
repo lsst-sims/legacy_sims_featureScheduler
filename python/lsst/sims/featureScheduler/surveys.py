@@ -590,12 +590,13 @@ def rotx(theta, x, y, z):
 
 class Greedy_survey_fields(BaseSurvey):
     """
-    Chop down the reward function to just look at unmasked opsim field locations.
+    Use a field tesselation and assign each healpix to a field.
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, filtername='r',
                  block_size=25, smoothing_kernel=None, nside=default_nside,
                  dither=False, seed=42):
         if extra_features is None:
+            extra_features = {}
             extra_features['night'] = features.Current_night()
         super(Greedy_survey_fields, self).__init__(basis_functions=basis_functions,
                                                    basis_weights=basis_weights,
@@ -603,12 +604,13 @@ class Greedy_survey_fields(BaseSurvey):
                                                    smoothing_kernel=smoothing_kernel)
         self.nside = nside
         self.filtername = filtername
-        self.fields = read_fields()
+        self.fields_init = read_fields()
+        self.fields = self.fields_init.copy()
         self.block_size = block_size
         self._hp2fieldsetup(self.fields['RA'], self.fields['dec'])
         np.random.seed(seed)
         self.dither = dither
-        self.night = extra_features['night'].feature.copy()
+        self.night = extra_features['night'].feature + 0
 
     def _spin_fields(self, lon=None, lat=None):
         """Spin the field tesselation
@@ -626,9 +628,12 @@ class Greedy_survey_fields(BaseSurvey):
         xp, yp, zp = rotx(lat, x, y, z)
         theta, phi = xyz2thetaphi(xp, yp, zp)
         dec = phi - np.pi/2
-        ra = theta
+        ra = theta + np.pi
 
+        self.fields['RA'] = ra
+        self.fields['dec'] = dec
         # Rebuild the kdtree with the new positions
+        # XXX-may be doing some ra,dec to conversions xyz more than needed.
         self._hp2fieldsetup(ra, dec)
 
     def update_conditions(self, conditions, **kwargs):
@@ -641,7 +646,7 @@ class Greedy_survey_fields(BaseSurvey):
         if self.dither:
             if self.extra_features['night'] != self.night:
                 self._spin_fields()
-                self.night = self.extra_features['night'] + 0
+                self.night = self.extra_features['night'].feature + 0
         self.reward_checked = False
 
     def _hp2fieldsetup(self, ra, dec, leafsize=100):

@@ -402,7 +402,6 @@ class M5_diff_basis_function(Base_basis_function):
         return result
 
 
-
 class Depth_percentile_basis_function(Base_basis_function):
     """
     Return a healpix map of the reward function based on 5-sigma limiting depth percentile
@@ -479,6 +478,42 @@ class Strict_filter_basis_function(Base_basis_function):
         else:
             result = 0.
 
+        return result
+
+
+class Rolling_mask_basis_function(Base_basis_function):
+    """Have a simple mask that turns on and off
+    """
+    def __init__(self, mask=None, survey_features=None, condition_features=None,
+                 nside=default_nside, mjd_start=0):
+        """
+        Parameters
+        ----------
+        mask : array (bool)
+            A HEALpix map that marks which pixels should be masked on even years
+        mjd_start : float
+            The starting MJD of the survey (days)
+        """
+        self.mjd_start = mjd_start
+        self.mask = np.where(mask == True)
+        if condition_features is None:
+            self.condition_features = {}
+            self.condition_features['mjd'] = features.Current_mjd()
+        super(Rolling_mask_basis_function, self).__init__(survey_features=survey_features,
+                                                          condition_features=self.condition_features)
+        self.nomask = np.ones(hp.nside2npix(nside))
+
+    def __call__(self, **kwargs):
+        """If year is even, apply mask, otherwise, not
+        """
+        year = np.floor((self.condition_features['mjd'].feature-self.mjd_start)/365.25)
+        if year % 2 == 0:
+            # Year is even, mask out region
+            result = self.nomask.copy()
+            result[self.mask] = hp.UNSEEN
+        else:
+            # Year is odd, all pixels are live
+            result = self.nomask
         return result
 
 

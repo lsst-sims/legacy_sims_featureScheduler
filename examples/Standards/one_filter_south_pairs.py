@@ -19,11 +19,13 @@ if __name__ == "__main__":
     bfs.append(fs.Slewtime_basis_function(filtername=filtername))
 
     weights = np.array([1., 0.2, 1., 4.])
-    survey = fs.Greedy_survey_fields(bfs, weights, block_size=1, filtername=filtername)
-    scheduler = fs.Core_scheduler([survey])
+    surveys = []
+    surveys.append(fs.Greedy_survey_fields(bfs, weights, block_size=1, filtername=filtername))
+    surveys.append(fs.Pairs_survey_scripted([], []))
+    scheduler = fs.Core_scheduler(surveys)
 
     observatory = Speed_observatory()
     observatory, scheduler, observations = fs.sim_runner(observatory, scheduler,
                                                          survey_length=survey_length,
-                                                         filename='one_filter_south.db',
+                                                         filename='one_filter_south_pairs.db',
                                                          delete_past=True)
