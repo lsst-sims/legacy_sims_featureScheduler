@@ -20,7 +20,7 @@ if __name__ == "__main__":
         filtername = 'r'
 
         bfs = []
-        bfs.append(fs.Depth_percentile_basis_function(filtername=filtername))
+        bfs.append(fs.M5_diff_basis_function(filtername=filtername))
         bfs.append(fs.Target_map_basis_function(target_map=target_map, filtername=filtername,
                                                 out_of_bounds_val= hp.UNSEEN))
         bfs.append(fs.North_south_patch_basis_function(zenith_min_alt=50.))

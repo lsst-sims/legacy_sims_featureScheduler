@@ -174,7 +174,7 @@ class Scripted_survey(BaseSurvey):
     Take a set of scheduled observations and serve them up.
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None,
-                 smoothing_kernel=None, reward=1e6):
+                 smoothing_kernel=None, reward=1e6, ignore_obs='dummy'):
         # All we need to know is the current time
         self.reward_val = reward
         self.reward = -reward
@@ -183,27 +183,29 @@ class Scripted_survey(BaseSurvey):
         super(Scripted_survey, self).__init__(basis_functions=basis_functions,
                                               basis_weights=basis_weights,
                                               extra_features=extra_features,
-                                              smoothing_kernel=smoothing_kernel)
+                                              smoothing_kernel=smoothing_kernel,
+                                              ignore_obs=ignore_obs)
 
     def add_observation(self, observation, indx=None, **kwargs):
         """Check if this matches a scripted observation
         """
         # From base class
-        for bf in self.basis_functions:
-            bf.add_observation(observation, **kwargs)
-        for feature in self.extra_features:
-            if hasattr(self.extra_features[feature], 'add_observation'):
-                self.extra_features[feature].add_observation(observation, **kwargs)
-        self.reward_checked = False
+        if self.ignore_obs not in observation['note']:
+            for bf in self.basis_functions:
+                bf.add_observation(observation, **kwargs)
+            for feature in self.extra_features:
+                if hasattr(self.extra_features[feature], 'add_observation'):
+                    self.extra_features[feature].add_observation(observation, **kwargs)
+            self.reward_checked = False
 
-        dt = self.obs_wanted['mjd'] - observation['mjd']
-        # was it taken in the right time window, and hasn't already been marked as observed.
-        time_matches = np.where((np.abs(dt) < self.mjd_tol) & (~self.obs_log))[0]
-        for match in time_matches:
-            # Might need to change this to an angular distance calc and add another tolerance?
-            if (self.obs_wanted[match]['RA'] == observation['RA']) & (self.obs_wanted[match]['dec'] == observation['dec']) & (self.obs_wanted[match]['filter'] == observation['filter']):
-                self.obs_log[match] = True
-                break
+            dt = self.obs_wanted['mjd'] - observation['mjd']
+            # was it taken in the right time window, and hasn't already been marked as observed.
+            time_matches = np.where((np.abs(dt) < self.mjd_tol) & (~self.obs_log))[0]
+            for match in time_matches:
+                # Might need to change this to an angular distance calc and add another tolerance?
+                if (self.obs_wanted[match]['RA'] == observation['RA']) & (self.obs_wanted[match]['dec'] == observation['dec']) & (self.obs_wanted[match]['filter'] == observation['filter']):
+                    self.obs_log[match] = True
+                    break
 
     def calc_reward_function(self):
         """If there is an observation ready to go, execute it, otherwise, -inf
@@ -219,7 +221,7 @@ class Scripted_survey(BaseSurvey):
         """take a slice and return a full observation object
         """
         observation = empty_observation()
-        for key in ['RA', 'dec', 'filter', 'exptime', 'nexp']:
+        for key in ['RA', 'dec', 'filter', 'exptime', 'nexp', 'note']:
             observation[key] = obs_row[key]
         return observation
 
@@ -552,11 +554,12 @@ class Simple_greedy_survey_fields(BaseSurvey):
     Chop down the reward function to just look at unmasked opsim field locations.
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, filtername='r',
-                 block_size=25, smoothing_kernel=None, nside=default_nside):
+                 block_size=25, smoothing_kernel=None, nside=default_nside, ignore_obs='ack'):
         super(Simple_greedy_survey_fields, self).__init__(basis_functions=basis_functions,
                                                           basis_weights=basis_weights,
                                                           extra_features=extra_features,
-                                                          smoothing_kernel=smoothing_kernel)
+                                                          smoothing_kernel=smoothing_kernel,
+                                                          ignore_obs=ignore_obs)
         self.nside = nside
         self.filtername = filtername
         self.fields = read_fields()
@@ -600,14 +603,15 @@ class Greedy_survey_fields(BaseSurvey):
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, filtername='r',
                  block_size=25, smoothing_kernel=None, nside=default_nside,
-                 dither=False, seed=42):
+                 dither=False, seed=42, ignore_obs='ack'):
         if extra_features is None:
             extra_features = {}
             extra_features['night'] = features.Current_night()
         super(Greedy_survey_fields, self).__init__(basis_functions=basis_functions,
                                                    basis_weights=basis_weights,
                                                    extra_features=extra_features,
-                                                   smoothing_kernel=smoothing_kernel)
+                                                   smoothing_kernel=smoothing_kernel,
+                                                   ignore_obs=ignore_obs)
         self.nside = nside
         self.filtername = filtername
         # Load the OpSim field tesselation
@@ -651,7 +655,7 @@ class Greedy_survey_fields(BaseSurvey):
                 self.extra_features[feature].update_conditions(conditions, **kwargs)
         # If we are dithering and need to spin the fields
         if self.dither:
-            if self.extra_features['night'] != self.night:
+            if self.extra_features['night'].feature != self.night:
                 self._spin_fields()
                 self.night = self.extra_features['night'].feature + 0
         self.reward_checked = False
@@ -693,7 +697,7 @@ class Pairs_survey_scripted(Scripted_survey):
     """Check if incoming observations will need a pair in 30 minutes. If so, add to the queue
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, filt_to_pair='griz',
-                 dt=40., ttol=10., reward_val=10.):
+                 dt=40., ttol=10., reward_val=10., note='scripted', ignore_obs='ack'):
         """
         Parameters
         ----------
@@ -704,6 +708,7 @@ class Pairs_survey_scripted(Scripted_survey):
         ttol : float (10.)
             The time tolerance when gathering a pair (minutes)
         """
+        self.note = note
         self.reward_val = reward_val
         self.ttol = ttol/60./24.
         self.dt = dt/60./24.  # To days
@@ -714,7 +719,8 @@ class Pairs_survey_scripted(Scripted_survey):
 
         super(Pairs_survey_scripted, self).__init__(basis_functions=basis_functions,
                                                     basis_weights=basis_weights,
-                                                    extra_features=self.extra_features)
+                                                    extra_features=self.extra_features,
+                                                    ignore_obs=ignore_obs)
         self.filt_to_pair = filt_to_pair
         # list to hold observations
         self.observing_queue = []
@@ -723,24 +729,25 @@ class Pairs_survey_scripted(Scripted_survey):
         """Add an observed observation
         """
 
-        # Update my extra features:
-        for bf in self.basis_functions:
-            bf.add_observation(observation, indx=indx)
-        for feature in self.extra_features:
-            if hasattr(self.extra_features[feature], 'add_observation'):
-                self.extra_features[feature].add_observation(observation, indx=indx)
-        self.reward_checked = False
+        if self.ignore_obs not in observation['note']:
+            # Update my extra features:
+            for bf in self.basis_functions:
+                bf.add_observation(observation, indx=indx)
+            for feature in self.extra_features:
+                if hasattr(self.extra_features[feature], 'add_observation'):
+                    self.extra_features[feature].add_observation(observation, indx=indx)
+            self.reward_checked = False
 
-        # Check if this observation needs a pair
-        # XXX--only supporting single pairs now. Just start up another scripted survey to grap triples, etc?
-        keys_to_copy = ['RA', 'dec', 'filter', 'exptime', 'nexp']
-        if (observation['filter'][0] in self.filt_to_pair) & (np.max(self.extra_features['Pair_map'].feature[indx]) < 1):
-            obs_to_queue = empty_observation()
-            for key in keys_to_copy:
-                obs_to_queue[key] = observation[key]
-            # Fill in the ideal time we would like this observed
-            obs_to_queue['mjd'] = observation['mjd'] + self.dt
-            self.observing_queue.append(obs_to_queue)
+            # Check if this observation needs a pair
+            # XXX--only supporting single pairs now. Just start up another scripted survey to grap triples, etc?
+            keys_to_copy = ['RA', 'dec', 'filter', 'exptime', 'nexp']
+            if (observation['filter'][0] in self.filt_to_pair) & (np.max(self.extra_features['Pair_map'].feature[indx]) < 1):
+                obs_to_queue = empty_observation()
+                for key in keys_to_copy:
+                    obs_to_queue[key] = observation[key]
+                # Fill in the ideal time we would like this observed
+                obs_to_queue['mjd'] = observation['mjd'] + self.dt
+                self.observing_queue.append(obs_to_queue)
 
     def _purge_queue(self):
         """Remove any pair where it's too late to observe it
@@ -774,7 +781,7 @@ class Pairs_survey_scripted(Scripted_survey):
         if len(self.observing_queue) > 0:
             if (self.observing_queue[0]['mjd'] > (self.extra_features['current_mjd'].feature - self.ttol)) & (self.observing_queue[0]['mjd'] < (self.extra_features['current_mjd'].feature + self.ttol)):
                 result = self.observing_queue.pop(0)
-                result['note'] = 'scripted'
+                result['note'] = self.note
                 result = [result]
         return result
 

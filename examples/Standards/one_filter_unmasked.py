@@ -3,14 +3,6 @@ import lsst.sims.featureScheduler as fs
 from lsst.sims.speedObservatory import Speed_observatory
 import healpy as hp
 
-# Run a single-filter r-band survey.
-# 5-sigma depth percentile
-# standard target map (WFD, NES, SCP, GP)
-# Slewtime
-# mask lots of off-meridian space
-# No pairs
-# Greedy selection of opsim fields
-
 
 if __name__ == "__main__":
 
@@ -20,22 +12,18 @@ if __name__ == "__main__":
     filtername = 'r'
 
     bfs = []
-    bfs.append(fs.M5_diff_basis_function(filtername=filtername))
+    bfs.append(fs.Depth_percentile_basis_function(filtername=filtername))
     bfs.append(fs.Target_map_basis_function(target_map=target_map, filtername=filtername,
                                             out_of_bounds_val= hp.UNSEEN))
-    bfs.append(fs.North_south_patch_basis_function(zenith_min_alt=50.))
+    bfs.append(fs.Zenith_mask_basis_function(maxAlt=78., penalty=-100))
     bfs.append(fs.Slewtime_basis_function(filtername=filtername))
-
-    weights = np.array([1., 0.2, 1., 2.])
+    weights = np.array([3., 0.3, 1., 2.])
     survey = fs.Greedy_survey_fields(bfs, weights, block_size=1, filtername=filtername, dither=True)
     scheduler = fs.Core_scheduler([survey])
 
     observatory = Speed_observatory()
     observatory, scheduler, observations = fs.sim_runner(observatory, scheduler,
                                                          survey_length=survey_length,
-                                                         filename='one_filter_dither.db',
+                                                         filename='one_filter_unmasked.db',
                                                          delete_past=True)
 
-# real    438m51.454s
-# user    433m27.425s
-# sys     2m3.193s

@@ -509,11 +509,9 @@ def observations2sqlite(observations, filename='observations.db', delete_past=Fa
             pass
 
     # Convert to degrees for output
-    observations['RA'] = np.degrees(observations['RA'])
-    observations['dec'] = np.degrees(observations['dec'])
-    observations['alt'] = np.degrees(observations['alt'])
-    observations['az'] = np.degrees(observations['az'])
-    observations['rotSkyPos'] = np.degrees(observations['rotSkyPos'])
+    to_convert = ['RA', 'dec', 'alt', 'az', 'rotSkyPos', 'moonAlt', 'sunAlt']
+    for key in to_convert:
+        observations[key] = np.degrees(observations[key])
 
     if filename is not None:
         df = pd.DataFrame(observations)

@@ -7,13 +7,20 @@ default_nside = set_default_nside()
 
 
 class Core_scheduler(object):
-    """
-    
+    """Core scheduler that takes completed obsrevations and observatory status and can supply requested observations.
     """
 
     def __init__(self, surveys, nside=default_nside, camera='LSST'):
         """
-
+        Parameters
+        ----------
+        surveys : list of survey objects
+            A list of surveys to consider. If multiple surveys retrurn the same highest
+            reward value, the survey at the earliest position in the list will be selected.
+        nside : int
+            A HEALpix nside value.
+        camera : str ('LSST')
+            Which camera to use for computing overlapping HEALpixels for an observation.
         """
         # initialize a queue of observations to request
         self.queue = []
@@ -68,6 +75,10 @@ class Core_scheduler(object):
     def request_observation(self):
         """
         Ask the scheduler what it wants to observe next
+
+        Returns
+        -------
+        observation object (ra,dec,filter,rotangle)
         """
         if len(self.queue) == 0:
             self._fill_queue()
@@ -77,7 +88,7 @@ class Core_scheduler(object):
     def _fill_queue(self):
         """
         Compute reward function for each survey and fill the observing queue with the
-        observations of highest reward.
+        observations from the highest reward survey.
         """
         rewards = []
         for survey in self.surveys:
