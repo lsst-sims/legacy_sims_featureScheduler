@@ -33,7 +33,7 @@ if __name__ == "__main__":
     observatory = Speed_observatory()
     observatory, scheduler, observations = fs.sim_runner(observatory, scheduler,
                                                          survey_length=survey_length,
-                                                         filename='one_filter.db',
+                                                         filename='one_filter_dither.db',
                                                          delete_past=True)
 
 # real    438m51.454s

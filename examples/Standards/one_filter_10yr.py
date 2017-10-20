@@ -36,3 +36,6 @@ if __name__ == "__main__":
                                                          filename='one_filter_10yr.db',
                                                          delete_past=True)
 
+#real    2218m35.723s  37 hours
+#user    2183m17.980s
+#sys     9m35.290s

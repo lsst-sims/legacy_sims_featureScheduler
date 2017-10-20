@@ -16,7 +16,8 @@ default_nside = set_default_nside()
 
 
 class BaseSurvey(object):
-    def __init__(self, basis_functions, basis_weights, extra_features=None, smoothing_kernel=None):
+    def __init__(self, basis_functions, basis_weights, extra_features=None, smoothing_kernel=None,
+                 ignore_obs='dummy'):
         """
         Parameters
         ----------
@@ -30,12 +31,16 @@ class BaseSurvey(object):
             e.g., for computing final dither positions, or feasability maps.
         smoothing_kernel : float (None)
             Smooth the reward function with a Gaussian FWHM (degrees)
+        ignore_obs : str ('dummy')
+            If an incoming observation has this string in the note, ignore it. Handy if
+            one wants to ignore DD fields or observations requested by self.
         """
 
         if len(basis_functions) != np.size(basis_weights):
             raise ValueError('basis_functions and basis_weights must be same length.')
 
         # XXX-Check that input is a list of features
+        self.ignore_obs = ignore_obs
         self.basis_functions = basis_functions
         self.basis_weights = basis_weights
         self.reward = None
@@ -55,12 +60,13 @@ class BaseSurvey(object):
         self.reward_count = 0
 
     def add_observation(self, observation, **kwargs):
-        for bf in self.basis_functions:
-            bf.add_observation(observation, **kwargs)
-        for feature in self.extra_features:
-            if hasattr(self.extra_features[feature], 'add_observation'):
-                self.extra_features[feature].add_observation(observation, **kwargs)
-        self.reward_checked = False
+        if self.ignore_obs not in observation['note']:
+            for bf in self.basis_functions:
+                bf.add_observation(observation, **kwargs)
+            for feature in self.extra_features:
+                if hasattr(self.extra_features[feature], 'add_observation'):
+                    self.extra_features[feature].add_observation(observation, **kwargs)
+            self.reward_checked = False
 
     def update_conditions(self, conditions, **kwargs):
         for bf in self.basis_functions:
@@ -604,6 +610,7 @@ class Greedy_survey_fields(BaseSurvey):
                                                    smoothing_kernel=smoothing_kernel)
         self.nside = nside
         self.filtername = filtername
+        # Load the OpSim field tesselation
         self.fields_init = read_fields()
         self.fields = self.fields_init.copy()
         self.block_size = block_size
@@ -690,7 +697,12 @@ class Pairs_survey_scripted(Scripted_survey):
         """
         Parameters
         ----------
-
+        filt_to_pair : str (griz)
+            Which filters to try and get pairs of
+        dt : float (40.)
+            The ideal gap between pairs (minutes)
+        ttol : float (10.)
+            The time tolerance when gathering a pair (minutes)
         """
         self.reward_val = reward_val
         self.ttol = ttol/60./24.
