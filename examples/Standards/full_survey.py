@@ -17,13 +17,14 @@ if __name__ == '__main__':
         bfs = []
         bfs.append(fs.M5_diff_basis_function(filtername=filtername))
         bfs.append(fs.Target_map_basis_function(filtername=filtername,
-                                                target_map=target_map[filtername]))
+                                                target_map=target_map[filtername],
+                                                out_of_bounds_val=hp.UNSEEN))
 
         bfs.append(fs.North_south_patch_basis_function(zenith_min_alt=50.))
         bfs.append(fs.Slewtime_basis_function(filtername=filtername))
         bfs.append(fs.Strict_filter_basis_function(filtername=filtername))
 
-        weights = np.array([2.0, 0.2, 1., 2., 3.])
+        weights = np.array([3.0, 0.2, 1., 2., 3.])
         surveys.append(fs.Greedy_survey_fields(bfs, weights, block_size=1, filtername=filtername,
                                                dither=True, ignore_obs='DD'))
 
@@ -52,3 +53,5 @@ if __name__ == '__main__':
                                                          survey_length=survey_length,
                                                          filename='full_survey_%i.db' % years,
                                                          delete_past=True)
+
+# 1 year, 445min = 7hr
