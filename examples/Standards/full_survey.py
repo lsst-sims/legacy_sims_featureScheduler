@@ -26,9 +26,9 @@ if __name__ == '__main__':
 
         weights = np.array([3.0, 0.2, 1., 2., 3.])
         surveys.append(fs.Greedy_survey_fields(bfs, weights, block_size=1, filtername=filtername,
-                                               dither=True, ignore_obs='DD'))
+                                               dither=True))
 
-    surveys.append(fs.Pairs_survey_scripted([], [], ignore_obs='DD'))
+    #surveys.append(fs.Pairs_survey_scripted([], [], ignore_obs='DD'))
 
     # Set up the DD
     dd_survey = fs.Scripted_survey([], [])
@@ -45,7 +45,7 @@ if __name__ == '__main__':
     notes.fill('DD')
     observations = append_fields(observations, 'note', notes)
     dd_survey.set_script(observations)
-    surveys.append(dd_survey)
+    #surveys.append(dd_survey)
 
     scheduler = fs.Core_scheduler(surveys)
     observatory = Speed_observatory()

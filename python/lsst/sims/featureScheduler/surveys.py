@@ -716,6 +716,7 @@ class Pairs_survey_scripted(Scripted_survey):
             self.extra_features = {}
             self.extra_features['Pair_map'] = features.Pair_in_night(filtername=filt_to_pair)
             self.extra_features['current_mjd'] = features.Current_mjd()
+            self.extra_features['current_filter'] = features.current_filter()
 
         super(Pairs_survey_scripted, self).__init__(basis_functions=basis_functions,
                                                     basis_weights=basis_weights,
@@ -767,7 +768,13 @@ class Pairs_survey_scripted(Scripted_survey):
         result = -np.inf
         self.reward = result
         if len(self.observing_queue) > 0:
-            if (self.observing_queue[0]['mjd'] > (self.extra_features['current_mjd'].feature - self.ttol)) & (self.observing_queue[0]['mjd'] < (self.extra_features['current_mjd'].feature + self.ttol)):
+            # Check if the time is good and we are in a good filter.
+            late_enough = self.observing_queue[0]['mjd'] > (self.extra_features['current_mjd'].feature -
+                                                            self.ttol)
+            early_enough = self.observing_queue[0]['mjd'] < (self.extra_features['current_mjd'].feature +
+                                                             self.ttol)
+            infilt = self.extra_features['current_filter'] in self.filt_to_pair
+            if late_enough & early_enough & infilt:
                 result = self.reward_val
                 self.reward = self.reward_val
         self.reward_checked = True
@@ -779,9 +786,16 @@ class Pairs_survey_scripted(Scripted_survey):
         # Check for something I want a pair of
         result = []
         if len(self.observing_queue) > 0:
-            if (self.observing_queue[0]['mjd'] > (self.extra_features['current_mjd'].feature - self.ttol)) & (self.observing_queue[0]['mjd'] < (self.extra_features['current_mjd'].feature + self.ttol)):
+            late_enough = self.observing_queue[0]['mjd'] > (self.extra_features['current_mjd'].feature -
+                                                            self.ttol)
+            early_enough = self.observing_queue[0]['mjd'] < (self.extra_features['current_mjd'].feature +
+                                                             self.ttol)
+            infilt = self.extra_features['current_filter'] in self.filt_to_pair
+            if late_enough & early_enough & infilt:
                 result = self.observing_queue.pop(0)
                 result['note'] = self.note
+                # Make sure we don't change filter if we don't have to.
+                result['filter'] = self.extra_features['current_filter']
                 result = [result]
         return result
 
