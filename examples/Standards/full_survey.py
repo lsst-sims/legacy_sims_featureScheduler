@@ -15,7 +15,7 @@ if __name__ == '__main__':
 
     for filtername in filters:
         bfs = []
-        bfs.append(fs.M5_diff_basis_function(filtername=filtername))
+        bfs.append(fs.M5_diff_basis_function(filtername=filtername, teff=False))
         bfs.append(fs.Target_map_basis_function(filtername=filtername,
                                                 target_map=target_map[filtername],
                                                 out_of_bounds_val=hp.UNSEEN))
@@ -25,10 +25,9 @@ if __name__ == '__main__':
         bfs.append(fs.Strict_filter_basis_function(filtername=filtername))
 
         weights = np.array([3.0, 0.2, 1., 2., 3.])
-        surveys.append(fs.Greedy_survey_fields(bfs, weights, block_size=1, filtername=filtername,
-                                               dither=True))
+        surveys.append(fs.Greedy_survey_fields(bfs, weights, block_size=1, filtername=filtername, dither=True))
 
-    #surveys.append(fs.Pairs_survey_scripted([], [], ignore_obs='DD'))
+    surveys.append(fs.Pairs_survey_scripted([], [], ignore_obs='DD'))
 
     # Set up the DD
     dd_survey = fs.Scripted_survey([], [])
@@ -45,7 +44,7 @@ if __name__ == '__main__':
     notes.fill('DD')
     observations = append_fields(observations, 'note', notes)
     dd_survey.set_script(observations)
-    #surveys.append(dd_survey)
+    surveys.append(dd_survey)
 
     scheduler = fs.Core_scheduler(surveys)
     observatory = Speed_observatory()

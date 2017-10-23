@@ -716,7 +716,7 @@ class Pairs_survey_scripted(Scripted_survey):
             self.extra_features = {}
             self.extra_features['Pair_map'] = features.Pair_in_night(filtername=filt_to_pair)
             self.extra_features['current_mjd'] = features.Current_mjd()
-            self.extra_features['current_filter'] = features.current_filter()
+            self.extra_features['current_filter'] = features.Current_filter()
 
         super(Pairs_survey_scripted, self).__init__(basis_functions=basis_functions,
                                                     basis_weights=basis_weights,
@@ -773,7 +773,7 @@ class Pairs_survey_scripted(Scripted_survey):
                                                             self.ttol)
             early_enough = self.observing_queue[0]['mjd'] < (self.extra_features['current_mjd'].feature +
                                                              self.ttol)
-            infilt = self.extra_features['current_filter'] in self.filt_to_pair
+            infilt = self.extra_features['current_filter'].feature in self.filt_to_pair
             if late_enough & early_enough & infilt:
                 result = self.reward_val
                 self.reward = self.reward_val
@@ -790,12 +790,12 @@ class Pairs_survey_scripted(Scripted_survey):
                                                             self.ttol)
             early_enough = self.observing_queue[0]['mjd'] < (self.extra_features['current_mjd'].feature +
                                                              self.ttol)
-            infilt = self.extra_features['current_filter'] in self.filt_to_pair
+            infilt = self.extra_features['current_filter'].feature in self.filt_to_pair
             if late_enough & early_enough & infilt:
                 result = self.observing_queue.pop(0)
                 result['note'] = self.note
                 # Make sure we don't change filter if we don't have to.
-                result['filter'] = self.extra_features['current_filter']
+                result['filter'] = self.extra_features['current_filter'].feature
                 result = [result]
         return result
 
