@@ -7,12 +7,12 @@ import lsst.utils.tests
 class TestFeatures(unittest.TestCase):
 
     def testPair_in_night(self):
-        pin = fs.Pair_in_night()
+        pin = fs.Pair_in_night(gap_min=25., gap_max=45.)
         self.assertEqual(np.max(pin.feature), 0.)
 
         indx = np.array([1000])
 
-        delta = 20./60./24.
+        delta = 30./60./24.
 
         # Add 1st observation, feature should still be zero
         obs = fs.empty_observation()
