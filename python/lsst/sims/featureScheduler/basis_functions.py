@@ -61,7 +61,7 @@ class Zenith_mask_basis_function(Base_basis_function):
             self.survey_features = {}
         if condition_features is None:
             self.condition_features = {}
-            self.condition_features['altaz'] = features.AltAzFeature()
+            self.condition_features['altaz'] = features.AltAzFeature(nside=nside)
         self.minAlt = np.radians(minAlt)
         self.maxAlt = np.radians(maxAlt)
 
@@ -105,7 +105,7 @@ class Quadrant_basis_function(Base_basis_function):
         self.minAlt = np.radians(minAlt)
         self.maxAlt = np.radians(maxAlt)
         # Convert to half-width for convienence
-        self.azWidth = np.radians(azWidth /2.)
+        self.azWidth = np.radians(azWidth / 2.)
         self.nside = nside
 
     def __call__(self, indx=None):
@@ -146,7 +146,7 @@ class Quadrant_basis_function(Base_basis_function):
 
 
 class North_south_patch_basis_function(Base_basis_function):
-    """Similar to the Quadrant_basis_function, but make it easier to 
+    """Similar to the Quadrant_basis_function, but make it easier to
     pick up the region that passes through the zenith
     """
     def __init__(self, nside=default_nside, condition_features=None, minAlt=20., maxAlt=82.,
@@ -186,7 +186,7 @@ class North_south_patch_basis_function(Base_basis_function):
         result = np.empty(hp.nside2npix(self.nside), dtype=float)
         result.fill(hp.UNSEEN)
 
-        # Put in the region around the 
+        # Put in the region around the zenith
         result[np.where(self.zenith_map == 1)] = 1
 
         alt = self.condition_features['altaz'].feature['alt']
@@ -289,7 +289,7 @@ class Obs_ratio_basis_function(Base_basis_function):
             self.survey_features['N_obs_DD'] = features.N_obs_reference(ra=dd_ra, dec=dd_dec)
 
         super(Obs_ratio_basis_function, self).__init__(survey_features=self.survey_features,
-                                                          condition_features=condition_features)
+                                                       condition_features=condition_features)
 
     def __call__(self, **kwargs):
         result = 0.
@@ -572,7 +572,7 @@ class Slewtime_basis_function(Base_basis_function):
     def __init__(self, survey_features=None, condition_features=None,
                  max_time=135., filtername='r', nside=default_nside):
         self.maxtime = max_time
-        self.nside=nside
+        self.nside = nside
         self.filtername = filtername
         if condition_features is None:
             self.condition_features = {}
