@@ -28,7 +28,7 @@ class BaseSurveyFeature(object):
     feature that tracks progreess of the survey. Takes observations and updates self.feature
     """
     def add_observation(self, observation, **kwargs):
-        pass
+        raise NotImplementedError
 
 
 class BaseConditionsFeature(object):
@@ -36,7 +36,7 @@ class BaseConditionsFeature(object):
     Feature based on the current conditions (e.g., mjd, cloud cover, skybrightness map, etc.)
     """
     def update_conditions(self, conditions, **kwargs):
-        pass
+        raise NotImplementedError
 
 
 class AltAzFeature(BaseConditionsFeature):
@@ -66,6 +66,33 @@ class AltAzFeature(BaseConditionsFeature):
         self.feature['az'] = az
 
 
+class N_obs_count(BaseSurveyFeature):
+    """Count the number of observations. Good for normalizing across filters
+    """
+    def __init__(self, filtername=None):
+        self.feature = 0
+        self.filtername = filtername
+
+    def add_observation(self, observation, indx=None):
+        # Track all observations
+        if self.filtername is None:
+            self.feature += 1
+        else:
+            if observation['filter'][0] in self.filtername:
+                self.feature += 1
+
+
+class Last_observation(BaseSurveyFeature):
+    """When was the last observation
+    """
+    def __init__(self):
+        # Start out with an empty observation
+        self.feature = utils.empty_observation()
+
+    def add_observation(self, observation, indx=None):
+        self.feature = observation
+
+
 class N_observations(BaseSurveyFeature):
     """
     Track the number of observations that have been made accross the sky.
@@ -92,7 +119,6 @@ class N_observations(BaseSurveyFeature):
         indx : ints
             The indices of the healpixel map that have been observed by observation
         """
-
         if observation['filter'][0] in self.filtername:
             self.feature[indx] += 1
 
@@ -169,13 +195,14 @@ class Pair_in_night(BaseSurveyFeature):
     """
     Track how many pairs have been observed within a night
     """
-    def __init__(self, filtername='r', nside=default_nside, gap_min=15., gap_max=45.):
+    def __init__(self, filtername='r', nside=default_nside, gap_min=25., gap_max=45.):
         """
         Parameters
         ----------
-        gap_min : float (15.)
+        gap_min : float (25.)
             The minimum time gap to consider a successful pair in minutes
-        gap_max : float (40.)
+        gap_max : float (45.)
+            The maximum time gap to consider a successful pair (minutes)
         """
         self.filtername = filtername
         self.feature = np.zeros(hp.nside2npix(nside), dtype=float)
@@ -184,6 +211,9 @@ class Pair_in_night(BaseSurveyFeature):
         self.gap_min = gap_min / (24.*60)  # Days
         self.gap_max = gap_max / (24.*60)  # Days
         self.night = 0
+        # Need to keep a full record of times and healpixels observed in a night. 
+        self.mjd_log = []
+        self.hpid_log = []
 
     def add_observation(self, observation, indx=None):
         if observation['filter'][0] in self.filtername:
@@ -193,10 +223,24 @@ class Pair_in_night(BaseSurveyFeature):
             if self.night != observation['night'][0]:
                 self.feature *= 0.
                 self.night = observation['night'][0]
-            tdiff = observation['mjd'] - self.last_observed.feature[indx]
-            good = np.where((tdiff >= self.gap_min) & (tdiff <= self.gap_max))[0]
-            self.feature[indx[good]] += 1.
-            self.last_observed.add_observation(observation, indx=indx)
+                self.mjd_log = []
+                self.hpid_log = []
+
+            # record the mjds and healpixels that were observed
+            self.mjd_log.extend([np.max(observation['mjd'])]*np.size(indx))
+            self.hpid_log.extend(list(indx))
+
+            # Look for the mjds that could possibly pair with observation
+            tmin = observation['mjd'] - self.gap_max
+            tmax = observation['mjd'] - self.gap_min
+            mjd_log = np.array(self.mjd_log)
+            left = np.searchsorted(mjd_log, tmin)
+            right = np.searchsorted(mjd_log, tmax, side='right')
+            # Now check if any of the healpixels taken in the time gap
+            # match the healpixels of the observation.
+            matches = np.in1d(indx, self.hpid_log[int(left):int(right)])
+            # XXX--should think if this is the correct (fastest) order to check things in.
+            self.feature[indx[matches]] += 1
 
 
 class N_obs_reference(BaseSurveyFeature):
@@ -229,6 +273,38 @@ class SlewtimeFeature(BaseConditionsFeature):
         self.feature = conditions['slewtimes']
         if np.size(self.feature) > 1:
             self.feature = hp.ud_grade(self.feature, nside_out=self.nside)
+
+
+class M5Depth(BaseConditionsFeature):
+    """
+    Given current conditions, return the 5-sigma limiting depth percentile map
+    for a filter.
+    """
+    def __init__(self, filtername='r', expTime=30., nside=default_nside):
+        self.filtername = filtername
+        self.feature = None
+        self.expTime = expTime
+        self.nside = nside
+
+    def update_conditions(self, conditions):
+        """
+        Parameters
+        ----------
+        conditions : dict
+            Keys should include airmass, sky_brightness, seeing.
+        """
+        m5 = np.empty(conditions['skybrightness'][self.filtername].size)
+        m5.fill(hp.UNSEEN)
+        m5_mask = np.zeros(m5.size, dtype=bool)
+        m5_mask[np.where(conditions['skybrightness'][self.filtername] == hp.UNSEEN)] = True
+        good = np.where(conditions['skybrightness'][self.filtername] != hp.UNSEEN)
+        m5[good] = m5_flat_sed(self.filtername, conditions['skybrightness'][self.filtername][good],
+                               conditions['FWHMeff_%s' % self.filtername][good],
+                               self.expTime, conditions['airmass'][good])
+        self.feature = m5
+        self.feature[m5_mask] = hp.UNSEEN
+        self.feature = hp.ud_grade(self.feature, nside_out=self.nside)
+        self.feature = ma.masked_values(self.feature, hp.UNSEEN)
 
 
 class M5Depth_percentile(BaseConditionsFeature):
@@ -270,9 +346,25 @@ class Current_filter(BaseConditionsFeature):
         self.feature = conditions['filter']
 
 
+class Sun_moon_alts(BaseConditionsFeature):
+    def update_conditions(self, conditions):
+        self.feature = {'moonAlt': conditions['moonAlt'], 'sunAlt': conditions['sunAlt']}
+
+
 class Current_mjd(BaseConditionsFeature):
+    def __init__(self):
+        self.feature = -1
+
     def update_conditions(self, conditions):
         self.feature = conditions['mjd']
+
+
+class Current_night(BaseConditionsFeature):
+    def __init__(self):
+        self.feature = -1
+
+    def update_conditions(self, conditions):
+        self.feature = conditions['night']
 
 
 class Current_pointing(BaseConditionsFeature):
@@ -482,126 +574,3 @@ class Rotator_angle(BaseSurveyFeature):
             # I think this is how to broadcast things properly.
             self.feature[indx, :] += np.histogram(observation.rotSkyPos, bins=self.bins)[0]
 
-
-class N_observations_cost(BaseSurveyFeature):
-    """
-    Track the number of observations that have been made accross the sky.
-    """
-    def __init__(self, survey_filters='r', nside=default_nside, mask_indx=None):
-        """
-        Parameters
-        ----------
-        filtername : str ('r')
-            String or list that has all the filters that can count.
-        nside : int (32)
-            The nside of the healpixel map to use
-        mask_indx : list of ints (None)
-            List of healpixel indices to mask and interpolate over
-        """
-        self.dt = np.dtype({'names': survey_filters, 'formats': len(survey_filters)*[int]})
-        self.feature = np.zeros(hp.nside2npix(nside), dtype=self.dt)
-        self.sum_feature = np.zeros(len(self.feature), dtype=int)
-        self.mask_indx = mask_indx
-        self.survey_filters = survey_filters
-
-        self.max_n = np.zeros(1, dtype=self.dt)
-        self.max_n_all_f = 0
-
-    def add_observation(self, observation, indx=None):
-        """
-        Parameters
-        ----------
-        indx : ints
-            The indices of the healpixel map that have been observed by observation
-        """
-        self.sum_feature[indx] += 1
-
-        for f in self.survey_filters:
-            if observation['filter'][0] == f:
-                self.feature[indx][f] += 1
-            self.max_n[f] = np.max(self.feature[f])
-        self.max_n_all_f = np.max(self.sum_feature)
-
-        if self.mask_indx is not None:
-            overlap = np.intersect1d(indx, self.mask_indx)
-            if overlap.size > 0:
-                # interpolate over those pixels that are DD fields.
-                # XXX.  Do I need to kdtree this? Maybe make a dict on init
-                # to lookup the N closest non-masked pixels, then do weighted average.
-                pass
-
-
-class N_in_filter_cost(BaseSurveyFeature):
-    """
-    Track the number of observations that have been made accross the sky.
-    """
-    def __init__(self, survey_filters='r', nside=default_nside, mask_indx=None):
-        """
-        Parameters
-        ----------
-        filtername : str ('r')
-            String or list that has all the filters that can count.
-        nside : int (32)
-            The nside of the healpixel map to use
-        mask_indx : list of ints (None)
-            List of healpixel indices to mask and interpolate over
-        """
-        self.dt = np.dtype({'names': survey_filters, 'formats': len(survey_filters)*[int]})
-        self.feature = np.zeros(1, dtype=self.dt)
-        self.survey_filters = survey_filters
-        self.max_n_in_filter = 0
-
-    def add_observation(self, observation, indx=None):
-        """
-        Parameters
-        ----------
-        indx : ints
-            The indices of the healpixel map that have been observed by observation
-        """
-        for f in self.survey_filters:
-            if observation['filter'][0] == f:
-                self.feature[f] += 1
-            if self.feature[f] > self.max_n_in_filter:
-                self.max_n_in_filter = self.feature[f]
-
-
-class N_obs_night_cost(BaseSurveyFeature):
-    """
-    Track how many times something has been observed in a night
-    (Note, even if there are two, it might not be a good pair.)
-    """
-    def __init__(self, survey_filters='r', nside=default_nside):
-        """
-        Parameters
-        ----------
-        filtername : string ('r')
-            Filter to track.
-        nside : int (32)
-            Scale of the healpix map
-        """
-        self.dt = np.dtype({'names': survey_filters, 'formats': len(survey_filters)*[int]})
-        self.feature = np.zeros(hp.nside2npix(nside), dtype=self.dt)
-        self.sum_feature = np.zeros(len(self.feature), dtype=int)
-        self.survey_filters = survey_filters
-
-        self.max_n = np.zeros(1, dtype=self.dt)
-        self.max_n_all_f = 0
-        self.night = None
-
-    def add_observation(self, observation, indx=None):
-
-        if observation['night'][0] != self.night:
-            self.feature *= 0
-            self.sum_feature *= 0
-            self.night = observation['night'][0]
-
-        self.sum_feature[indx] += 1
-
-        for f in self.survey_filters:
-            if observation['filter'][0] == f:
-                self.feature[indx][f] += 1
-            self.max_n[f] = np.max(self.feature[f])
-        self.max_n_all_f = np.max(self.sum_feature)
-
-        if observation['filter'][0] in self.survey_filters:
-            self.feature[indx] += 1

@@ -2,6 +2,7 @@ import numpy as np
 import unittest
 import lsst.sims.featureScheduler as fs
 import lsst.utils.tests
+import matplotlib.pylab as plt
 
 
 class TestBasis(unittest.TestCase):
@@ -11,8 +12,8 @@ class TestBasis(unittest.TestCase):
 
         indx = np.array([1000])
 
-        # 20 minute step
-        delta = 20./60./24.
+        # 30 minute step
+        delta = 30./60./24.
 
         # Add 1st observation, should still be zero
         obs = fs.empty_observation()
@@ -23,12 +24,12 @@ class TestBasis(unittest.TestCase):
         bf.update_conditions(conditions)
         self.assertEqual(np.max(bf()), 0.)
 
+        # Advance time so now we want a pair
         conditions['mjd'] += delta
         bf.update_conditions(conditions)
         self.assertEqual(np.max(bf()), 1.)
 
         # Now complete the pair and it should go back to zero
-        obs['mjd'] += delta
         bf.add_observation(obs, indx=indx)
 
         conditions['mjd'] += delta

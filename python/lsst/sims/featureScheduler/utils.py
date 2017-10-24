@@ -13,6 +13,7 @@ import sys
 from lsst.utils import getPackageDir
 import sqlite3 as db
 from lsst.sims.utils import haversine
+import matplotlib.pylab as plt
 
 
 def set_default_nside(nside=None):
@@ -31,6 +32,68 @@ def set_default_nside(nside=None):
     return set_default_nside.side
 
 
+def gnomonic_project_toxy(RA1, Dec1, RAcen, Deccen):
+    """Calculate x/y projection of RA1/Dec1 in system with center at RAcen, Deccen.
+    Input radians. Grabbed from sims_selfcal"""
+    # also used in Global Telescope Network website
+    cosc = np.sin(Deccen) * np.sin(Dec1) + np.cos(Deccen) * np.cos(Dec1) * np.cos(RA1-RAcen)
+    x = np.cos(Dec1) * np.sin(RA1-RAcen) / cosc
+    y = (np.cos(Deccen)*np.sin(Dec1) - np.sin(Deccen)*np.cos(Dec1)*np.cos(RA1-RAcen)) / cosc
+    return x, y
+
+
+def gnomonic_project_tosky(x, y, RAcen, Deccen):
+    """Calculate RA/Dec on sky of object with x/y and RA/Cen of field of view.
+    Returns Ra/Dec in radians."""
+    denom = np.cos(Deccen) - y * np.sin(Deccen)
+    RA = RAcen + np.arctan2(x, denom)
+    Dec = np.arctan2(np.sin(Deccen) + y * np.cos(Deccen), np.sqrt(x*x + denom*denom))
+    return RA, Dec
+
+
+def raster_sort(x0, order=['x', 'y'], xbin=1.):
+    """Do a sort to scan a grid up and down. Simple starting guess to traveling salesman.
+
+    Parameters
+    ----------
+    x0 : array
+    order : list
+        Keys for the order x0 should be sorted in.
+    xbin : float (1.)
+        The binsize to round off the first coordinate into
+
+    returns
+    -------
+    array sorted so that it rasters up and down.
+    """
+    coords = x0.copy()
+    bins = np.arange(coords[order[0]].min()-xbin/2., coords[order[0]].max()+3.*xbin/2., xbin)
+    # digitize my bins
+    coords[order[0]] = np.digitize(coords[order[0]], bins)
+    order1 = np.argsort(coords, order=order)
+    coords = coords[order1]
+    places_to_invert = np.where(np.diff(coords[order[-1]]) < 0)[0]
+    if np.size(places_to_invert) > 0:
+        places_to_invert += 1
+        indx = np.arange(coords.size)
+        index_sorted = np.zeros(indx.size, dtype=int)
+        index_sorted[0:places_to_invert[0]] = indx[0:places_to_invert[0]]
+
+        for i, inv_pt in enumerate(places_to_invert[:-1]):
+            if i % 2 == 0:
+                index_sorted[inv_pt:places_to_invert[i+1]] = indx[inv_pt:places_to_invert[i+1]][::-1]
+            else:
+                index_sorted[inv_pt:places_to_invert[i+1]] = indx[inv_pt:places_to_invert[i+1]]
+
+        if np.size(places_to_invert) % 2 != 0:
+            index_sorted[places_to_invert[-1]:] = indx[places_to_invert[-1]:][::-1]
+        else:
+            index_sorted[places_to_invert[-1]:] = indx[places_to_invert[-1]:]
+        return order1[index_sorted]
+    else:
+        return order1
+
+
 def empty_observation():
     """
     Return a numpy array that could be a handy observation record
@@ -41,6 +104,9 @@ def empty_observation():
     XXX-Could add a bool flag for "observed". Then easy to track all proposed
     observations. Could also add an mjd_min, mjd_max for when an observation should be observed.
     That way we could drop things into the queue for DD fields.
+
+    XXX--might be nice to add a generic "sched_note" str field, to record any metadata that 
+    would be useful to the scheduler once it's observed. and/or observationID.
 
     Returns
     -------
@@ -75,10 +141,10 @@ def empty_observation():
     """
     names = ['RA', 'dec', 'mjd', 'exptime', 'filter', 'rotSkyPos', 'nexp',
              'airmass', 'FWHMeff', 'FWHM_geometric', 'skybrightness', 'night', 'slewtime', 'fivesigmadepth',
-             'alt', 'az', 'clouds']
+             'alt', 'az', 'clouds', 'moonAlt', 'sunAlt', 'note']
     # units of rad, rad,   days,  seconds,   string, radians (E of N?)
     types = [float, float, float, float, '|U1', float, int, float, float, float, float, int, float, float,
-             float, float, float]
+             float, float, float, float, float, '|U40']
     result = np.zeros(1, dtype=list(zip(names, types)))
     return result
 
@@ -105,8 +171,8 @@ def read_fields():
     numpy.array
         With RA and dec in radians.
     """
-    names = ['id', 'RA', 'dec']
-    types = [int, float, float]
+    names = ['RA', 'dec']
+    types = [float, float]
     data_dir = os.path.join(getPackageDir('sims_featureScheduler'), 'python/lsst/sims/featureScheduler/')
     filepath = os.path.join(data_dir, 'fieldID.lis')
     fields = np.loadtxt(filepath, dtype=list(zip(names, types)))
@@ -136,6 +202,16 @@ def treexyz(ra, dec):
     y = np.cos(dec) * np.sin(ra)
     z = np.sin(dec)
     return x, y, z
+
+
+def xyz2radec(x, y, z):
+    """
+    Convert x, y, z coords back to ra and dec in radians (dec=theta, ra=phi)
+    """
+    r = (x*2 + y**2 + z**2)**0.5
+    ra = np.arctan2(y, x)
+    dec = np.arccos(z/r)
+    return ra, dec
 
 
 def hp_kd_tree(nside=set_default_nside(), leafsize=100):
@@ -317,6 +393,8 @@ def standard_goals(nside=set_default_nside()):
     """
     A quick fucntion to generate the "standard" goal maps.
     """
+    # Find the number of healpixels we expect to observe per observation
+
     result = {}
     result['u'] = generate_goal_map(nside=nside, NES_fraction=0.,
                                     WFD_fraction=0.31, SCP_fraction=0.15,
@@ -340,7 +418,21 @@ def standard_goals(nside=set_default_nside()):
     return result
 
 
-def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3., filename=None, delete_past=False):
+def filter_count_ratios(target_maps):
+    """Given the goal maps, compute the ratio of observations we want in each filter.
+    """
+    results = {}
+    all_norm = 0.
+    for key in target_maps:
+        good = target_maps[key] > 0
+        results[key] = np.sum(target_maps[key][good])
+        all_norm += results[key]
+    for key in results:
+        results[key] /= all_norm
+    return results
+
+
+def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3., filename=None, delete_past=True):
     """
     run a simulation
     """
@@ -364,6 +456,7 @@ def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3., filenam
 
     while mjd < end_mjd:
         desired_obs = scheduler.request_observation()
+
         attempted_obs = observatory.attempt_observe(desired_obs)
         if attempted_obs is not None:
             scheduler.add_observation(attempted_obs)
@@ -378,6 +471,9 @@ def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3., filenam
             sys.stdout.write(text)
             sys.stdout.flush()
             mjd_track = mjd+0
+        # XXX--handy place to interupt and debug
+        #if len(observations) > 3:
+        #    import pdb ; pdb.set_trace()
 
     print('Completed %i observations' % len(observations))
     observations = np.array(observations)[:, 0]
@@ -414,11 +510,9 @@ def observations2sqlite(observations, filename='observations.db', delete_past=Fa
             pass
 
     # Convert to degrees for output
-    observations['RA'] = np.degrees(observations['RA'])
-    observations['dec'] = np.degrees(observations['dec'])
-    observations['alt'] = np.degrees(observations['alt'])
-    observations['az'] = np.degrees(observations['az'])
-    observations['rotSkyPos'] = np.degrees(observations['rotSkyPos'])
+    to_convert = ['RA', 'dec', 'alt', 'az', 'rotSkyPos', 'moonAlt', 'sunAlt']
+    for key in to_convert:
+        observations[key] = np.degrees(observations[key])
 
     if filename is not None:
         df = pd.DataFrame(observations)
@@ -447,6 +541,43 @@ def inrange(inval, minimum=-1., maximum=1.):
     inval[above] = maximum
     return inval
 
+
+def stupidFast_altAz2RaDec(alt, az, lat, lon, mjd):
+    """
+    Convert alt, az to RA, Dec without taking into account abberation, precesion, diffraction, ect.
+
+    Parameters
+    ----------
+    alt : numpy.array
+        Altitude, same length as `ra` and `dec`. Radians.
+    az : numpy.array
+        Azimuth, same length as `ra` and `dec`. Must be same length as `alt`. Radians.
+    lat : float
+        Latitude of the observatory in radians.
+    lon : float
+        Longitude of the observatory in radians.
+    mjd : float
+        Modified Julian Date.
+
+    Returns
+    -------
+    ra : array_like
+        RA, in radians.
+    dec : array_like
+        Dec, in radians.
+    """
+    lmst, last = calcLmstLast(mjd, lon)
+    lmst = lmst/12.*np.pi  # convert to rad
+    sindec = np.sin(lat)*np.sin(alt) + np.cos(lat)*np.cos(alt)*np.cos(az)
+    sindec = inrange(sindec)
+    dec = np.arcsin(sindec)
+    ha = np.arctan2(-np.sin(az)*np.cos(alt), -np.cos(az)*np.sin(lat)*np.cos(alt)+np.sin(alt)*np.cos(lat))
+    ra = (lmst-ha)
+    raneg = np.where(ra < 0)
+    ra[raneg] = ra[raneg] + 2.*np.pi
+    raover = np.where(ra > 2.*np.pi)
+    ra[raover] -= 2.*np.pi
+    return ra, dec
 
 def stupidFast_RaDec2AltAz(ra, dec, lat, lon, mjd, lmst=None):
     """

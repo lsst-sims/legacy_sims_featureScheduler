@@ -7,18 +7,24 @@ default_nside = set_default_nside()
 
 
 class Core_scheduler(object):
-    """
-    
+    """Core scheduler that takes completed obsrevations and observatory status and can supply requested observations.
     """
 
     def __init__(self, surveys, nside=default_nside, camera='LSST'):
         """
-
+        Parameters
+        ----------
+        surveys : list of survey objects
+            A list of surveys to consider. If multiple surveys retrurn the same highest
+            reward value, the survey at the earliest position in the list will be selected.
+        nside : int
+            A HEALpix nside value.
+        camera : str ('LSST')
+            Which camera to use for computing overlapping HEALpixels for an observation.
         """
         # initialize a queue of observations to request
         self.queue = []
         self.surveys = surveys
-        self.scripted_surveys = []
         self.nside = nside
         self.conditions = None
         # Should just make camera a class that takes a pointing and returns healpix indices
@@ -45,10 +51,11 @@ class Core_scheduler(object):
         """
 
         # Find the healpixel centers that are included in an observation
+        # XXX-in the future, we may want to refactor to support multiple nside resolutions
+        # I think indx would then be a dict with keys 32,64,128, etc. Then each feature would
+        # say indx = indx[self.nside]
         indx = self.pointing2hpindx(observation['RA'], observation['dec'])
         for survey in self.surveys:
-            survey.add_observation(observation, indx=indx)
-        for survey in self.scripted_surveys:
             survey.add_observation(observation, indx=indx)
 
     def update_conditions(self, conditions):
@@ -60,67 +67,40 @@ class Core_scheduler(object):
         """
         # Add the current queue and scheduled queue to the conditions
         conditions['queue'] = self.queue
-        conditions['scripted_surveys'] = self.scripted_surveys
 
         for survey in self.surveys:
             survey.update_conditions(conditions)
-        for survey in self.scripted_surveys:
-            survey.update_conditions(conditions)
         self.conditions = conditions
-
-    def check_scripted_surveys(self):
-        """
-        Check if a scripted survey wants to make an observation
-        """
-        # default to None
-        result = None
-        if len(self.scripted_surveys) > 0:
-            rewards = []
-            for survey in self.scripted_surveys:
-                rewards.append(survey.calc_reward_function())
-            max_reward = np.max(rewards)
-            if max_reward > -np.inf:
-                good = np.min(np.where(rewards == np.max(rewards)))
-                result = self.scripted_surveys[good]()
-
-        return result
 
     def request_observation(self):
         """
         Ask the scheduler what it wants to observe next
+
+        Returns
+        -------
+        observation object (ra,dec,filter,rotangle)
         """
-
-        # If something is scheduled that can be done now:
-        result = self.check_scripted_surveys()
-
-        # Otherwise check the regular queue
-        if result is None:
-            if len(self.queue) == 0:
-                self._fill_queue()
-            result = self.queue.pop(0)
+        if len(self.queue) == 0:
+            self._fill_queue()
+        result = self.queue.pop(0)
         return result
 
     def _fill_queue(self):
         """
         Compute reward function for each survey and fill the observing queue with the
-        observations of highest reward.
+        observations from the highest reward survey.
         """
         rewards = []
         for survey in self.surveys:
-            rewards.append(survey.calc_reward_function())
+            rewards.append(np.max(survey.calc_reward_function()))
 
         # Take a min here, so the surveys will be executed in the order they are
         # entered if there is a tie.
         good = np.min(np.where(rewards == np.max(rewards)))
 
-        # Survey could return list of observations, or a survey
+        # Survey return list of observations
         result = self.surveys[good]()
-
-        if isinstance(result, list):
-            self.queue = result
-        else:
-            self.scripted_surveys.append(result)
-            self.queue.extend(self.check_scripted_surveys())
+        self.queue = result
 
 
 class Core_scheduler_cost(Core_scheduler):
