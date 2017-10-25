@@ -17,7 +17,7 @@ default_nside = set_default_nside()
 
 class BaseSurvey(object):
     def __init__(self, basis_functions, basis_weights, extra_features=None, smoothing_kernel=None,
-                 ignore_obs='dummy'):
+                 ignore_obs='dummy', nside=default_nside):
         """
         Parameters
         ----------
@@ -40,6 +40,7 @@ class BaseSurvey(object):
             raise ValueError('basis_functions and basis_weights must be same length.')
 
         # XXX-Check that input is a list of features
+        self.nside = nside
         self.ignore_obs = ignore_obs
         self.basis_functions = basis_functions
         self.basis_weights = basis_weights
@@ -98,7 +99,7 @@ class BaseSurvey(object):
         self.reward_checked = True
         if self._check_feasability():
             self.reward = 0
-            indx = np.arange(hp.nside2npix(default_nside))
+            indx = np.arange(hp.nside2npix(self.nside))
             # keep track of masked pixels
             mask = np.zeros(indx.size, dtype=bool)
             for bf, weight in zip(self.basis_functions, self.basis_weights):

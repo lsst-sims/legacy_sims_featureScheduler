@@ -61,7 +61,7 @@ class Zenith_mask_basis_function(Base_basis_function):
             self.survey_features = {}
         if condition_features is None:
             self.condition_features = {}
-            self.condition_features['altaz'] = features.AltAzFeature()
+            self.condition_features['altaz'] = features.AltAzFeature(nside=nside)
         self.minAlt = np.radians(minAlt)
         self.maxAlt = np.radians(maxAlt)
 
@@ -105,7 +105,7 @@ class Quadrant_basis_function(Base_basis_function):
         self.minAlt = np.radians(minAlt)
         self.maxAlt = np.radians(maxAlt)
         # Convert to half-width for convienence
-        self.azWidth = np.radians(azWidth /2.)
+        self.azWidth = np.radians(azWidth / 2.)
         self.nside = nside
 
     def __call__(self, indx=None):
@@ -146,7 +146,7 @@ class Quadrant_basis_function(Base_basis_function):
 
 
 class North_south_patch_basis_function(Base_basis_function):
-    """Similar to the Quadrant_basis_function, but make it easier to 
+    """Similar to the Quadrant_basis_function, but make it easier to
     pick up the region that passes through the zenith
     """
     def __init__(self, nside=default_nside, condition_features=None, minAlt=20., maxAlt=82.,
@@ -167,7 +167,7 @@ class North_south_patch_basis_function(Base_basis_function):
             self.survey_features = {}
         if condition_features is None:
             self.condition_features = {}
-            self.condition_features['altaz'] = features.AltAzFeature()
+            self.condition_features['altaz'] = features.AltAzFeature(nside=nside)
         self.minAlt = np.radians(minAlt)
         self.maxAlt = np.radians(maxAlt)
         # Convert to half-width for convienence
@@ -186,7 +186,7 @@ class North_south_patch_basis_function(Base_basis_function):
         result = np.empty(hp.nside2npix(self.nside), dtype=float)
         result.fill(hp.UNSEEN)
 
-        # Put in the region around the 
+        # Put in the region around the zenith
         result[np.where(self.zenith_map == 1)] = 1
 
         alt = self.condition_features['altaz'].feature['alt']
@@ -289,7 +289,7 @@ class Obs_ratio_basis_function(Base_basis_function):
             self.survey_features['N_obs_DD'] = features.N_obs_reference(ra=dd_ra, dec=dd_dec)
 
         super(Obs_ratio_basis_function, self).__init__(survey_features=self.survey_features,
-                                                          condition_features=condition_features)
+                                                       condition_features=condition_features)
 
     def __call__(self, **kwargs):
         result = 0.
@@ -365,21 +365,15 @@ class Visit_repeat_basis_function(Base_basis_function):
 
 
 class M5_diff_basis_function(Base_basis_function):
-    """Basis function based on the effective exposure time.
-    Look up the faintest a pixel gets, and compute the teff difference with current conditions
+    """Basis function based on the 5-sigma depth.
+    Look up the faintest a pixel gets, and compute the limiting depth difference with current conditions
     """
-    def __init__(self, survey_features=None, condition_features=None, filtername='r', nside=default_nside,
-                 teff=True, texp=30.):
+    def __init__(self, survey_features=None, condition_features=None, filtername='r',
+                 nside=default_nside):
         """
-        Parameters
-        ----------
-        teff : bool (True)
-            Convert the magnitude difference to an exposure time difference
         """
         self.filtername = filtername
         self.nside = nside
-        self.teff = teff
-        self.texp = texp
 
         # Need to look up the deepest m5 values for all the healpixels
         m5p = M5percentiles()
@@ -392,12 +386,42 @@ class M5_diff_basis_function(Base_basis_function):
 
     def __call__(self, indx=None):
         # No way to get the sign on this right the first time.
+        result = self.condition_features['M5Depth'].feature - self.dark_map
+        mask = np.where(self.condition_features['M5Depth'].feature.filled() == hp.UNSEEN)
+        result[mask] = hp.UNSEEN
+        return result
+
+
+class Teff_basis_function(Base_basis_function):
+    """Basis function based on the effective exposure time.
+    Look up the faintest a pixel gets, and compute the teff difference with current conditions
+    """
+    def __init__(self, survey_features=None, condition_features=None, filtername='r', nside=default_nside,
+                 texp=30.):
+        """
+        Parameters
+        ----------
+        texp : float (30.)
+            The exposure time to scale to (seconds).
+        """
+        self.filtername = filtername
+        self.nside = nside
+        self.texp = texp
+
+        # Need to look up the deepest m5 values for all the healpixels
+        m5p = M5percentiles()
+        self.dark_map = m5p.dark_map(filtername=filtername, nside_out=self.nside)
+        if condition_features is None:
+            self.condition_features = {}
+            self.condition_features['M5Depth'] = features.M5Depth(filtername=filtername, nside=nside)
+        super(Teff_basis_function, self).__init__(survey_features=survey_features,
+                                                  condition_features=self.condition_features)
+
+    def __call__(self, indx=None):
+        # No way to get the sign on this right the first time.
         mag_diff = self.condition_features['M5Depth'].feature - self.dark_map
         mask = np.where(self.condition_features['M5Depth'].feature.filled() == hp.UNSEEN)
-        if self.teff:
-            result = 10.**(0.8*mag_diff)*self.texp
-        else:
-            result = mag_diff
+        result = 10.**(0.8*mag_diff)*self.texp
         result[mask] = hp.UNSEEN
         return result
 
@@ -546,13 +570,14 @@ class Slewtime_basis_function(Base_basis_function):
     """Reward slews that take little time
     """
     def __init__(self, survey_features=None, condition_features=None,
-                 max_time=135., filtername='r'):
+                 max_time=135., filtername='r', nside=default_nside):
         self.maxtime = max_time
+        self.nside = nside
         self.filtername = filtername
         if condition_features is None:
             self.condition_features = {}
             self.condition_features['Current_filter'] = features.Current_filter()
-            self.condition_features['slewtime'] = features.SlewtimeFeature()
+            self.condition_features['slewtime'] = features.SlewtimeFeature(nside=nside)
         super(Slewtime_basis_function, self).__init__(survey_features=survey_features,
                                                       condition_features=self.condition_features)
 

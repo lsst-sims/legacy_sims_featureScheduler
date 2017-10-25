@@ -28,8 +28,10 @@ def set_default_nside(nside=None):
     if not hasattr(set_default_nside, 'nside'):
         if nside is None:
             nside = 64
-        set_default_nside.side = nside
-    return set_default_nside.side
+        set_default_nside.nside = nside
+    if nside is not None:
+        set_default_nside.nside = nside
+    return set_default_nside.nside
 
 
 def gnomonic_project_toxy(RA1, Dec1, RAcen, Deccen):
