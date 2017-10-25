@@ -8,7 +8,7 @@ from numpy.lib.recfunctions import append_fields
 if __name__ == '__main__':
     nside = fs.set_default_nside(nside=32)
 
-    survey_length = 365.25*10  # days
+    survey_length = 365.25  # days
     # Define what we want the final visit ratio map to look like
     years = np.round(survey_length/365.25)
     target_map = fs.standard_goals(nside=nside)
@@ -27,7 +27,7 @@ if __name__ == '__main__':
         bfs.append(fs.Slewtime_basis_function(filtername=filtername, nside=nside))
         bfs.append(fs.Strict_filter_basis_function(filtername=filtername))
 
-        weights = np.array([3.0, 0.4, 1., 2., 3.])
+        weights = np.array([3.0, 0.2, 1., 3., 3.])
         surveys.append(fs.Greedy_survey_fields(bfs, weights, block_size=1, filtername=filtername,
                                                dither=True, nside=nside))
 
