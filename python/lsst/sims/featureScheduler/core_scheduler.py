@@ -118,6 +118,10 @@ class Core_scheduler_parallel(Core_scheduler):
         # Set up the connection to the ipython engines
         self.rc = ipp.Client()
         self.dview = self.rc[:]
+        # Make sure the engines have numpy. Note, "as np" is ignored on engines.
+        with self.dview.sync_imports():
+            import numpy as np
+
         # Put one survey on each engine
         for i, survey in enumerate(surveys):
             self.rc[i].push({'survey': survey})
@@ -138,7 +142,7 @@ class Core_scheduler_parallel(Core_scheduler):
         Compute reward function for each survey and fill the observing queue with the
         observations from the highest reward survey.
         """
-        rewards = self.dview.apply_sync(lambda: np.max(calc_reward_function()))
+        rewards = self.dview.apply_sync(lambda: numpy.max(calc_reward_function()))
         # Take a min here, so the surveys will be executed in the order they are
         # entered if there is a tie.
         good = np.min(np.where(rewards == np.max(rewards)))
