@@ -242,9 +242,10 @@ class Scripted_survey(BaseSurvey):
         """
         # This is kind of a kludgy low-resolution way to convert ra,dec to alt,az, but should be really fast.
         # XXX--should I stick the healpixel value on when I set the script? Might be faster.
+        # XXX not sure this really needs to be it's own method
         hp_ids = _raDec2Hpid(self.nside, self.obs_wanted[indices]['RA'], self.obs_wanted[indices]['dec'])
-        alts = self.extra_features['altaz']['alt'][hp_ids]
-        in_range = np.where((alts < self.max_alt) & (alts > self.min_alts))
+        alts = self.extra_features['altaz'].feature['alt'][hp_ids]
+        in_range = np.where((alts < self.max_alt) & (alts > self.min_alt))
         indices = indices[in_range]
         return indices
 
@@ -723,7 +724,8 @@ class Pairs_survey_scripted(Scripted_survey):
     """Check if incoming observations will need a pair in 30 minutes. If so, add to the queue
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, filt_to_pair='griz',
-                 dt=40., ttol=10., reward_val=10., note='scripted', ignore_obs='ack'):
+                 dt=40., ttol=10., reward_val=10., note='scripted', ignore_obs='ack',
+                 min_alt=30., max_alt=85., nside=default_nside):
         """
         Parameters
         ----------
@@ -743,11 +745,13 @@ class Pairs_survey_scripted(Scripted_survey):
             self.extra_features['Pair_map'] = features.Pair_in_night(filtername=filt_to_pair)
             self.extra_features['current_mjd'] = features.Current_mjd()
             self.extra_features['current_filter'] = features.Current_filter()
+            self.extra_features['altaz'] = features.AltAzFeature(nside=nside)
 
         super(Pairs_survey_scripted, self).__init__(basis_functions=basis_functions,
                                                     basis_weights=basis_weights,
                                                     extra_features=self.extra_features,
-                                                    ignore_obs=ignore_obs)
+                                                    ignore_obs=ignore_obs, min_alt=min_alt,
+                                                    max_alt=max_alt, nside=nside)
         self.filt_to_pair = filt_to_pair
         # list to hold observations
         self.observing_queue = []
@@ -789,6 +793,15 @@ class Pairs_survey_scripted(Scripted_survey):
                 if len(self.observing_queue) == 0:
                     stale = False
 
+    def _check_alts(self, observation):
+        result = False
+        hp_ids = _raDec2Hpid(self.nside, observation['RA'], observation['dec'])
+        alts = self.extra_features['altaz'].feature['alt'][hp_ids]
+        in_range = np.where((alts < self.max_alt) & (alts > self.min_alt))[0]
+        if np.size(in_range) > 0:
+            result = True
+        return result
+
     def calc_reward_function(self):
         self._purge_queue()
         result = -np.inf
@@ -800,7 +813,9 @@ class Pairs_survey_scripted(Scripted_survey):
             early_enough = self.observing_queue[0]['mjd'] < (self.extra_features['current_mjd'].feature +
                                                              self.ttol)
             infilt = self.extra_features['current_filter'].feature in self.filt_to_pair
-            if late_enough & early_enough & infilt:
+            good_alt = self._check_alts(self.observing_queue[0])
+
+            if late_enough & early_enough & infilt & good_alt:
                 result = self.reward_val
                 self.reward = self.reward_val
         self.reward_checked = True
@@ -817,7 +832,8 @@ class Pairs_survey_scripted(Scripted_survey):
             early_enough = self.observing_queue[0]['mjd'] < (self.extra_features['current_mjd'].feature +
                                                              self.ttol)
             infilt = self.extra_features['current_filter'].feature in self.filt_to_pair
-            if late_enough & early_enough & infilt:
+            good_alt = self._check_alts(self.observing_queue[0])
+            if late_enough & early_enough & infilt & good_alt:
                 result = self.observing_queue.pop(0)
                 result['note'] = self.note
                 # Make sure we don't change filter if we don't have to.
