@@ -5,6 +5,8 @@ import matplotlib.pylab as plt
 import healpy as hp
 from numpy.lib.recfunctions import append_fields
 
+# Here, fast referes to carnking up the slewtime weight
+
 if __name__ == '__main__':
     nside = fs.set_default_nside(nside=32)
 
@@ -27,7 +29,7 @@ if __name__ == '__main__':
         bfs.append(fs.Slewtime_basis_function(filtername=filtername, nside=nside))
         bfs.append(fs.Strict_filter_basis_function(filtername=filtername))
 
-        weights = np.array([3.0, 0.4, 1., 2., 3.])
+        weights = np.array([3.0, 0.2, 1., 3., 3.])
         surveys.append(fs.Greedy_survey_fields(bfs, weights, block_size=1, filtername=filtername,
                                                dither=True, nside=nside))
 
@@ -54,7 +56,7 @@ if __name__ == '__main__':
     observatory = Speed_observatory(nside=nside)
     observatory, scheduler, observations = fs.sim_runner(observatory, scheduler,
                                                          survey_length=survey_length,
-                                                         filename='full_nside32_%i.db' % years,
+                                                         filename='full_nside32_fast_%i.db' % years,
                                                          delete_past=True)
 
-#  1962m28.940s = 32.7 hr
+# real    2068m46.272s

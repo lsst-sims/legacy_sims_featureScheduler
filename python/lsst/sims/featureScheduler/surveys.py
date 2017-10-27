@@ -10,7 +10,7 @@ from . import dithering
 import matplotlib.pylab as plt
 from scipy.spatial import cKDTree as kdtree
 from scipy.stats import binned_statistic
-from lsst.sims.featureScheduler.thomson import  xyz2thetaphi, thetaphi2xyz
+from lsst.sims.featureScheduler.thomson import xyz2thetaphi, thetaphi2xyz
 
 default_nside = set_default_nside()
 
@@ -175,12 +175,23 @@ class Scripted_survey(BaseSurvey):
     Take a set of scheduled observations and serve them up.
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None,
-                 smoothing_kernel=None, reward=1e6, ignore_obs='dummy'):
-        # All we need to know is the current time
+                 smoothing_kernel=None, reward=1e6, ignore_obs='dummy',
+                 nside=default_nside, min_alt=30., max_alt=85.):
+        """
+        min_alt : float (30.)
+            The minimum altitude to attempt to chace a pair to (degrees). Default of 30 = airmass of 2.
+        max_alt : float(85.)
+            The maximum altitude to attempt to chase a pair to (degrees).
+
+        """
+        self.min_alt = np.radians(min_alt)
+        self.max_alt = np.radians(max_alt)
+        self.nside = nside
         self.reward_val = reward
         self.reward = -reward
         if extra_features is None:
             extra_features = {'mjd': features.Current_mjd()}
+            extra_features['altaz'] = features.AltAzFeature(nside=nside)
         super(Scripted_survey, self).__init__(basis_functions=basis_functions,
                                               basis_weights=basis_weights,
                                               extra_features=extra_features,
@@ -226,11 +237,25 @@ class Scripted_survey(BaseSurvey):
             observation[key] = obs_row[key]
         return observation
 
+    def _check_alts(self, indices):
+        """Check the altitudes of potential matches.
+        """
+        # This is kind of a kludgy low-resolution way to convert ra,dec to alt,az, but should be really fast.
+        # XXX--should I stick the healpixel value on when I set the script? Might be faster.
+        hp_ids = _raDec2Hpid(self.nside, self.obs_wanted[indices]['RA'], self.obs_wanted[indices]['dec'])
+        alts = self.extra_features['altaz']['alt'][hp_ids]
+        in_range = np.where((alts < self.max_alt) & (alts > self.min_alts))
+        indices = indices[in_range]
+        return indices
+
     def _check_list(self):
         """Check to see if the current mjd is good
         """
         dt = self.obs_wanted['mjd'] - self.extra_features['mjd'].feature
+        # Check for matches with the right requested MJD
         matches = np.where((np.abs(dt) < self.mjd_tol) & (~self.obs_log))[0]
+        # Trim down to ones that are in the altitude limits
+        matches = self._check_alts(matches)
         if matches.size > 0:
             observation = self._slice2obs(self.obs_wanted[matches[0]])
         else:
@@ -267,7 +292,7 @@ class Scripted_survey(BaseSurvey):
         self.obs_wanted = np.concatenate((self.obs_wanted, observation))
         self.obs_log = np.concatenate((self.obs_log, np.zeros(1, dtype=bool)))
         # XXX--could do a sort on mjd here if I thought that was a good idea.
-        # XXX-note, there's currently nothing that flushes this, so adding 
+        # XXX-note, there's currently nothing that flushes this, so adding
         # observations can pile up nonstop. Should prob flush nightly or something
 
     def __call__(self):
