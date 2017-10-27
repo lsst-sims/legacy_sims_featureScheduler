@@ -57,3 +57,4 @@ if __name__ == '__main__':
                                                          filename='full_nside32_%i.db' % years,
                                                          delete_past=True)
 
+#  1962m28.940s = 32.7 hr

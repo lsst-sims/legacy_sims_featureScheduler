@@ -59,4 +59,4 @@ if __name__ == '__main__':
                                                          filename='full_nside32_fast_%i.db' % years,
                                                          delete_past=True)
 
-# 1 year timed out to 205min = 3.41
+# real    2068m46.272s
