@@ -799,6 +799,7 @@ class Pairs_survey_scripted(Scripted_survey):
                     del self.observing_queue[0]
                 else:
                     stale = False
+                # If we have deleted everything, break out of where
                 if len(self.observing_queue) == 0:
                     stale = False
 
@@ -821,6 +822,8 @@ class Pairs_survey_scripted(Scripted_survey):
         False if the proposed observation is masked
         """
         hpid = _raDec2Hpid(self.nside, observation['RA'], observation['dec'])[0]
+        # XXX--note this is using the sky brightness. Should make features/basis functions
+        # that explicitly mask moon and alt limits for clarity and use them here.
         skyval = self.extra_features['m5_depth'].feature[hpid]
         if skyval > 0:
             return True

@@ -118,6 +118,10 @@ class Core_scheduler_parallel(Core_scheduler):
         # Set up the connection to the ipython engines
         self.rc = ipp.Client()
         self.dview = self.rc[:]
+        # Check that we have enough engines for surveys
+        if len(self.surveys) > len(self.rc):
+            raise ValueError('Not enough ipcluster engines. Trying to run %i surveys on %i engines' % (len(self.surveys), len(self.rc)))
+
         # Make sure the engines have numpy. Note, "as np" is ignored on engines.
         with self.dview.sync_imports():
             import numpy as np
