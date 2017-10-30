@@ -118,6 +118,8 @@ class Core_scheduler_parallel(Core_scheduler):
         # Set up the connection to the ipython engines
         self.rc = ipp.Client()
         self.dview = self.rc[:]
+        # We always want blocking execution
+        self.dview.block=False
         # Check that we have enough engines for surveys
         if len(self.surveys) > len(self.rc):
             raise ValueError('Not enough ipcluster engines. Trying to run %i surveys on %i engines' % (len(self.surveys), len(self.rc)))
@@ -133,12 +135,15 @@ class Core_scheduler_parallel(Core_scheduler):
 
     def add_observation(self, observation):
         indx = self.pointing2hpindx(observation['RA'], observation['dec'])
-        result = self.dview.apply_sync(lambda x: survey.add_observation(x[0], indx=x[1]), (observation, indx))
+        self.dview.push({'indx': indx})
+        self.dview.push({'observation': observation})
+        result = self.dview.execute('survey.add_observation(observation, indx=indx)')
 
     def update_conditions(self, conditions):
         # Add the current queue and scheduled queue to the conditions
         conditions['queue'] = self.queue
-        result = self.dview.apple_sync(lambda x: survey.update_conditions(x), conditions)
+        self.dview.push({'conditions': conditions})
+        result = self.dview.execute('survey.update_conditions(conditions)')
         self.conditions = conditions
 
     def _fill_queue(self):
@@ -146,12 +151,14 @@ class Core_scheduler_parallel(Core_scheduler):
         Compute reward function for each survey and fill the observing queue with the
         observations from the highest reward survey.
         """
-        rewards = self.dview.apply_sync(lambda: numpy.max(calc_reward_function()))
+        self.dview.execute('reward = numpy.max(survey.calc_reward_function())')
+        rewards = self.dview['reward']
         # Take a min here, so the surveys will be executed in the order they are
         # entered if there is a tie.
-        good = np.min(np.where(rewards == np.max(rewards)))
+        good = int(np.min(np.where(rewards == np.max(rewards))))
         # Survey return list of observations
-        result = self.rc[good].apply_sync(lambda: survey())
+        result = self.rc[good].execute('result = survey()')
+        result = self.rc[good]['result']
         self.queue = result
 
 
