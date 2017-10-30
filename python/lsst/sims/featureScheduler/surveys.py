@@ -724,8 +724,8 @@ class Pairs_survey_scripted(Scripted_survey):
     """Check if incoming observations will need a pair in 30 minutes. If so, add to the queue
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, filt_to_pair='griz',
-                 dt=40., ttol=10., reward_val=10., note='scripted', ignore_obs='ack',
-                 min_alt=30., max_alt=85., nside=default_nside):
+                 dt=40., ttol=10., reward_val=100., note='scripted', ignore_obs='ack',
+                 min_alt=30., max_alt=85., lat=-30.2444, nside=default_nside):
         """
         Parameters
         ----------
@@ -736,6 +736,7 @@ class Pairs_survey_scripted(Scripted_survey):
         ttol : float (10.)
             The time tolerance when gathering a pair (minutes)
         """
+        self.lat = np.radians(lat)
         self.note = note
         self.reward_val = reward_val
         self.ttol = ttol/60./24.
@@ -746,6 +747,8 @@ class Pairs_survey_scripted(Scripted_survey):
             self.extra_features['current_mjd'] = features.Current_mjd()
             self.extra_features['current_filter'] = features.Current_filter()
             self.extra_features['altaz'] = features.AltAzFeature(nside=nside)
+            self.extra_features['current_lmst'] = features.Current_lmst()
+            self.extra_features['m5_depth'] = features.M5Depth(filtername='r', nside=nside)
 
         super(Pairs_survey_scripted, self).__init__(basis_functions=basis_functions,
                                                     basis_weights=basis_weights,
@@ -783,10 +786,16 @@ class Pairs_survey_scripted(Scripted_survey):
     def _purge_queue(self):
         """Remove any pair where it's too late to observe it
         """
+        # Assuming self.observing_queue is sorted by MJD.
         if len(self.observing_queue) > 0:
             stale = True
+            in_window = np.abs(self.observing_queue[0]['mjd']-self.extra_features['current_mjd'].feature) < self.ttol
             while stale:
-                if self.observing_queue[0]['mjd'] < (self.extra_features['current_mjd'].feature - self.dt - self.ttol):
+                # If the next observation in queue is past the window, drop it
+                if (self.observing_queue[0]['mjd'] < self.extra_features['current_mjd'].feature) & (~in_window):
+                    del self.observing_queue[0]
+                # If we are in the window, but masked, drop it
+                elif (in_window) & (~self._check_mask(self.observing_queue[0])):
                     del self.observing_queue[0]
                 else:
                     stale = False
@@ -795,12 +804,28 @@ class Pairs_survey_scripted(Scripted_survey):
 
     def _check_alts(self, observation):
         result = False
-        hp_ids = _raDec2Hpid(self.nside, observation['RA'], observation['dec'])
-        alts = self.extra_features['altaz'].feature['alt'][hp_ids]
-        in_range = np.where((alts < self.max_alt) & (alts > self.min_alt))[0]
+        # Just do a fast ra,dec to alt,az conversion. Can use LMST from a feature.
+
+        alt, az = stupidFast_RaDec2AltAz(observation['RA'], observation['dec'],
+                                         self.lat, None,
+                                         self.extra_features['current_mjd'].feature,
+                                         lmst=self.extra_features['current_lmst'].feature/12.*np.pi)
+        in_range = np.where((alt < self.max_alt) & (alt > self.min_alt))[0]
         if np.size(in_range) > 0:
             result = True
         return result
+
+    def _check_mask(self, observation):
+        """Check that the proposed observation is not currently masked for some reason on the sky map.
+        True if the observation is good to observe
+        False if the proposed observation is masked
+        """
+        hpid = _raDec2Hpid(self.nside, observation['RA'], observation['dec'])[0]
+        skyval = self.extra_features['m5_depth'].feature[hpid]
+        if skyval > 0:
+            return True
+        else:
+            return False
 
     def calc_reward_function(self):
         self._purge_queue()
@@ -808,14 +833,12 @@ class Pairs_survey_scripted(Scripted_survey):
         self.reward = result
         if len(self.observing_queue) > 0:
             # Check if the time is good and we are in a good filter.
-            late_enough = self.observing_queue[0]['mjd'] > (self.extra_features['current_mjd'].feature -
-                                                            self.ttol)
-            early_enough = self.observing_queue[0]['mjd'] < (self.extra_features['current_mjd'].feature +
-                                                             self.ttol)
+            in_window = np.abs(self.observing_queue[0]['mjd']-self.extra_features['current_mjd'].feature) < self.ttol
             infilt = self.extra_features['current_filter'].feature in self.filt_to_pair
-            good_alt = self._check_alts(self.observing_queue[0])
+            #good_alt = self._check_alts(self.observing_queue[0])
+            #mask_check = self._check_mask(self.observing_queue[0])
 
-            if late_enough & early_enough & infilt & good_alt:
+            if in_window & infilt:
                 result = self.reward_val
                 self.reward = self.reward_val
         self.reward_checked = True
@@ -827,13 +850,9 @@ class Pairs_survey_scripted(Scripted_survey):
         # Check for something I want a pair of
         result = []
         if len(self.observing_queue) > 0:
-            late_enough = self.observing_queue[0]['mjd'] > (self.extra_features['current_mjd'].feature -
-                                                            self.ttol)
-            early_enough = self.observing_queue[0]['mjd'] < (self.extra_features['current_mjd'].feature +
-                                                             self.ttol)
+            in_window = np.abs(self.observing_queue[0]['mjd']-self.extra_features['current_mjd'].feature) < self.ttol
             infilt = self.extra_features['current_filter'].feature in self.filt_to_pair
-            good_alt = self._check_alts(self.observing_queue[0])
-            if late_enough & early_enough & infilt & good_alt:
+            if in_window & infilt:
                 result = self.observing_queue.pop(0)
                 result['note'] = self.note
                 # Make sure we don't change filter if we don't have to.

@@ -359,6 +359,14 @@ class Current_mjd(BaseConditionsFeature):
         self.feature = conditions['mjd']
 
 
+class Current_lmst(BaseConditionsFeature):
+    def __init__(self):
+        self.feature = -1
+
+    def update_conditions(self, conditions):
+        self.feature = conditions['lmst']
+
+
 class Current_night(BaseConditionsFeature):
     def __init__(self):
         self.feature = -1
