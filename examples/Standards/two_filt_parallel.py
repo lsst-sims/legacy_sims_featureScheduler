@@ -3,21 +3,18 @@ import lsst.sims.featureScheduler as fs
 from lsst.sims.speedObservatory import Speed_observatory
 import healpy as hp
 
-# Run a single-filter r-band survey.
-# 5-sigma depth percentile
-# standard target map (WFD, NES, SCP, GP)
-# Slewtime
-# mask lots of off-meridian space
-# No pairs
-# Greedy selection of opsim fields
-
+# Try out the parallel stuff
+# start engines with:
+# ipcluster start -n 2
 
 if __name__ == "__main__":
 
-    survey_length = 365.25  # days
+    parallel = True
+
+    survey_length = 0.5 #365.25  # days
     # Define what we want the final visit ratio map to look like
     target_map = fs.standard_goals()
-    filters = ['u', 'g', 'r', 'i', 'z', 'y']
+    filters = ['g', 'r', 'i', 'z']
     surveys = []
 
     for filtername in filters:
@@ -35,11 +32,19 @@ if __name__ == "__main__":
         weights = np.array([3., 0.2, 1., 2., 3.])
         surveys.append(fs.Greedy_survey_fields(bfs, weights, block_size=1, filtername=filtername))
 
-    scheduler = fs.Core_scheduler(surveys)
+    if parallel:
+        scheduler = fs.Core_scheduler_parallel(surveys)
+    else:
+        scheduler = fs.Core_scheduler(surveys)
 
     observatory = Speed_observatory()
     observatory, scheduler, observations = fs.sim_runner(observatory, scheduler,
                                                          survey_length=survey_length,
-                                                         filename='six_filter.db',
+                                                         filename='two_filt_par.db',
                                                          delete_past=True)
-# real    560m57.716s
+
+
+# Time for single core, 0.5 days:
+# 0m54s
+# Time for 4 cores, 0.5 days:
+# 

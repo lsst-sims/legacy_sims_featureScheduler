@@ -11,6 +11,7 @@ if __name__ == '__main__':
     nside = fs.set_default_nside(nside=32)
 
     survey_length = 365.25*10  # days
+
     # Define what we want the final visit ratio map to look like
     years = np.round(survey_length/365.25)
     target_map = fs.standard_goals(nside=nside)
