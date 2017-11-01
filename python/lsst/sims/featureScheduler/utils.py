@@ -495,6 +495,8 @@ def observations2sqlite(observations, filename='observations.db', delete_past=Fa
     filename : str (observations.db)
         Filename to save sqlite3 to. Value of None will skip
         writing out file.
+    delete_past : bool (False)
+        If True, overwrite any previous file with the same fileaname.
 
     Returns
     -------
@@ -519,7 +521,7 @@ def observations2sqlite(observations, filename='observations.db', delete_past=Fa
     if filename is not None:
         df = pd.DataFrame(observations)
         con = db.connect(filename)
-        df.to_sql('SummaryAllProps', con, index_label='observationId')
+        df.to_sql('observations', con, index_label='observationId')
     return observations
 
 
@@ -528,7 +530,7 @@ def sqlite2observations(filename='observations.db'):
     Restore a databse of observations.
     """
     con = db.connect(filename)
-    df = pd.read_sql('select * from SummaryAllProps;', con)
+    df = pd.read_sql('select * from observations;', con)
     return df
 
 
