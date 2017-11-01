@@ -30,9 +30,6 @@ class Base_basis_function(object):
         else:
             self.condition_features = condition_features
 
-        # Mutually exclusive sky regions
-        self.SCP_indx, self.NES_indx, self.GP_indx, self.WFD_indx = utils.mutually_exclusive_regions()
-
     def add_observation(self, observation, indx=None):
         for feature in self.survey_features:
             self.survey_features[feature].add_observation(observation, indx=indx)
@@ -272,48 +269,6 @@ class Target_map_basis_function(Base_basis_function):
         return result
 
 
-class Obs_ratio_basis_function(Base_basis_function):
-    """
-    Mostly for deep_drilling fields
-    """
-    def __init__(self, survey_features=None, condition_features=None, ref_ra=0., ref_dec=-30.,
-                 dd_ra=0., dd_dec=0., target_ratio=100., softening=1.):
-        """
-        blah
-        """
-        self.target_ratio = target_ratio
-        self.softening = softening
-        if survey_features is None:
-            self.survey_features = {}
-            self.survey_features['N_obs_reference'] = features.N_obs_reference(ra=ref_ra, dec=ref_dec)
-            self.survey_features['N_obs_DD'] = features.N_obs_reference(ra=dd_ra, dec=dd_dec)
-
-        super(Obs_ratio_basis_function, self).__init__(survey_features=self.survey_features,
-                                                       condition_features=condition_features)
-
-    def __call__(self, **kwargs):
-        result = 0.
-        N_DD = self.survey_features['N_obs_DD'].feature
-        N_ref = self.survey_features['N_obs']
-        result += self.target_ratio - (N_DD/(N_ref+self.softening))
-
-        return result
-
-
-class Spot_observable_basis_function(Base_basis_function):
-    """
-    Decide if a spot on the sky is good to go
-    """
-    def __init__(self, condition_features=None, ra=0., dec=0., lst_min=-1., lst_max=0.5):
-        # Need to add sun distance requirements, moon dist requirements, seeing requirements, etc.
-
-        # Need feature of LST.
-        pass
-
-    def __call__(self, **kwargs):
-        pass
-
-
 class Visit_repeat_basis_function(Base_basis_function):
     """
     Basis function to reward re-visiting an area on the sky. Looking for Solar System objects.
@@ -366,7 +321,7 @@ class Visit_repeat_basis_function(Base_basis_function):
 
 class M5_diff_basis_function(Base_basis_function):
     """Basis function based on the 5-sigma depth.
-    Look up the faintest a pixel gets, and compute the limiting depth difference with current conditions
+    Look up the best a pixel gets, and compute the limiting depth difference with current conditions
     """
     def __init__(self, survey_features=None, condition_features=None, filtername='r',
                  nside=default_nside):
@@ -423,31 +378,6 @@ class Teff_basis_function(Base_basis_function):
         mask = np.where(self.condition_features['M5Depth'].feature.filled() == hp.UNSEEN)
         result = 10.**(0.8*mag_diff)*self.texp
         result[mask] = hp.UNSEEN
-        return result
-
-
-class Depth_percentile_basis_function(Base_basis_function):
-    """
-    Return a healpix map of the reward function based on 5-sigma limiting depth percentile
-    """
-    def __init__(self, survey_features=None, condition_features=None, filtername='r', nside=default_nside):
-        self.filtername = filtername
-        self.nside = nside
-        if condition_features is None:
-            self.condition_features = {}
-            self.condition_features['M5Depth_percentile'] = features.M5Depth_percentile(filtername=filtername,
-                                                                                        nside=nside)
-        super(Depth_percentile_basis_function, self).__init__(survey_features=survey_features,
-                                                              condition_features=self.condition_features)
-
-    def __call__(self, indx=None):
-
-        result = np.empty(hp.nside2npix(self.nside), dtype=float)
-        result.fill(hp.UNSEEN)
-        if indx is None:
-            indx = np.arange(result.size)
-        result[indx] = self.condition_features['M5Depth_percentile'].feature[indx]
-        result = ma.masked_values(result, hp.UNSEEN)
         return result
 
 
@@ -594,44 +524,3 @@ class Slewtime_basis_function(Base_basis_function):
             else:
                 result = (self.maxtime - self.condition_features['slewtime'].feature)/self.maxtime
         return result
-
-
-class Slew_distance_basis_function(Base_basis_function):
-    """
-    Reward shorter slews.
-    XXX-this should really be slew time, so need to break into alt and az distances.
-    """
-    def __init__(self, survey_features=None, condition_features=None, nside=default_nside,
-                 inner_ring = 3., inner_penalty=-1., slope=-.01):
-        """
-        Parameters
-        ----------
-        inner_ring : float (3.)
-            add a penalty inside this region (degrees).
-        """
-        if condition_features is None:
-            self.condition_features = {}
-            self.condition_features['Current_pointing'] = features.Current_pointing()
-        else:
-            self.condition_features = condition_features
-        super(Slew_distance_basis_function, self).__init__(survey_features=survey_features,
-                                                           condition_features=self.condition_features)
-        self.nside = nside
-        self.inner_ring = np.radians(inner_ring)
-        self.inner_penalty = inner_penalty
-        self.slope = np.radians(slope)
-        # Make the RA, Dec map
-        indx = np.arange(hp.nside2npix(self.nside))
-        self.ra, self.dec = _hpid2RaDec(nside, indx)
-
-    def __call__(self, indx=None):
-        if self.condition_features['Current_pointing'].feature['RA'] is None:
-            return 0
-        ang_distance = haversine(self.ra, self.dec, self.condition_features['Current_pointing'].feature['RA'],
-                                 self.condition_features['Current_pointing'].feature['dec'])
-        result = 1.+ang_distance * self.slope
-        result[np.where(ang_distance <= self.inner_ring)] = self.inner_penalty
-        return result
-
-
-

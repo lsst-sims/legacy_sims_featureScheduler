@@ -67,7 +67,7 @@ class AltAzFeature(BaseConditionsFeature):
 
 
 class N_obs_count(BaseSurveyFeature):
-    """Count the number of observations. Good for normalizing across filters
+    """Count the number of observations.
     """
     def __init__(self, filtername=None):
         self.feature = 0
@@ -243,25 +243,6 @@ class Pair_in_night(BaseSurveyFeature):
             self.feature[indx[matches]] += 1
 
 
-class N_obs_reference(BaseSurveyFeature):
-    """
-    Since we want to track everything by fraction, we need to declare a special spot on the sky as the
-    reference point and track it independently
-    """
-    def __init__(self, filtername='r', ra=0., dec=-30., nside=default_nside):
-        self.feature = 0
-        self.filtername = filtername
-        self.ra = ra
-        self.dec = dec
-        # look up the healpix id of the point
-        self.indx = raDec2Hpid(nside, ra, dec)
-
-    def add_observation(self, observation, indx=None):
-        if self.indx in indx:
-            if observation['filter'][0] == self.filtername:
-                self.feature += 1
-
-
 class SlewtimeFeature(BaseConditionsFeature):
     """Grab the slewtime map from the observatory.
     """
@@ -277,8 +258,7 @@ class SlewtimeFeature(BaseConditionsFeature):
 
 class M5Depth(BaseConditionsFeature):
     """
-    Given current conditions, return the 5-sigma limiting depth percentile map
-    for a filter.
+    Given current conditions, return the 5-sigma limiting depth for a filter.
     """
     def __init__(self, filtername='r', expTime=30., nside=default_nside):
         self.filtername = filtername
@@ -302,40 +282,6 @@ class M5Depth(BaseConditionsFeature):
                                conditions['FWHMeff_%s' % self.filtername][good],
                                self.expTime, conditions['airmass'][good])
         self.feature = m5
-        self.feature[m5_mask] = hp.UNSEEN
-        self.feature = hp.ud_grade(self.feature, nside_out=self.nside)
-        self.feature = ma.masked_values(self.feature, hp.UNSEEN)
-
-
-class M5Depth_percentile(BaseConditionsFeature):
-    """
-    Given current conditions, return the 5-sigma limiting depth percentile map
-    for a filter.
-    """
-    def __init__(self, filtername='r', expTime=30., nside=default_nside):
-        self.filtername = filtername
-        self.feature = None
-        self.expTime = expTime
-        self.nside = nside
-        self.m5p = M5percentiles()
-
-    def update_conditions(self, conditions):
-        """
-        Parameters
-        ----------
-        conditions : dict
-            Keys should include airmass, sky_brightness, seeing.
-        """
-        m5 = np.empty(conditions['skybrightness'][self.filtername].size)
-        m5.fill(hp.UNSEEN)
-        m5_mask = np.zeros(m5.size, dtype=bool)
-        m5_mask[np.where(conditions['skybrightness'][self.filtername] == hp.UNSEEN)] = True
-        good = np.where(conditions['skybrightness'][self.filtername] != hp.UNSEEN)
-        m5[good] = m5_flat_sed(self.filtername, conditions['skybrightness'][self.filtername][good],
-                               conditions['FWHMeff_%s' % self.filtername][good],
-                               self.expTime, conditions['airmass'][good])
-
-        self.feature = self.m5p.m5map2percentile(m5, filtername=self.filtername)
         self.feature[m5_mask] = hp.UNSEEN
         self.feature = hp.ud_grade(self.feature, nside_out=self.nside)
         self.feature = ma.masked_values(self.feature, hp.UNSEEN)
@@ -378,12 +324,6 @@ class Current_night(BaseConditionsFeature):
 class Current_pointing(BaseConditionsFeature):
     def update_conditions(self, conditions):
         self.feature = {'RA': conditions['RA'], 'dec': conditions['dec']}
-
-
-class DD_feasability(BaseConditionsFeature):
-    """
-    For the DD fields, we can pre-compute hour-angles for MJD, then do a lookup to check visibility
-    """
 
 
 class Time_to_set(BaseConditionsFeature):
@@ -566,7 +506,8 @@ class Time_observable_in_night(BaseConditionsFeature):
 
 class Rotator_angle(BaseSurveyFeature):
     """
-    Track what rotation angles things are observed with
+    Track what rotation angles things are observed with.
+    XXX-under construction
     """
     def __init__(self, filtername='r', binsize=10., nside=default_nside):
         """

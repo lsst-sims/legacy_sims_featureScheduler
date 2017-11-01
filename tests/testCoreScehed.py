@@ -11,10 +11,10 @@ class TestCoreSched(unittest.TestCase):
         target_map = fs.standard_goals()['r']
 
         bfs = []
-        bfs.append(fs.Depth_percentile_basis_function())
+        bfs.append(fs.M5_diff_basis_function())
         bfs.append(fs.Target_map_basis_function(target_map=target_map))
         weights = np.array([1., 1])
-        survey = fs.Simple_greedy_survey(bfs, weights)
+        survey = fs.Simple_greedy_survey_fields(bfs, weights)
         scheduler = fs.Core_scheduler([survey])
 
         observatory = Speed_observatory()
