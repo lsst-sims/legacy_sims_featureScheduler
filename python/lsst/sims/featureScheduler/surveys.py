@@ -538,44 +538,6 @@ class Smooth_area_survey(BaseSurvey):
         return observations
 
 
-class Simple_greedy_survey(BaseSurvey):
-    """
-    Just point at the healpixel with the heighest reward.
-    XXX-NOTE THIS IS A BAD IDEA!
-    XXX-Healpixels are NOT "evenly distributed" on the sky. Using them as pointing centers
-    will result in features in the coadded depth power spectrum (I think).
-    """
-    def __init__(self, basis_functions, basis_weights, extra_features=None, filtername='r',
-                 block_size=1, smoothing_kernel=None):
-        super(Simple_greedy_survey, self).__init__(basis_functions=basis_functions,
-                                                   basis_weights=basis_weights,
-                                                   extra_features=extra_features,
-                                                   smoothing_kernel=smoothing_kernel)
-        self.filtername = filtername
-
-    def __call__(self):
-        """
-        Just point at the highest reward healpix
-        """
-        if not self.reward_checked:
-            self.reward = self.calc_reward_function()
-        # Just find the best one
-        highest_reward = self.reward[np.where(~self.reward.mask)].max()
-        best = [np.min(np.where(self.reward == highest_reward)[0])]
-        # Could move this up to be a lookup rather than call every time.
-        ra, dec = _hpid2RaDec(default_nside, best)
-        observations = []
-        for i, indx in enumerate(best):
-            obs = empty_observation()
-            obs['RA'] = ra[i]
-            obs['dec'] = dec[i]
-            obs['filter'] = self.filtername
-            obs['nexp'] = 2.
-            obs['exptime'] = 30.
-            observations.append(obs)
-        return observations
-
-
 class Simple_greedy_survey_fields(BaseSurvey):
     """
     Chop down the reward function to just look at unmasked opsim field locations.
@@ -838,8 +800,6 @@ class Pairs_survey_scripted(Scripted_survey):
             # Check if the time is good and we are in a good filter.
             in_window = np.abs(self.observing_queue[0]['mjd']-self.extra_features['current_mjd'].feature) < self.ttol
             infilt = self.extra_features['current_filter'].feature in self.filt_to_pair
-            #good_alt = self._check_alts(self.observing_queue[0])
-            #mask_check = self._check_mask(self.observing_queue[0])
 
             if in_window & infilt:
                 result = self.reward_val

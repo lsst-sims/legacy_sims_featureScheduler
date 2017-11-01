@@ -7,7 +7,7 @@ default_nside = set_default_nside()
 
 
 class Core_scheduler(object):
-    """Core scheduler that takes completed obsrevations and observatory status and can supply requested observations.
+    """Core scheduler that takes completed obsrevations and observatory status and requests observations.
     """
 
     def __init__(self, surveys, nside=default_nside, camera='LSST'):
@@ -160,32 +160,4 @@ class Core_scheduler_parallel(Core_scheduler):
         result = self.rc[good].execute('result = survey()')
         result = self.rc[good]['result']
         self.queue = result
-
-
-class Core_scheduler_cost(Core_scheduler):
-    """
-    Because some people really like minimizing cost rather than optimizing reward.
-    """
-
-    def _fill_queue(self):
-        """
-        Compute cost function for each survey and fill the observing queue with the
-        observations of lowest cost.
-        """
-        costs = []
-        for survey in self.surveys:
-            costs.append(survey.calc_cost_function())
-
-        # Take a min here, so the surveys will be executed in the order they are
-        # entered if there is a tie.
-        good = np.min(np.where(costs == np.min(costs)))
-
-        # Survey could return list of observations, or a survey
-        result = self.surveys[good]()
-
-        if isinstance(result, list):
-            self.queue = result
-        else:
-            self.scripted_surveys.append(result)
-            self.queue.extend(self.check_scripted_surveys())
 

@@ -12,13 +12,14 @@ import os
 import sys
 from lsst.utils import getPackageDir
 import sqlite3 as db
-from lsst.sims.utils import haversine
 import matplotlib.pylab as plt
 
 
 def set_default_nside(nside=None):
     """
     Utility function to set a default nside value across the scheduler.
+
+    XXX-there might be a better way to do this.
 
     Parameters
     ----------
@@ -583,6 +584,7 @@ def stupidFast_altAz2RaDec(alt, az, lat, lon, mjd):
     ra[raover] -= 2.*np.pi
     return ra, dec
 
+
 def stupidFast_RaDec2AltAz(ra, dec, lat, lon, mjd, lmst=None):
     """
     Convert Ra,Dec to Altitude and Azimuth.
@@ -626,235 +628,3 @@ def stupidFast_RaDec2AltAz(ra, dec, lat, lon, mjd, lmst=None):
     signflip = np.where(np.sin(ha) > 0)
     az[signflip] = 2.*np.pi-az[signflip]
     return alt, az
-
-
-def sort_pointings(observations, order_first='azimuth'):
-    """
-    Try to sort a group of pointings to be executed in a good order
-
-    Parameters
-    ----------
-    observations : list of observation objects
-        The observations we want to sort.
-    order : str (azimuth)
-        Sort by azimuth or altitude first.
-
-    Returns
-    -------
-    The observations sorted in a good order
-    """
-
-    obs_array = np.array(observations)[:, 0]
-    # compute alt-az and raster in the correct way.
-    # Maybe take some windows. 
-    # Note that the az rotation is a problem near zenith. 
-    # does a greedy walk do a good job?
-    return
-
-
-def max_altitude(dec, lsst_lat):
-    """
-    evaluates the maximum altitude that fields can ever achieve.
-
-    Parameters
-    ----------
-    dec : numpy.array
-        declination of the fields
-    lsst_lat  : float
-        Lattitude of the LSST site
-
-    Returns
-    -------
-    max_alt : numpy.array
-        Maximum altitudes. Radians.
-    """
-    max_alt = lsst_lat + np.pi/2. - dec
-    max_alt = np.where(dec >= lsst_lat, lsst_lat + np.pi/2. - dec, -lsst_lat + np.pi/2. + dec)
-    return max_alt
-
-
-def alt_allocation(alt, dec, lsst_lat, filter_name='r'):
-    """
-    Allocates altitude to each filter, so there is a best normalized altitude for each filter
-
-    Parameters
-    ----------
-    alt : numpy.array
-        altitude of the fields
-    dec : numpy.array
-        declination of the fields (to find the maximum altitude they can ever reach)
-    lsst_lat  : float
-        Lattitude of the LSST site
-
-    Returns
-    -------
-    alt_alloc : numpy.array
-
-    """
-    max_alt = max_altitude(dec, lsst_lat)
-    normalized_alt = alt/max_alt
-    if filter_name is None:
-        filter_name = 'r'
-    index = ['u', 'g', 'r', 'i', 'z', 'y'].index(filter_name)
-    traps = np.array([0.95,0.85,0.75,0.65,0.55,0.45])
-
-    alt_alloc = 10. * np.square(normalized_alt - traps[index])
-    alt_alloc[normalized_alt >= .95] = .95
-    alt_alloc[normalized_alt <= .45] = .45
-    return alt_alloc
-
-
-def hour_angle(ra, lsst_lon, mjd, lmst=None):
-    """
-    evaluates the hour angle of fields.
-
-    Parameters
-    ----------
-    ra : numpy.array
-        RA, in radians.
-    lsst_lon  : float
-        Longitude of the LSST site
-
-    Returns
-    -------
-    ha : numpy.array
-        Hour angle ranging from -12 to 12. Hours.
-    """
-    if lmst is None:
-        lmst, last = calcLmstLast(mjd, lsst_lon)
-    ha = lmst-ra * 12./np.pi
-    ha = np.where(ha < -12, ha + 24, ha)
-    ha = np.where(ha > 12, ha - 24, ha)
-    return ha
-
-
-def mutually_exclusive_regions(nside=set_default_nside()):
-    indx = np.arange(hp.nside2npix(nside))
-    all_true = np.ones(np.size(indx), dtype=bool)
-    SCP_indx = is_SCP(nside)
-    NES_indx = is_NES(nside)
-    GP_indx = is_GP(nside)
-
-    all_butWFD = SCP_indx + NES_indx + GP_indx
-    GP_NES = GP_indx + NES_indx
-
-    WFD_indx = all_true - all_butWFD
-    SCP_indx = SCP_indx - GP_NES*SCP_indx - NES_indx*SCP_indx
-    NES_indx = NES_indx - GP_indx*SCP_indx
-
-    return indx[SCP_indx], indx[NES_indx], indx[GP_indx], indx[WFD_indx]
-
-
-def is_WFD(nside=set_default_nside(), dec_min=-60., dec_max=0.):
-    """
-    Define a wide fast deep region. Return a healpix map with WFD pixels as true.
-    """
-    ra, dec = ra_dec_hp_map(nside=nside)
-    WFD_indx = ((dec >= np.radians(dec_min)) & (dec <= np.radians(dec_max)))
-    return WFD_indx
-
-
-def is_SCP(nside=set_default_nside(), dec_max=-60.):
-    """
-    Define the South Celestial Pole region. Return a healpix map with SCP pixels as true.
-    """
-    ra, dec = ra_dec_hp_map(nside=nside)
-    result = np.zeros(ra.size)
-    good = np.where(dec < np.radians(dec_max))
-    result[good] += 1
-
-    SCP_indx = (result == 1)
-    return SCP_indx
-
-
-def is_NES(nside=set_default_nside(), width=15, dec_min=0., fill_gap=True):
-    """
-    Define the North Ecliptic Spur region. Return a healpix map with NES pixels as true.
-    """
-    ra, dec = ra_dec_hp_map(nside=nside)
-    result = np.zeros(ra.size)
-    coord = SkyCoord(ra=ra*u.rad, dec=dec*u.rad)
-    eclip_lat = coord.barycentrictrueecliptic.lat.radian
-    good = np.where((np.abs(eclip_lat) <= np.radians(width)) & (dec > dec_min))
-    result[good] += 1
-
-    if fill_gap:
-        good = np.where((dec > np.radians(dec_min)) & (ra < np.radians(180)) &
-                        (dec < np.radians(width)))
-        result[good] = 1
-
-    NES_indx = (result == 1)
-
-    return NES_indx
-
-
-def is_GP(nside=set_default_nside(), center_width=10., end_width=4.,
-          gal_long1=70., gal_long2=290.):
-    """
-    Define the Galactic Plane region. Return a healpix map with GP pixels as true.
-    """
-    ra, dec = ra_dec_hp_map(nside=nside)
-    result = np.zeros(ra.size)
-    coord = SkyCoord(ra=ra*u.rad, dec=dec*u.rad)
-    g_long, g_lat = coord.galactic.l.radian, coord.galactic.b.radian
-    good = np.where((g_long < np.radians(gal_long1)) & (np.abs(g_lat) < np.radians(center_width)))
-    result[good] += 1
-    good = np.where((g_long > np.radians(gal_long2)) & (np.abs(g_lat) < np.radians(center_width)))
-    result[good] += 1
-    # Add tapers
-    slope = -(np.radians(center_width)-np.radians(end_width))/(np.radians(gal_long1))
-    lat_limit = slope*g_long+np.radians(center_width)
-    outside = np.where((g_long < np.radians(gal_long1)) & (np.abs(g_lat) > np.abs(lat_limit)))
-    result[outside] = 0
-    slope = (np.radians(center_width)-np.radians(end_width))/(np.radians(360. - gal_long2))
-    b = np.radians(center_width)-np.radians(360.)*slope
-    lat_limit = slope*g_long+b
-    outside = np.where((g_long > np.radians(gal_long2)) & (np.abs(g_lat) > np.abs(lat_limit)))
-    result[outside] = 0
-
-    GP_inx = (result == 1)
-
-    return GP_inx
-
-
-def RaDec2region(ra, dec, nside):
-
-    result = np.array(np.size(ra), dtype = str)
-    SCP_indx, NES_indx, GP_indx, WFD_indx = mutually_exclusive_regions(nside)
-    indices = _raDec2Hpid(ra, dec, nside)
-
-    SCP = np.searchsorted(indices, SCP_indx)
-    NES = np.searchsorted(indices, NES_indx)
-    GP = np.searchsorted(indices, GP_indx)
-    WFD = np.searchsorted(indices, WFD_indx)
-
-    result[SCP] = 'SCP'
-    result[NES] = 'NES'
-    result[GP] = 'GP'
-    result[WFD] = 'WFD'
-
-    return result
-
-
-def simple_performance_measure(observations, preferences):
-    # survey length
-    t_decimals = np.modf(observations['mjd'])[0]
-    t_dec_shifted = np.roll(t_decimals, -1)
-    deltas = t_dec_shifted - t_decimals
-    interval = np.sum(deltas[deltas > 0]) * 24.*60.*60.
-    # avg of slew times
-    avg_slew = np.sum(observations['slewtime'])/interval
-    # performance
-    return preferences[0] * (1-avg_slew)
-
-
-def slew_time(ra0, dec0, ra1, dec1):
-    ang_speed = np.radians(5.)
-    """
-    Compute slew time to new ra, dec position
-    """
-    dist = haversine(ra1, dec1, ra0, dec0)
-    time = dist / ang_speed
-    return time
-
-
