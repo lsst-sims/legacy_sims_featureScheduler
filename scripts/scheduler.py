@@ -5,7 +5,7 @@ import sys
 
 from lsst.ts.scheduler import Main
 from lsst.ts.scheduler.setup import configure_logging, create_parser, generate_logfile
-from lsst.sims.featureScheduler import Driver
+from lsst.sims.featureScheduler.driver import Driver
 
 def main(args):
     logfilename = generate_logfile()
