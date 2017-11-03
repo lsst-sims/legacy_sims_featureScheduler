@@ -4,6 +4,7 @@ from builtins import object
 import numpy as np
 import healpy as hp
 import pandas as pd
+import logging
 from scipy.spatial import cKDTree as kdtree
 from lsst.sims.utils import _hpid2RaDec, calcLmstLast, _raDec2Hpid
 from astropy.coordinates import SkyCoord
@@ -435,7 +436,8 @@ def generate_goal_map(nside=None, NES_fraction = .3, WFD_fraction = 1., SCP_frac
                       NES_width=15., NES_dec_min=0., NES_fill=True,
                       SCP_dec_max=-60., gp_center_width=10.,
                       gp_end_width=4., gp_long1=70., gp_long2=290.,
-                      wfd_dec_min=-60., wfd_dec_max=0.):
+                      wfd_dec_min=-60., wfd_dec_max=0.,
+                      generate_id_map=False):
     """
     Handy function that will put together a target map in the proper order.
     """
@@ -444,20 +446,56 @@ def generate_goal_map(nside=None, NES_fraction = .3, WFD_fraction = 1., SCP_frac
 
     # Note, some regions overlap, thus order regions are added is important.
     result = np.zeros(hp.nside2npix(nside), dtype=float)
+    id_map = np.zeros(hp.nside2npix(nside), dtype=int)
+    pid = 1
+    prop_name_dict = dict()
+
+    nes = NES_healpixels(nside=nside, width=NES_width,
+                         dec_min=NES_dec_min, fill_gap=NES_fill)
+    result[np.where(nes != 0)] = 0
+    result += NES_fraction*nes
+
+    if NES_fraction > 0.:
+        id_map[np.where(nes != 0)] = 1
+        pid += 1
+        prop_name_dict[1] = 'NorthEclipticSpur'
+
     result += NES_fraction*NES_healpixels(nside=nside, width=NES_width,
                                           dec_min=NES_dec_min, fill_gap=NES_fill)
+
     wfd = WFD_healpixels(nside=nside, dec_min=wfd_dec_min, dec_max=wfd_dec_max)
     result[np.where(wfd != 0)] = 0
     result += WFD_fraction*wfd
+
+    if WFD_fraction > 0.:
+        id_map[np.where(wfd != 0)] = 3
+        pid += 1
+        prop_name_dict[3] = 'WideFastDeep'
+
     scp = SCP_healpixels(nside=nside, dec_max=SCP_dec_max)
     result[np.where(scp != 0)] = 0
     result += SCP_fraction*scp
+
+    if SCP_fraction > 0.:
+        id_map[np.where(scp != 0)] = 2
+        pid += 1
+        prop_name_dict[2] = 'SouthCelestialPole'
+
     gp = galactic_plane_healpixels(nside=nside, center_width=gp_center_width,
                                    end_width=gp_end_width, gal_long1=gp_long1,
                                    gal_long2=gp_long2)
     result[np.where(gp != 0)] = 0
     result += GP_fraction*gp
-    return result
+
+    if GP_fraction > 0.:
+        id_map[np.where(gp != 0)] = 4
+        pid += 1
+        prop_name_dict[4] = 'GalacticPlane'
+
+    if generate_id_map:
+        return result, id_map, prop_name_dict
+    else:
+        return result
 
 
 def standard_goals(nside=None):
