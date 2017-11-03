@@ -11,6 +11,7 @@ import matplotlib.pylab as plt
 from scipy.spatial import cKDTree as kdtree
 from scipy.stats import binned_statistic
 from lsst.sims.featureScheduler.thomson import xyz2thetaphi, thetaphi2xyz
+import copy
 
 default_nside = set_default_nside()
 
@@ -680,6 +681,95 @@ class Greedy_survey_fields(BaseSurvey):
             obs['exptime'] = 30.
             observations.append(obs)
         return observations
+
+
+class Deep_drilling_survey(BaseSurvey):
+    """A survey class for running deep drilling fields
+    """
+    def __init__(self, RA, dec, extra_features=None, sequence='gggrrriii', exptime=30.,
+                 nexp=2, ignore_obs='dummy', survey_name='DD', fraction_limit=0.01,
+                 lmst_limits=[-1.5, 1.], reward_value=100., moon_up=True):
+        """
+        Parameters
+        ----------
+        RA : float
+            The RA of the field (degrees)
+        dec : float
+            The dec of the field to observe (degrees)
+        extra_features : list of feature objects (None)
+            The features to track, will construct automatically if None.
+        sequence : list of observation objects or str (gggrrriii)
+            The sequence of observations to take
+        survey_name : str (DD)
+            The name to give this survey so it can be tracked
+        fraction_limit : float (0.01)
+            Do not request observations if the fraction of observations from this
+            survey exceeds the frac_limit.
+        lmst_limits : list of floats ([-1.5, 1.])
+            The range of acceptable LMSTs to start a sequence (hours)
+        reward_value : float (100)
+            The reward value to report if it is able to start (unitless)
+        moon_up : bool (True)
+            Require the moon to be up (True) or down (False).
+        """
+        # No basis functions for this survey
+        self.basis_functions = []
+        self.ra = np.radians(RA)
+        self.dec = np.radian(dec)
+        self.ignore_obs = ignore_obs
+        self.survey_name = survey_name
+        self.lmst_limits = lmst_limits
+        self.reward_value = reward_value
+
+        if extra_features is None:
+            extra_features = {}
+            # The total number of observations
+
+            # The number of observations for this survey
+
+            # The current LMST
+
+            # Moon altitude
+
+            # Time to next moon rise
+
+            # Time to twilight
+
+        if type(sequence) == str:
+            self.sequence = []
+            for filtername in sequence:
+                obs = empty_observation()
+                obs['filter'] = filtername
+                obs['exptime'] = exptime
+                obs['RA'] = self.ra
+                obs['dec'] = self.dec
+                obs['nexp'] = nexp
+                self.sequence.append(obs)
+
+    def _check_feasability(self):
+        result = True
+        # Check if the LMST is in range
+
+        # Check moon alt
+
+        # Check if the moon will come up
+
+
+
+    def calc_reward_function(self):
+        result = -np.inf
+        if self._check_feasability():
+            result = self.reward_value
+        return result
+
+    def __call__(self):
+        result = []
+        if self._check_feasability():
+            result = copy.deepcopy(self.sequence)
+        return result
+
+   
+
 
 
 class Pairs_survey_scripted(Scripted_survey):
