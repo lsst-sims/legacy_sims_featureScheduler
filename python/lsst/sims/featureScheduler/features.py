@@ -82,6 +82,28 @@ class N_obs_count(BaseSurveyFeature):
                 self.feature += 1
 
 
+class N_obs_survey(BaseSurveyFeature):
+    """Count the number of observations.
+    """
+    def __init__(self, note=None):
+        """
+        Parameters
+        ----------
+        note : str (None)
+            Only count observations that have str in their note field
+        """
+        self.feature = 0
+        self.note = note
+
+    def add_observation(self, observation, indx=None):
+        # Track all observations
+        if self.note is None:
+            self.feature += 1
+        else:
+            if self.note in observation['note']:
+                self.feature += 1
+
+
 class Last_observation(BaseSurveyFeature):
     """When was the last observation
     """
@@ -310,6 +332,8 @@ class Current_lmst(BaseConditionsFeature):
         self.feature = -1
 
     def update_conditions(self, conditions):
+        # XXX--mother fuck, what are the units?
+        # Pretty sure this is in hours
         self.feature = conditions['lmst']
 
 

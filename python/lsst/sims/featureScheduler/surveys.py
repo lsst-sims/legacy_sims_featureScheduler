@@ -683,12 +683,21 @@ class Greedy_survey_fields(BaseSurvey):
         return observations
 
 
+def wrapHA(HA):
+    """Make sure Hour Angle is between 0 and 24 hours """
+    while HA > 24.:
+        HA -= 24.
+    while HA < 0:
+        HA += 24.
+    return HA
+
+
 class Deep_drilling_survey(BaseSurvey):
     """A survey class for running deep drilling fields
     """
     def __init__(self, RA, dec, extra_features=None, sequence='gggrrriii', exptime=30.,
                  nexp=2, ignore_obs='dummy', survey_name='DD', fraction_limit=0.01,
-                 lmst_limits=[-1.5, 1.], reward_value=100., moon_up=True):
+                 HA_limits=[-1.5, 1.], reward_value=100., moon_up=True, readtime=2.):
         """
         Parameters
         ----------
@@ -705,35 +714,45 @@ class Deep_drilling_survey(BaseSurvey):
         fraction_limit : float (0.01)
             Do not request observations if the fraction of observations from this
             survey exceeds the frac_limit.
-        lmst_limits : list of floats ([-1.5, 1.])
-            The range of acceptable LMSTs to start a sequence (hours)
+        HA_limits : list of floats ([-1.5, 1.])
+            The range of acceptable hour angles to start a sequence (hours)
         reward_value : float (100)
             The reward value to report if it is able to start (unitless)
         moon_up : bool (True)
             Require the moon to be up (True) or down (False).
+        readtime : float (2.)
+            Readout time for computing approximate time of observing the sequence. (seconds)
         """
         # No basis functions for this survey
         self.basis_functions = []
         self.ra = np.radians(RA)
-        self.dec = np.radian(dec)
+        self.ra_hours = RA/360.*24.
+        self.dec = np.radians(dec)
         self.ignore_obs = ignore_obs
         self.survey_name = survey_name
-        self.lmst_limits = lmst_limits
+        self.HA_limits = HA_limits
         self.reward_value = reward_value
+        self.moon_up = moon_up
+        self.fraction_limit = fraction_limit
 
         if extra_features is None:
-            extra_features = {}
+            self.extra_features = {}
             # The total number of observations
-
+            self.extra_features['N_obs'] = features.N_obs_count()
             # The number of observations for this survey
-
-            # The current LMST
-
+            self.extra_features['N_obs_self'] = features.N_obs_survey(note=survey_name)
+            # The current LMST. Pretty sure in hours
+            self.extra_features['lmst'] = features.Current_lmst()
             # Moon altitude
-
+            self.extra_features['sun_moon_alt'] = features.Sun_moon_alts()
             # Time to next moon rise
 
             # Time to twilight
+
+            # last time this survey was observed (in case we want to force a cadence)
+
+        else:
+            self.extra_features = extra_features
 
         if type(sequence) == str:
             self.sequence = []
@@ -744,17 +763,44 @@ class Deep_drilling_survey(BaseSurvey):
                 obs['RA'] = self.ra
                 obs['dec'] = self.dec
                 obs['nexp'] = nexp
+                obs['note'] = survey_name
                 self.sequence.append(obs)
+
+        self.approx_time = np.sum([o['exptime']+readtime*o['nexp'] for o in obs])
 
     def _check_feasability(self):
         result = True
         # Check if the LMST is in range
+        HA = self.extra_features['lmst'].feature - self.ra_hours
+        HA = wrapHA(HA)
 
+
+        if (HA < np.min(self.HA_limits)) | (HA > np.max(self.HA_limits)):
+            return False
         # Check moon alt
+        if self.moon_up:
+            if self.extra_features['sun_moon_alt'].feature['moonAlt'] < 0.:
+                return False
+        else:
+            if self.extra_features['sun_moon_alt'].feature['moonAlt'] > 0.:
+                return False
+
+        # Make sure twilight hasn't started
+        if self.extra_features['sun_moon_alt'].feature['sunAlt'] > np.radians(-18.):
+            return False
 
         # Check if the moon will come up
+        # XXX--to do. I don't think I
 
+        # Check if twilight starts soon
+        # XXX--to do
 
+        # Check if we are over-observed
+        if self.extra_features['N_obs_self'].feature/float(self.extra_features['N_obs'].feature) > self.fraction_limit:
+            return False
+
+        # If we made it this far, good to go
+        return result
 
     def calc_reward_function(self):
         result = -np.inf
@@ -766,10 +812,8 @@ class Deep_drilling_survey(BaseSurvey):
         result = []
         if self._check_feasability():
             result = copy.deepcopy(self.sequence)
+            # Note, could check here what the current filter is and re-order the result
         return result
-
-   
-
 
 
 class Pairs_survey_scripted(Scripted_survey):
