@@ -123,12 +123,15 @@ class Driver(object):
         self.cloud = 0.0
         self.seeing = 0.0
 
+
+        self.configure_survey(None)
+
     def configure_survey(self, survey_conf_file):
 
-        prop_conf_path = os.path.dirname(survey_conf_file)
-        confdict = read_conf_file(survey_conf_file)
+        # prop_conf_path = os.path.dirname(survey_conf_file)
+        # confdict = read_conf_file(survey_conf_file)
 
-        self.configure_duration(confdict["survey"]["survey_duration"])
+        # self.configure_duration(confdict["survey"]["survey_duration"])
 
         self.propid_counter = 0
         self.science_proposal_list = []
