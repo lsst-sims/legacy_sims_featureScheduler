@@ -695,6 +695,8 @@ def wrapHA(HA):
 class Deep_drilling_survey(BaseSurvey):
     """A survey class for running deep drilling fields
     """
+    # XXX--maybe should switch back to taking basis functions and weights to
+    # make it easier to put in masks for moon and limits for seeing?
     def __init__(self, RA, dec, extra_features=None, sequence='rgizy',
                  nvis=[20, 10, 20, 26, 20],
                  exptime=30.,
