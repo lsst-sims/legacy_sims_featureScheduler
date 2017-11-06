@@ -5,7 +5,6 @@ import numpy.ma as ma
 import healpy as hp
 from . import utils
 from lsst.sims.utils import m5_flat_sed, raDec2Hpid, Site, _hpid2RaDec
-from lsst.sims.skybrightness_pre import M5percentiles
 
 
 default_nside = utils.set_default_nside()
@@ -19,6 +18,7 @@ class BaseFeature(object):
         # self.feature should be a float, bool, or healpix size numpy array, or numpy masked array
         self.feature = None
 
+    # XXX--Should this actually be a __get__? 
     def __call__(self):
         return self.feature
 

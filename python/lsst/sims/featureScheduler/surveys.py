@@ -699,7 +699,7 @@ class Deep_drilling_survey(BaseSurvey):
                  nvis=[20, 10, 20, 26, 20],
                  exptime=30.,
                  nexp=2, ignore_obs='dummy', survey_name='DD', fraction_limit=0.01,
-                 HA_limits=[-1.5, 1.], reward_value=100., moon_up=True, readtime=2.):
+                 HA_limits=[-1.5, 1.], reward_value=101., moon_up=True, readtime=2.):
         """
         Parameters
         ----------
@@ -720,10 +720,10 @@ class Deep_drilling_survey(BaseSurvey):
             survey exceeds the frac_limit.
         HA_limits : list of floats ([-1.5, 1.])
             The range of acceptable hour angles to start a sequence (hours)
-        reward_value : float (100)
-            The reward value to report if it is able to start (unitless)
+        reward_value : float (101.)
+            The reward value to report if it is able to start (unitless).
         moon_up : bool (True)
-            Require the moon to be up (True) or down (False).
+            Require the moon to be up (True) or down (False) or either (None).
         readtime : float (2.)
             Readout time for computing approximate time of observing the sequence. (seconds)
         """
@@ -781,28 +781,28 @@ class Deep_drilling_survey(BaseSurvey):
         HA = self.extra_features['lmst'].feature - self.ra_hours
         HA = wrapHA(HA)
 
-
         if (HA < np.min(self.HA_limits)) | (HA > np.max(self.HA_limits)):
             return False
         # Check moon alt
-        if self.moon_up:
-            if self.extra_features['sun_moon_alt'].feature['moonAlt'] < 0.:
-                return False
-        else:
-            if self.extra_features['sun_moon_alt'].feature['moonAlt'] > 0.:
-                return False
+        if self.moon_up is not None:
+            if self.moon_up:
+                if self.extra_features['sun_moon_alt'].feature['moonAlt'] < 0.:
+                    return False
+            else:
+                if self.extra_features['sun_moon_alt'].feature['moonAlt'] > 0.:
+                    return False
 
         # Make sure twilight hasn't started
         if self.extra_features['sun_moon_alt'].feature['sunAlt'] > np.radians(-18.):
             return False
 
         # Check if the moon will come up
-        # XXX--to do. I don't think I
+        # XXX--to do. Compare next moonrise time to self.apporox time
 
         # Check if twilight starts soon
-        # XXX--to do
+        # XXX--to do.
 
-        # Check if we are over-observed
+        # Check if we are over-observed relative to the fraction of time alloted.
         if self.extra_features['N_obs_self'].feature/float(self.extra_features['N_obs'].feature) > self.fraction_limit:
             return False
 
