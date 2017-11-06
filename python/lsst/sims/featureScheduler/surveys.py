@@ -695,7 +695,9 @@ def wrapHA(HA):
 class Deep_drilling_survey(BaseSurvey):
     """A survey class for running deep drilling fields
     """
-    def __init__(self, RA, dec, extra_features=None, sequence='gggrrriii', exptime=30.,
+    def __init__(self, RA, dec, extra_features=None, sequence='rgizy',
+                 nvis=[20, 10, 20, 26, 20],
+                 exptime=30.,
                  nexp=2, ignore_obs='dummy', survey_name='DD', fraction_limit=0.01,
                  HA_limits=[-1.5, 1.], reward_value=100., moon_up=True, readtime=2.):
         """
@@ -707,8 +709,10 @@ class Deep_drilling_survey(BaseSurvey):
             The dec of the field to observe (degrees)
         extra_features : list of feature objects (None)
             The features to track, will construct automatically if None.
-        sequence : list of observation objects or str (gggrrriii)
-            The sequence of observations to take
+        sequence : list of observation objects or str (rgizy)
+            The sequence of observations to take. Can be a string of list of obs objects.
+        nvis : list of ints
+            The number of visits in each filter. Should be same length as sequence.
         survey_name : str (DD)
             The name to give this survey so it can be tracked
         fraction_limit : float (0.01)
@@ -756,15 +760,18 @@ class Deep_drilling_survey(BaseSurvey):
 
         if type(sequence) == str:
             self.sequence = []
-            for filtername in sequence:
-                obs = empty_observation()
-                obs['filter'] = filtername
-                obs['exptime'] = exptime
-                obs['RA'] = self.ra
-                obs['dec'] = self.dec
-                obs['nexp'] = nexp
-                obs['note'] = survey_name
-                self.sequence.append(obs)
+            for num, filtername in zip(nvis, sequence):
+                for j in range(num):
+                    obs = empty_observation()
+                    obs['filter'] = filtername
+                    obs['exptime'] = exptime
+                    obs['RA'] = self.ra
+                    obs['dec'] = self.dec
+                    obs['nexp'] = nexp
+                    obs['note'] = survey_name
+                    self.sequence.append(obs)
+        else:
+            self.sequence = sequence
 
         self.approx_time = np.sum([o['exptime']+readtime*o['nexp'] for o in obs])
 
