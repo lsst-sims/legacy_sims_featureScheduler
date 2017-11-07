@@ -107,12 +107,17 @@ class N_obs_survey(BaseSurveyFeature):
 class Last_observation(BaseSurveyFeature):
     """When was the last observation
     """
-    def __init__(self):
+    def __init__(self, survey_name=None):
+        self.survey_name = survey_name
         # Start out with an empty observation
         self.feature = utils.empty_observation()
 
     def add_observation(self, observation, indx=None):
-        self.feature = observation
+        if self.survey_name is not None:
+            if self.survey_name in observation['note']:
+                self.feature = observation
+        else:
+            self.feature = observation
 
 
 class N_observations(BaseSurveyFeature):

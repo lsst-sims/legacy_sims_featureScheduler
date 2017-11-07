@@ -34,7 +34,9 @@ class BaseSurvey(object):
             Smooth the reward function with a Gaussian FWHM (degrees)
         ignore_obs : str ('dummy')
             If an incoming observation has this string in the note, ignore it. Handy if
-            one wants to ignore DD fields or observations requested by self.
+            one wants to ignore DD fields or observations requested by self. Take note,
+            if a survey is called 'mysurvey23', setting ignore_obs to 'mysurvey2' will
+            ignore it because 'mysurvey2' is a substring of 'mysurvey23'.
         """
 
         if len(basis_functions) != np.size(basis_weights):
@@ -62,7 +64,8 @@ class BaseSurvey(object):
         self.reward_count = 0
 
     def add_observation(self, observation, **kwargs):
-        if self.ignore_obs not in observation['note']:
+        # ugh, I think here I have to assume observation is an array and not a dict.
+        if self.ignore_obs not in observation['note'][0]:
             for bf in self.basis_functions:
                 bf.add_observation(observation, **kwargs)
             for feature in self.extra_features:
@@ -701,7 +704,8 @@ class Deep_drilling_survey(BaseSurvey):
                  nvis=[20, 10, 20, 26, 20],
                  exptime=30.,
                  nexp=2, ignore_obs='dummy', survey_name='DD', fraction_limit=0.01,
-                 HA_limits=[-1.5, 1.], reward_value=101., moon_up=True, readtime=2.):
+                 HA_limits=[-1.5, 1.], reward_value=101., moon_up=True, readtime=2.,
+                 day_space=2.):
         """
         Parameters
         ----------
@@ -728,6 +732,8 @@ class Deep_drilling_survey(BaseSurvey):
             Require the moon to be up (True) or down (False) or either (None).
         readtime : float (2.)
             Readout time for computing approximate time of observing the sequence. (seconds)
+        day_space : float (2.)
+            Demand this much spacing between trying to launch a sequence (days)
         """
         # No basis functions for this survey
         self.basis_functions = []
@@ -740,6 +746,7 @@ class Deep_drilling_survey(BaseSurvey):
         self.reward_value = reward_value
         self.moon_up = moon_up
         self.fraction_limit = fraction_limit
+        self.day_space = day_space
 
         if extra_features is None:
             self.extra_features = {}
@@ -756,6 +763,9 @@ class Deep_drilling_survey(BaseSurvey):
             # Time to twilight
 
             # last time this survey was observed (in case we want to force a cadence)
+            self.extra_features['last_obs_self'] = features.Last_observation(survey_name=self.survey_name)
+            # Current MJD
+            self.extra_features['mjd'] = features.Current_mjd()
 
         else:
             self.extra_features = extra_features
@@ -798,6 +808,10 @@ class Deep_drilling_survey(BaseSurvey):
         if self.extra_features['sun_moon_alt'].feature['sunAlt'] > np.radians(-18.):
             return False
 
+        # Check that it's been long enough since last sequence
+        if self.extra_features['mjd'].feature - self.extra_features['last_obs_self'].feature['mjd'] < self.day_space:
+            return False
+
         # Check if the moon will come up
         # XXX--to do. Compare next moonrise time to self.apporox time
 
@@ -807,7 +821,6 @@ class Deep_drilling_survey(BaseSurvey):
         # Check if we are over-observed relative to the fraction of time alloted.
         if self.extra_features['N_obs_self'].feature/float(self.extra_features['N_obs'].feature) > self.fraction_limit:
             return False
-
         # If we made it this far, good to go
         return result
 
@@ -878,7 +891,8 @@ class Pairs_survey_scripted(Scripted_survey):
             self.reward_checked = False
 
             # Check if this observation needs a pair
-            # XXX--only supporting single pairs now. Just start up another scripted survey to grap triples, etc?
+            # XXX--only supporting single pairs now. Just start up another scripted survey
+            # to grab triples, etc? Or add two observations to queue at a time?
             keys_to_copy = ['RA', 'dec', 'filter', 'exptime', 'nexp']
             if (observation['filter'][0] in self.filt_to_pair) & (np.max(self.extra_features['Pair_map'].feature[indx]) < 1):
                 obs_to_queue = empty_observation()
@@ -966,3 +980,54 @@ class Pairs_survey_scripted(Scripted_survey):
                 result = [result]
         return result
 
+
+def generate_dd_surveys():
+    """Utility to return a list of standard deep drilling field surveys.
+
+    XXX-Someone double check that I got the coordinates right!
+
+    XXX--I suspect that scheduling the DD fields all simultaneously ahead of
+    time would be a better strategy, so this should become obsolete.
+    """
+
+    surveys = []
+    # ELAIS S1
+    surveys.append(Deep_drilling_survey(9.45, -44., sequence='rgizy',
+                                        nvis=[20, 10, 20, 26, 20],
+                                        survey_name='DD:ELAISS1', reward_value=101, moon_up=None,
+                                        fraction_limit=0.0185))
+    surveys.append(Deep_drilling_survey(9.45, -44., sequence='u',
+                                        nvis=[7],
+                                        survey_name='DD:u,ELAISS1', reward_value=101, moon_up=False,
+                                        fraction_limit=0.0015))
+
+    # XMM-LSS
+    surveys.append(Deep_drilling_survey(35.708333, -4-45/60., sequence='rgizy',
+                                        nvis=[20, 10, 20, 26, 20],
+                                        survey_name='DD:XMM-LSS', reward_value=101, moon_up=None,
+                                        fraction_limit=0.0185))
+    surveys.append(Deep_drilling_survey(35.708333, -4-45/60., sequence='u',
+                                        nvis=[7],
+                                        survey_name='DD:u,XMM-LSS', reward_value=101, moon_up=False,
+                                        fraction_limit=0.0015))
+
+    # Extended Chandra Deep Field South
+    surveys.append(Deep_drilling_survey(53.125, -28.-6/60., sequence='rgizy',
+                                        nvis=[20, 10, 20, 26, 20],
+                                        survey_name='DD:ECDFS', reward_value=101, moon_up=None,
+                                        fraction_limit=0.0185))
+    surveys.append(Deep_drilling_survey(53.125, -28.-6/60., sequence='u',
+                                        nvis=[7],
+                                        survey_name='DD:u,ECDFS', reward_value=101, moon_up=False,
+                                        fraction_limit=0.0015))
+    # COSMOS
+    surveys.append(Deep_drilling_survey(150.1, 2.+10./60.+55/3600., sequence='rgizy',
+                                        nvis=[20, 10, 20, 26, 20],
+                                        survey_name='DD:COSMOS', reward_value=101, moon_up=None,
+                                        fraction_limit=0.0185))
+    surveys.append(Deep_drilling_survey(150.1, 2.+10./60.+55/3600., sequence='u',
+                                        nvis=[7],
+                                        survey_name='DD:u,COSMOS', reward_value=101, moon_up=False,
+                                        fraction_limit=0.0015))
+
+    return surveys
