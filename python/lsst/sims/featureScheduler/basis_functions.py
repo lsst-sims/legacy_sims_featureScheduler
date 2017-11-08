@@ -49,7 +49,7 @@ class Zenith_mask_basis_function(Base_basis_function):
     """Just remove the area near zenith
     """
     def __init__(self, nside=default_nside, condition_features=None,
-                 survey_features=None, minAlt=20., maxAlt=82., penalty=0.):
+                 survey_features=None, min_alt=20., max_alt=82., penalty=0.):
         """
         """
         self.penalty = penalty
@@ -59,16 +59,16 @@ class Zenith_mask_basis_function(Base_basis_function):
         if condition_features is None:
             self.condition_features = {}
             self.condition_features['altaz'] = features.AltAzFeature(nside=nside)
-        self.minAlt = np.radians(minAlt)
-        self.maxAlt = np.radians(maxAlt)
+        self.min_alt = np.radians(min_alt)
+        self.max_alt = np.radians(max_alt)
 
     def __call__(self, indx=None):
 
         result = np.empty(hp.nside2npix(self.nside), dtype=float)
         result.fill(self.penalty)
         alt = self.condition_features['altaz'].feature['alt']
-        alt_limit = np.where((alt > self.minAlt) &
-                             (alt < self.maxAlt))[0]
+        alt_limit = np.where((alt > self.min_alt) &
+                             (alt < self.max_alt))[0]
         result[alt_limit] = 1
         return result
 
