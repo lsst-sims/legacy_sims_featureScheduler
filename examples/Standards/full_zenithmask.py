@@ -22,7 +22,7 @@ if __name__ == '__main__':
         bfs.append(fs.Slewtime_basis_function(filtername=filtername))
         bfs.append(fs.Strict_filter_basis_function(filtername=filtername))
 
-        weights = np.array([2.0, 0.2, 1., 2., 3.])
+        weights = np.array([5.0, 0.2, 1., 2., 3.])
         surveys.append(fs.Greedy_survey_fields(bfs, weights, block_size=1, filtername=filtername,
                                                dither=True, ignore_obs='DD'))
 

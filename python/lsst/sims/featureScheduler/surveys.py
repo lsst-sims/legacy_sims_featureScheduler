@@ -856,7 +856,6 @@ class Pairs_survey_scripted(Scripted_survey):
         """
         self.lat = np.radians(lat)
         self.note = note
-        self.reward_val = reward_val
         self.ttol = ttol/60./24.
         self.dt = dt/60./24.  # To days
         if extra_features is None:
@@ -873,6 +872,7 @@ class Pairs_survey_scripted(Scripted_survey):
                                                     extra_features=self.extra_features,
                                                     ignore_obs=ignore_obs, min_alt=min_alt,
                                                     max_alt=max_alt, nside=nside)
+        self.reward_val = reward_val
         self.filt_to_pair = filt_to_pair
         # list to hold observations
         self.observing_queue = []
