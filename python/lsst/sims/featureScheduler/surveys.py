@@ -65,7 +65,7 @@ class BaseSurvey(object):
 
     def add_observation(self, observation, **kwargs):
         # ugh, I think here I have to assume observation is an array and not a dict.
-        if self.ignore_obs not in observation['note'][0]:
+        if self.ignore_obs not in observation['note']:
             for bf in self.basis_functions:
                 bf.add_observation(observation, **kwargs)
             for feature in self.extra_features:

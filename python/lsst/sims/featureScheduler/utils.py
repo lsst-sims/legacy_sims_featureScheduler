@@ -462,7 +462,7 @@ def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3., filenam
 
         attempted_obs = observatory.attempt_observe(desired_obs)
         if attempted_obs is not None:
-            scheduler.add_observation(attempted_obs)
+            scheduler.add_observation(attempted_obs[0])
             observations.append(attempted_obs)
         else:
             scheduler.flush_queue()
@@ -545,6 +545,25 @@ def inrange(inval, minimum=-1., maximum=1.):
     above = np.where(inval > maximum)
     inval[above] = maximum
     return inval
+
+
+def warm_start(scheduler, observations, mjd_key='mjd'):
+    """Replay a list of observations into the scheduler
+
+    Parameters
+    ----------
+    scheduler : scheduler object
+
+    observations : np.array
+        An array of observation (e.g., from sqlite2observations)
+    """
+
+    # Check that observations are in order
+    observations.sort(order=mjd_key)
+    for observation in observations:
+        scheduler.add_observation(observation)
+
+    return scheduler
 
 
 def stupidFast_altAz2RaDec(alt, az, lat, lon, mjd):
