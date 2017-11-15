@@ -5,7 +5,7 @@ import sys
 
 from lsst.ts.scheduler import Main
 from lsst.ts.scheduler.setup import configure_logging, create_parser, generate_logfile
-from lsst.sims.featureScheduler.driver import Driver
+from lsst.sims.featureScheduler.driver import FeatureSchedulerDriver
 
 def main(args):
     logfilename = generate_logfile()
@@ -14,7 +14,7 @@ def main(args):
     logger = logging.getLogger("scheduler")
     logger.info("logfile=%s" % logfilename)
 
-    scheduler = Main(args, Driver())
+    scheduler = Main(args, FeatureSchedulerDriver())
     scheduler.sal_init()
     with open('.scheduler_{}'.format(args.log_port), 'w'):
         pass
