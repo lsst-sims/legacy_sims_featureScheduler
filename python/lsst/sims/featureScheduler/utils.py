@@ -532,7 +532,19 @@ def sqlite2observations(filename='observations.db'):
     """
     con = db.connect(filename)
     df = pd.read_sql('select * from observations;', con)
-    return df
+    blank = empty_observation()
+    result = df.as_matrix()
+    final_result = np.empty(result.shape[0], dtype=blank.dtype)
+
+    # XXX-ugh, there has to be a better way.
+    for i, key in enumerate(blank.dtype.names):
+        final_result[key] = result[:, i+1]
+
+    to_convert = ['RA', 'dec', 'alt', 'az', 'rotSkyPos', 'moonAlt', 'sunAlt']
+    for key in to_convert:
+        final_result[key] = np.radians(final_result[key])
+
+    return final_result
 
 
 def inrange(inval, minimum=-1., maximum=1.):
