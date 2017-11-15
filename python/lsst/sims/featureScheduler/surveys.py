@@ -65,7 +65,7 @@ class BaseSurvey(object):
 
     def add_observation(self, observation, **kwargs):
         # ugh, I think here I have to assume observation is an array and not a dict.
-        if self.ignore_obs not in observation['note'][0]:
+        if self.ignore_obs not in observation['note']:
             for bf in self.basis_functions:
                 bf.add_observation(observation, **kwargs)
             for feature in self.extra_features:
@@ -842,7 +842,7 @@ class Pairs_survey_scripted(Scripted_survey):
     """Check if incoming observations will need a pair in 30 minutes. If so, add to the queue
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, filt_to_pair='griz',
-                 dt=40., ttol=10., reward_val=100., note='scripted', ignore_obs='ack',
+                 dt=40., ttol=10., reward_val=101., note='scripted', ignore_obs='ack',
                  min_alt=30., max_alt=85., lat=-30.2444, nside=default_nside):
         """
         Parameters
@@ -856,7 +856,6 @@ class Pairs_survey_scripted(Scripted_survey):
         """
         self.lat = np.radians(lat)
         self.note = note
-        self.reward_val = reward_val
         self.ttol = ttol/60./24.
         self.dt = dt/60./24.  # To days
         if extra_features is None:
@@ -873,6 +872,7 @@ class Pairs_survey_scripted(Scripted_survey):
                                                     extra_features=self.extra_features,
                                                     ignore_obs=ignore_obs, min_alt=min_alt,
                                                     max_alt=max_alt, nside=nside)
+        self.reward_val = reward_val
         self.filt_to_pair = filt_to_pair
         # list to hold observations
         self.observing_queue = []
@@ -994,40 +994,41 @@ def generate_dd_surveys():
     # ELAIS S1
     surveys.append(Deep_drilling_survey(9.45, -44., sequence='rgizy',
                                         nvis=[20, 10, 20, 26, 20],
-                                        survey_name='DD:ELAISS1', reward_value=101, moon_up=None,
+                                        survey_name='DD:ELAISS1', reward_value=100, moon_up=None,
                                         fraction_limit=0.0185))
     surveys.append(Deep_drilling_survey(9.45, -44., sequence='u',
                                         nvis=[7],
-                                        survey_name='DD:u,ELAISS1', reward_value=101, moon_up=False,
+                                        survey_name='DD:u,ELAISS1', reward_value=100, moon_up=False,
                                         fraction_limit=0.0015))
 
     # XMM-LSS
     surveys.append(Deep_drilling_survey(35.708333, -4-45/60., sequence='rgizy',
                                         nvis=[20, 10, 20, 26, 20],
-                                        survey_name='DD:XMM-LSS', reward_value=101, moon_up=None,
+                                        survey_name='DD:XMM-LSS', reward_value=100, moon_up=None,
                                         fraction_limit=0.0185))
     surveys.append(Deep_drilling_survey(35.708333, -4-45/60., sequence='u',
                                         nvis=[7],
-                                        survey_name='DD:u,XMM-LSS', reward_value=101, moon_up=False,
+                                        survey_name='DD:u,XMM-LSS', reward_value=100, moon_up=False,
                                         fraction_limit=0.0015))
 
     # Extended Chandra Deep Field South
+    # XXX--Note, this one can pass near zenith. Should go back and add better planning on this.
     surveys.append(Deep_drilling_survey(53.125, -28.-6/60., sequence='rgizy',
                                         nvis=[20, 10, 20, 26, 20],
-                                        survey_name='DD:ECDFS', reward_value=101, moon_up=None,
-                                        fraction_limit=0.0185))
+                                        survey_name='DD:ECDFS', reward_value=100, moon_up=None,
+                                        fraction_limit=0.0185, HA_limits=[0.2, 1.]))
     surveys.append(Deep_drilling_survey(53.125, -28.-6/60., sequence='u',
                                         nvis=[7],
-                                        survey_name='DD:u,ECDFS', reward_value=101, moon_up=False,
-                                        fraction_limit=0.0015))
+                                        survey_name='DD:u,ECDFS', reward_value=100, moon_up=False,
+                                        fraction_limit=0.0015, HA_limits=[0.2, 1.]))
     # COSMOS
     surveys.append(Deep_drilling_survey(150.1, 2.+10./60.+55/3600., sequence='rgizy',
                                         nvis=[20, 10, 20, 26, 20],
-                                        survey_name='DD:COSMOS', reward_value=101, moon_up=None,
+                                        survey_name='DD:COSMOS', reward_value=100, moon_up=None,
                                         fraction_limit=0.0185))
     surveys.append(Deep_drilling_survey(150.1, 2.+10./60.+55/3600., sequence='u',
                                         nvis=[7],
-                                        survey_name='DD:u,COSMOS', reward_value=101, moon_up=False,
+                                        survey_name='DD:u,COSMOS', reward_value=100, moon_up=False,
                                         fraction_limit=0.0015))
 
     return surveys

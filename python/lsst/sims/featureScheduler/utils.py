@@ -462,7 +462,7 @@ def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3., filenam
 
         attempted_obs = observatory.attempt_observe(desired_obs)
         if attempted_obs is not None:
-            scheduler.add_observation(attempted_obs)
+            scheduler.add_observation(attempted_obs[0])
             observations.append(attempted_obs)
         else:
             scheduler.flush_queue()
@@ -532,7 +532,19 @@ def sqlite2observations(filename='observations.db'):
     """
     con = db.connect(filename)
     df = pd.read_sql('select * from observations;', con)
-    return df
+    blank = empty_observation()
+    result = df.as_matrix()
+    final_result = np.empty(result.shape[0], dtype=blank.dtype)
+
+    # XXX-ugh, there has to be a better way.
+    for i, key in enumerate(blank.dtype.names):
+        final_result[key] = result[:, i+1]
+
+    to_convert = ['RA', 'dec', 'alt', 'az', 'rotSkyPos', 'moonAlt', 'sunAlt']
+    for key in to_convert:
+        final_result[key] = np.radians(final_result[key])
+
+    return final_result
 
 
 def inrange(inval, minimum=-1., maximum=1.):
@@ -545,6 +557,25 @@ def inrange(inval, minimum=-1., maximum=1.):
     above = np.where(inval > maximum)
     inval[above] = maximum
     return inval
+
+
+def warm_start(scheduler, observations, mjd_key='mjd'):
+    """Replay a list of observations into the scheduler
+
+    Parameters
+    ----------
+    scheduler : scheduler object
+
+    observations : np.array
+        An array of observation (e.g., from sqlite2observations)
+    """
+
+    # Check that observations are in order
+    observations.sort(order=mjd_key)
+    for observation in observations:
+        scheduler.add_observation(observation)
+
+    return scheduler
 
 
 def stupidFast_altAz2RaDec(alt, az, lat, lon, mjd):

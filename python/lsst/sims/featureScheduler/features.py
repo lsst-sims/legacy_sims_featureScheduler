@@ -247,9 +247,9 @@ class Pair_in_night(BaseSurveyFeature):
             if indx is None:
                 indx = self.indx
             # Clear values if on a new night
-            if self.night != observation['night'][0]:
+            if self.night != observation['night']:
                 self.feature *= 0.
-                self.night = observation['night'][0]
+                self.night = observation['night']
                 self.mjd_log = []
                 self.hpid_log = []
 
