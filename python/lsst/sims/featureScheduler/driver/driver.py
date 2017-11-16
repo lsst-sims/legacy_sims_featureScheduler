@@ -2,6 +2,7 @@
 import numpy as np
 from numpy.lib.recfunctions import append_fields
 import lsst.sims.featureScheduler as fs
+from lsst.sims.utils import calcLmstLast
 from lsst.sims.featureScheduler.driver import Driver
 import healpy as hp
 import logging
@@ -142,7 +143,33 @@ class FeatureSchedulerDriver(Driver):
         if not self.isnight:
             return self.nulltarget
 
-        self.scheduler.update_conditions(self.observatoryModel.return_status())
+        # Telemetry stream
+        telemetry_stream = {}
+        telemetry_stream['mjd'] = self.mjd
+        telemetry_stream['night'] = self.night
+        telemetry_stream['lmst'], last = calcLmstLast(self.mjd, self.site.longitude_rad)
+        telemetry_stream['skybrightness'] = self.sky.returnMags(self.mjd)
+        telemetry_stream['slewtimes'] = self.slewtime_map()
+        telemetry_stream['airmass'] = self.sky.returnAirmass(self.mjd)
+        delta_t = (self.mjd-self.mjd_start)*24.*3600.
+        telemetry_stream['clouds'] = self.cloud_model.get_cloud(delta_t)
+        for filtername in ['u', 'g', 'r', 'i', 'z', 'y']:
+            fwhm_500, fwhm_geometric, fwhm_effective = self.seeing_model.calculate_seeing(delta_t, filtername,
+                                                                                          telemetry_stream['airmass'])
+            telemetry_stream['FWHMeff_%s' % filtername] = fwhm_effective  # arcsec
+            telemetry_stream['FWHM_geometric_%s' % filtername] = fwhm_geometric
+        telemetry_stream['filter'] = self.filtername
+        telemetry_stream['RA'] = self.ra
+        telemetry_stream['dec'] = self.dec
+        telemetry_stream['next_twilight_start'] = self.next_twilight_start(self.mjd)
+        telemetry_stream['next_twilight_end'] = self.next_twilight_end(self.mjd)
+        telemetry_stream['last_twilight_end'] = self.last_twilight_end(self.mjd)
+        sunMoon_info = self.sky.returnSunMoon(self.mjd)
+        # Pretty sure these are radians
+        telemetry_stream['sunAlt'] = np.max(sunMoon_info['sunAlt'])
+        telemetry_stream['moonAlt'] = np.max(sunMoon_info['moonAlt'])
+
+        self.scheduler.update_conditions(telemetry_stream)
         self.last_winner_target = self.scheduler.request_observation()
 
         return self.last_winner_target
