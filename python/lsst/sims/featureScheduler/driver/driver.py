@@ -3,7 +3,7 @@ import numpy as np
 from numpy.lib.recfunctions import append_fields
 import lsst.sims.featureScheduler as fs
 from lsst.sims.utils import calcLmstLast
-from lsst.sims.featureScheduler.driver import Driver
+from lsst.ts.scheduler import Driver
 import healpy as hp
 import logging
 
