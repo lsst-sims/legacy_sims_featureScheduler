@@ -394,7 +394,7 @@ def generate_goal_map(nside=set_default_nside(), NES_fraction = .3, WFD_fraction
 
 def standard_goals(nside=set_default_nside()):
     """
-    A quick fucntion to generate the "standard" goal maps.
+    A quick function to generate the "standard" goal maps.
     """
     # Find the number of healpixels we expect to observe per observation
 

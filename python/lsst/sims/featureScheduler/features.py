@@ -245,6 +245,9 @@ class Pair_in_night(BaseSurveyFeature):
 
 class SlewtimeFeature(BaseConditionsFeature):
     """Grab the slewtime map from the observatory.
+
+    The slewtimes are expected to be a healpix map, in a single filter.
+    The time to change filters is included in a feature
     """
     def __init__(self, nside=default_nside):
         self.feature = None
@@ -323,7 +326,7 @@ class Current_night(BaseConditionsFeature):
 
 class Current_pointing(BaseConditionsFeature):
     def update_conditions(self, conditions):
-        self.feature = {'RA': conditions['RA'], 'dec': conditions['dec']}
+        self.feature = {'RA': conditions['telRA'], 'dec': conditions['telDec']}
 
 
 class Time_to_set(BaseConditionsFeature):

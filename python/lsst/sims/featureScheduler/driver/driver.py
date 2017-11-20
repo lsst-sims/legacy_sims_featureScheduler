@@ -4,6 +4,7 @@ from numpy.lib.recfunctions import append_fields
 import lsst.sims.featureScheduler as fs
 from lsst.sims.utils import calcLmstLast
 from lsst.ts.scheduler import Driver
+from lsst.ts.dateloc import DateProfile, ObservatoryLocation
 import healpy as hp
 import logging
 
@@ -16,6 +17,10 @@ class FeatureSchedulerDriver(Driver):
 
         Driver.__init__(self)
         self.log = logging.getLogger("featureSchedulerDriver")
+
+        self.obsloc = ObservatoryLocation()
+        self.obsloc.for_lsst()
+        self.dateprofile = DateProfile(0, obsloc)
 
     def configure_survey(self, survey_conf_file):
 
@@ -140,16 +145,45 @@ class FeatureSchedulerDriver(Driver):
                            (self.filter_to_mount, self.filter_to_unmount))
 
     def select_next_target(self):
+
         if not self.isnight:
             return self.nulltarget
 
         # Telemetry stream
         telemetry_stream = {}
-        telemetry_stream['mjd'] = self.mjd
+        # Where is self.mjd and self.night and self.filtername coming from?
+        # Should it be self.observatoryModel.current_state.time (which is a unix timestamp)
+        # and then convert to mjd using ts.dateloc.DateProfile?
+        # (I don't see a self.mjd, etc here or in Driver.py)
+        time = self.observatoryModel.current_state.time
+        self.dateprofile.update(time)
+        telemetry_stream['mjd'] = self.dateprofile.mjd
         telemetry_stream['night'] = self.night
         telemetry_stream['lmst'], last = calcLmstLast(self.mjd, self.site.longitude_rad)
+
+        # Telemetry about where the observatory is pointing and what filter it's using.
+        telemetry_stream['filter'] = self.observatoryModel.current_state.filter
+        telemetry_stream['telRA'] = math.degrees(self.observatoryModel.current_state.ra_rad)
+        telemetry_stream['telDec'] = math.degrees(self.observatoryModel.current_state.dec_rad)
+        telemetry_stream['telAlt'] = math.degrees(self.observatoryModel.current_state.alt_rad)
+        telemetry_stream['telAz'] = math.degrees(self.observatoryModel.current_state.az_rad)
+
+        # What is the sky brightness over the sky (healpix map)
         telemetry_stream['skybrightness'] = self.sky.returnMags(self.mjd)
-        telemetry_stream['slewtimes'] = self.slewtime_map()
+
+        # Find expected slewtimes over the sky.
+        # The slewtimes telemetry is expected to be a healpix map of slewtimes, in the current filter.
+        # There are other features that balance the filter change cost, separately.
+        # (this filter aspect may be something to revisit in the future?)
+        # Note that these slewtimes are -1 where the telescope is not allowed to point.
+        current_filter = self.observatoryModel.current_state.filter
+        alt, az = stupidFast_RaDec2AltAz(self.scheduler.ra_grid_rad,
+                                         self.scheduler.dec_grid_rad,
+                                         self.site.latitude_rad, self.site.longitude_rad,
+                                         self.mjd, telemetry_stream['lmst'])
+        telemetry_stream['slewtimes'] = self.observatoryModel.get_approximateSlewTimes(alt, az,
+                                                                                       current_filter)
+        # What is the airmass over the sky (healpix map).
         telemetry_stream['airmass'] = self.sky.returnAirmass(self.mjd)
         delta_t = (self.mjd-self.mjd_start)*24.*3600.
         telemetry_stream['clouds'] = self.cloud_model.get_cloud(delta_t)
@@ -158,9 +192,7 @@ class FeatureSchedulerDriver(Driver):
                                                                                           telemetry_stream['airmass'])
             telemetry_stream['FWHMeff_%s' % filtername] = fwhm_effective  # arcsec
             telemetry_stream['FWHM_geometric_%s' % filtername] = fwhm_geometric
-        telemetry_stream['filter'] = self.filtername
-        telemetry_stream['RA'] = self.ra
-        telemetry_stream['dec'] = self.dec
+
         telemetry_stream['next_twilight_start'] = self.next_twilight_start(self.mjd)
         telemetry_stream['next_twilight_end'] = self.next_twilight_end(self.mjd)
         telemetry_stream['last_twilight_end'] = self.last_twilight_end(self.mjd)
