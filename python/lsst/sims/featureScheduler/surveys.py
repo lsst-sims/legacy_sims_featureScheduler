@@ -11,6 +11,7 @@ import matplotlib.pylab as plt
 from scipy.spatial import cKDTree as kdtree
 from scipy.stats import binned_statistic
 from lsst.sims.featureScheduler.thomson import xyz2thetaphi, thetaphi2xyz
+import copy
 
 default_nside = set_default_nside()
 
@@ -33,7 +34,9 @@ class BaseSurvey(object):
             Smooth the reward function with a Gaussian FWHM (degrees)
         ignore_obs : str ('dummy')
             If an incoming observation has this string in the note, ignore it. Handy if
-            one wants to ignore DD fields or observations requested by self.
+            one wants to ignore DD fields or observations requested by self. Take note,
+            if a survey is called 'mysurvey23', setting ignore_obs to 'mysurvey2' will
+            ignore it because 'mysurvey2' is a substring of 'mysurvey23'.
         """
 
         if len(basis_functions) != np.size(basis_weights):
@@ -61,6 +64,7 @@ class BaseSurvey(object):
         self.reward_count = 0
 
     def add_observation(self, observation, **kwargs):
+        # ugh, I think here I have to assume observation is an array and not a dict.
         if self.ignore_obs not in observation['note']:
             for bf in self.basis_functions:
                 bf.add_observation(observation, **kwargs)
@@ -682,11 +686,163 @@ class Greedy_survey_fields(BaseSurvey):
         return observations
 
 
+def wrapHA(HA):
+    """Make sure Hour Angle is between 0 and 24 hours """
+    while HA > 24.:
+        HA -= 24.
+    while HA < 0:
+        HA += 24.
+    return HA
+
+
+class Deep_drilling_survey(BaseSurvey):
+    """A survey class for running deep drilling fields
+    """
+    # XXX--maybe should switch back to taking basis functions and weights to
+    # make it easier to put in masks for moon and limits for seeing?
+    def __init__(self, RA, dec, extra_features=None, sequence='rgizy',
+                 nvis=[20, 10, 20, 26, 20],
+                 exptime=30.,
+                 nexp=2, ignore_obs='dummy', survey_name='DD', fraction_limit=0.01,
+                 HA_limits=[-1.5, 1.], reward_value=101., moon_up=True, readtime=2.,
+                 day_space=2.):
+        """
+        Parameters
+        ----------
+        RA : float
+            The RA of the field (degrees)
+        dec : float
+            The dec of the field to observe (degrees)
+        extra_features : list of feature objects (None)
+            The features to track, will construct automatically if None.
+        sequence : list of observation objects or str (rgizy)
+            The sequence of observations to take. Can be a string of list of obs objects.
+        nvis : list of ints
+            The number of visits in each filter. Should be same length as sequence.
+        survey_name : str (DD)
+            The name to give this survey so it can be tracked
+        fraction_limit : float (0.01)
+            Do not request observations if the fraction of observations from this
+            survey exceeds the frac_limit.
+        HA_limits : list of floats ([-1.5, 1.])
+            The range of acceptable hour angles to start a sequence (hours)
+        reward_value : float (101.)
+            The reward value to report if it is able to start (unitless).
+        moon_up : bool (True)
+            Require the moon to be up (True) or down (False) or either (None).
+        readtime : float (2.)
+            Readout time for computing approximate time of observing the sequence. (seconds)
+        day_space : float (2.)
+            Demand this much spacing between trying to launch a sequence (days)
+        """
+        # No basis functions for this survey
+        self.basis_functions = []
+        self.ra = np.radians(RA)
+        self.ra_hours = RA/360.*24.
+        self.dec = np.radians(dec)
+        self.ignore_obs = ignore_obs
+        self.survey_name = survey_name
+        self.HA_limits = HA_limits
+        self.reward_value = reward_value
+        self.moon_up = moon_up
+        self.fraction_limit = fraction_limit
+        self.day_space = day_space
+
+        if extra_features is None:
+            self.extra_features = {}
+            # The total number of observations
+            self.extra_features['N_obs'] = features.N_obs_count()
+            # The number of observations for this survey
+            self.extra_features['N_obs_self'] = features.N_obs_survey(note=survey_name)
+            # The current LMST. Pretty sure in hours
+            self.extra_features['lmst'] = features.Current_lmst()
+            # Moon altitude
+            self.extra_features['sun_moon_alt'] = features.Sun_moon_alts()
+            # Time to next moon rise
+
+            # Time to twilight
+
+            # last time this survey was observed (in case we want to force a cadence)
+            self.extra_features['last_obs_self'] = features.Last_observation(survey_name=self.survey_name)
+            # Current MJD
+            self.extra_features['mjd'] = features.Current_mjd()
+
+        else:
+            self.extra_features = extra_features
+
+        if type(sequence) == str:
+            self.sequence = []
+            for num, filtername in zip(nvis, sequence):
+                for j in range(num):
+                    obs = empty_observation()
+                    obs['filter'] = filtername
+                    obs['exptime'] = exptime
+                    obs['RA'] = self.ra
+                    obs['dec'] = self.dec
+                    obs['nexp'] = nexp
+                    obs['note'] = survey_name
+                    self.sequence.append(obs)
+        else:
+            self.sequence = sequence
+
+        self.approx_time = np.sum([o['exptime']+readtime*o['nexp'] for o in obs])
+
+    def _check_feasability(self):
+        result = True
+        # Check if the LMST is in range
+        HA = self.extra_features['lmst'].feature - self.ra_hours
+        HA = wrapHA(HA)
+
+        if (HA < np.min(self.HA_limits)) | (HA > np.max(self.HA_limits)):
+            return False
+        # Check moon alt
+        if self.moon_up is not None:
+            if self.moon_up:
+                if self.extra_features['sun_moon_alt'].feature['moonAlt'] < 0.:
+                    return False
+            else:
+                if self.extra_features['sun_moon_alt'].feature['moonAlt'] > 0.:
+                    return False
+
+        # Make sure twilight hasn't started
+        if self.extra_features['sun_moon_alt'].feature['sunAlt'] > np.radians(-18.):
+            return False
+
+        # Check that it's been long enough since last sequence
+        if self.extra_features['mjd'].feature - self.extra_features['last_obs_self'].feature['mjd'] < self.day_space:
+            return False
+
+        # Check if the moon will come up
+        # XXX--to do. Compare next moonrise time to self.apporox time
+
+        # Check if twilight starts soon
+        # XXX--to do.
+
+        # Check if we are over-observed relative to the fraction of time alloted.
+        if self.extra_features['N_obs_self'].feature/float(self.extra_features['N_obs'].feature) > self.fraction_limit:
+            return False
+        # If we made it this far, good to go
+        return result
+
+    def calc_reward_function(self):
+        result = -np.inf
+        if self._check_feasability():
+            result = self.reward_value
+        return result
+
+    def __call__(self):
+        result = []
+        if self._check_feasability():
+            result = copy.deepcopy(self.sequence)
+            # Note, could check here what the current filter is and re-order the result
+        return result
+
+
 class Pairs_survey_scripted(Scripted_survey):
     """Check if incoming observations will need a pair in 30 minutes. If so, add to the queue
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, filt_to_pair='griz',
-                 dt=40., ttol=10., reward_val=100., note='scripted', ignore_obs='ack',
+                 dt=40., ttol=10., reward_val=101., note='scripted', ignore_obs='ack',
                  min_alt=30., max_alt=85., lat=-30.2444, nside=default_nside):
         """
         Parameters
@@ -700,7 +856,6 @@ class Pairs_survey_scripted(Scripted_survey):
         """
         self.lat = np.radians(lat)
         self.note = note
-        self.reward_val = reward_val
         self.ttol = ttol/60./24.
         self.dt = dt/60./24.  # To days
         if extra_features is None:
@@ -717,6 +872,7 @@ class Pairs_survey_scripted(Scripted_survey):
                                                     extra_features=self.extra_features,
                                                     ignore_obs=ignore_obs, min_alt=min_alt,
                                                     max_alt=max_alt, nside=nside)
+        self.reward_val = reward_val
         self.filt_to_pair = filt_to_pair
         # list to hold observations
         self.observing_queue = []
@@ -735,7 +891,8 @@ class Pairs_survey_scripted(Scripted_survey):
             self.reward_checked = False
 
             # Check if this observation needs a pair
-            # XXX--only supporting single pairs now. Just start up another scripted survey to grap triples, etc?
+            # XXX--only supporting single pairs now. Just start up another scripted survey
+            # to grab triples, etc? Or add two observations to queue at a time?
             keys_to_copy = ['RA', 'dec', 'filter', 'exptime', 'nexp']
             if (observation['filter'][0] in self.filt_to_pair) & (np.max(self.extra_features['Pair_map'].feature[indx]) < 1):
                 obs_to_queue = empty_observation()
@@ -823,3 +980,55 @@ class Pairs_survey_scripted(Scripted_survey):
                 result = [result]
         return result
 
+
+def generate_dd_surveys():
+    """Utility to return a list of standard deep drilling field surveys.
+
+    XXX-Someone double check that I got the coordinates right!
+
+    XXX--I suspect that scheduling the DD fields all simultaneously ahead of
+    time would be a better strategy, so this should become obsolete.
+    """
+
+    surveys = []
+    # ELAIS S1
+    surveys.append(Deep_drilling_survey(9.45, -44., sequence='rgizy',
+                                        nvis=[20, 10, 20, 26, 20],
+                                        survey_name='DD:ELAISS1', reward_value=100, moon_up=None,
+                                        fraction_limit=0.0185))
+    surveys.append(Deep_drilling_survey(9.45, -44., sequence='u',
+                                        nvis=[7],
+                                        survey_name='DD:u,ELAISS1', reward_value=100, moon_up=False,
+                                        fraction_limit=0.0015))
+
+    # XMM-LSS
+    surveys.append(Deep_drilling_survey(35.708333, -4-45/60., sequence='rgizy',
+                                        nvis=[20, 10, 20, 26, 20],
+                                        survey_name='DD:XMM-LSS', reward_value=100, moon_up=None,
+                                        fraction_limit=0.0185))
+    surveys.append(Deep_drilling_survey(35.708333, -4-45/60., sequence='u',
+                                        nvis=[7],
+                                        survey_name='DD:u,XMM-LSS', reward_value=100, moon_up=False,
+                                        fraction_limit=0.0015))
+
+    # Extended Chandra Deep Field South
+    # XXX--Note, this one can pass near zenith. Should go back and add better planning on this.
+    surveys.append(Deep_drilling_survey(53.125, -28.-6/60., sequence='rgizy',
+                                        nvis=[20, 10, 20, 26, 20],
+                                        survey_name='DD:ECDFS', reward_value=100, moon_up=None,
+                                        fraction_limit=0.0185, HA_limits=[0.2, 1.]))
+    surveys.append(Deep_drilling_survey(53.125, -28.-6/60., sequence='u',
+                                        nvis=[7],
+                                        survey_name='DD:u,ECDFS', reward_value=100, moon_up=False,
+                                        fraction_limit=0.0015, HA_limits=[0.2, 1.]))
+    # COSMOS
+    surveys.append(Deep_drilling_survey(150.1, 2.+10./60.+55/3600., sequence='rgizy',
+                                        nvis=[20, 10, 20, 26, 20],
+                                        survey_name='DD:COSMOS', reward_value=100, moon_up=None,
+                                        fraction_limit=0.0185))
+    surveys.append(Deep_drilling_survey(150.1, 2.+10./60.+55/3600., sequence='u',
+                                        nvis=[7],
+                                        survey_name='DD:u,COSMOS', reward_value=100, moon_up=False,
+                                        fraction_limit=0.0015))
+
+    return surveys
