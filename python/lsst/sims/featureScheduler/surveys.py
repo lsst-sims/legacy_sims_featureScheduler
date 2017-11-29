@@ -12,13 +12,16 @@ from scipy.spatial import cKDTree as kdtree
 from scipy.stats import binned_statistic
 from lsst.sims.featureScheduler.thomson import xyz2thetaphi, thetaphi2xyz
 import copy
+import logging
+
+log = logging.getLogger(__name__)
 
 default_nside = set_default_nside()
 
 
 class BaseSurvey(object):
     def __init__(self, basis_functions, basis_weights, extra_features=None, smoothing_kernel=None,
-                 ignore_obs='dummy', nside=default_nside):
+                 ignore_obs='dummy', nside=default_nside, prop_id=-1, prop_name=''):
         """
         Parameters
         ----------
@@ -62,6 +65,9 @@ class BaseSurvey(object):
         self.reward_checked = False
         # count how many times we calc reward function
         self.reward_count = 0
+
+        self.prop_id = prop_id
+        self.prop_name = prop_name
 
     def add_observation(self, observation, **kwargs):
         # ugh, I think here I have to assume observation is an array and not a dict.
@@ -237,7 +243,7 @@ class Scripted_survey(BaseSurvey):
         """take a slice and return a full observation object
         """
         observation = empty_observation()
-        for key in ['RA', 'dec', 'filter', 'exptime', 'nexp', 'note']:
+        for key in ['RA', 'dec', 'filter', 'exptime', 'nexp', 'note', 'field_id']:
             observation[key] = obs_row[key]
         return observation
 
@@ -547,7 +553,7 @@ class Simple_greedy_survey_fields(BaseSurvey):
     Chop down the reward function to just look at unmasked opsim field locations.
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, filtername='r',
-                 block_size=25, smoothing_kernel=None, nside=default_nside, ignore_obs='ack'):
+                 block_size=25, smoothing_kernel=None, nside=default_nside, ignore_obs='ack', pid=''):
         super(Simple_greedy_survey_fields, self).__init__(basis_functions=basis_functions,
                                                           basis_weights=basis_weights,
                                                           extra_features=extra_features,
@@ -575,7 +581,7 @@ class Simple_greedy_survey_fields(BaseSurvey):
             obs = empty_observation()
             obs['RA'] = self.fields['RA'][field]
             obs['dec'] = self.fields['dec'][field]
-            obs['filter'] = self.filtername
+            obs['field_id'] = self.fields[''][field]
             obs['nexp'] = 2.
             obs['exptime'] = 30.
             observations.append(obs)
@@ -596,7 +602,7 @@ class Greedy_survey_fields(BaseSurvey):
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, filtername='r',
                  block_size=25, smoothing_kernel=None, nside=default_nside,
-                 dither=False, seed=42, ignore_obs='ack'):
+                 dither=False, seed=42, ignore_obs='ack', fields=None, prop_id=-1, prop_name=''):
         if extra_features is None:
             extra_features = {}
             extra_features['night'] = features.Current_night()
@@ -604,11 +610,16 @@ class Greedy_survey_fields(BaseSurvey):
                                                    basis_weights=basis_weights,
                                                    extra_features=extra_features,
                                                    smoothing_kernel=smoothing_kernel,
-                                                   ignore_obs=ignore_obs)
+                                                   ignore_obs=ignore_obs,
+                                                   prop_id=prop_id,
+                                                   prop_name=prop_name)
         self.nside = nside
         self.filtername = filtername
         # Load the OpSim field tesselation
-        self.fields_init = read_fields()
+        if fields is None:
+            self.fields_init = read_fields()
+        else:
+            self.fields_init = fields
         self.fields = self.fields_init.copy()
         self.block_size = block_size
         self._hp2fieldsetup(self.fields['RA'], self.fields['dec'])
@@ -620,9 +631,9 @@ class Greedy_survey_fields(BaseSurvey):
         """Spin the field tesselation
         """
         if lon is None:
-            lon = np.random.rand()*np.pi*2
+            lon = 0.  # np.random.rand()*np.pi*2
         if lat is None:
-            lat = np.random.rand()*np.pi*2
+            lat = 0.  # np.random.rand()*np.pi*2
         # rotate longitude
         ra = (self.fields['RA'] + lon) % (2.*np.pi)
         dec = self.fields['dec'] + 0
@@ -682,6 +693,7 @@ class Greedy_survey_fields(BaseSurvey):
             obs['filter'] = self.filtername
             obs['nexp'] = 2.
             obs['exptime'] = 30.
+            obs['field_id'] = self.fields['field_id'][field]
             observations.append(obs)
         return observations
 

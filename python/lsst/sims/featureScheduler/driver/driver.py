@@ -1,12 +1,23 @@
 
 import numpy as np
 from numpy.lib.recfunctions import append_fields
+
+from lsst.sims.ocs.environment import SeeingModel, CloudModel
+from lsst.sims.ocs.configuration import Environment
+from lsst.sims.ocs.configuration.instrument import Filters
+from lsst.sims.ocs.kernel.time_handler import TimeHandler
+from lsst.sims.skybrightness_pre import SkyModelPre
+from lsst.sims.utils import _hpid2RaDec, _raDec2Hpid, Site, calcLmstLast, m5_flat_sed
+
+from lsst.ts.observatory.model import Target
 import lsst.sims.featureScheduler as fs
-from lsst.sims.utils import calcLmstLast
+from lsst.sims.featureScheduler import stupidFast_RaDec2AltAz
+from lsst.ts.dateloc import DateProfile
 from lsst.ts.scheduler import Driver
-from lsst.ts.dateloc import DateProfile, ObservatoryLocation
 import healpy as hp
 import logging
+
+# from model_notime import SeeingModel_no_time, CloudModel_no_time
 
 __all__ = ["FeatureSchedulerDriver"]
 
@@ -18,35 +29,68 @@ class FeatureSchedulerDriver(Driver):
         Driver.__init__(self)
         self.log = logging.getLogger("featureSchedulerDriver")
 
-        self.obsloc = ObservatoryLocation()
-        self.obsloc.for_lsst()
-        self.dateprofile = DateProfile(0, obsloc)
+        # self.obsloc = ObservatoryLocation()
+        # self.obsloc.for_lsst()
+        # self.dateprofile = DateProfile(0, self.obsloc)
 
-    def configure_survey(self, survey_conf_file):
+        # FIXME: This should probably come from outside telemetry stream. But right now, cloud and seeing are only
+        # floats. Needs to be fixed externally.
+        self.scheduler_time_handle = TimeHandler("2022-10-01")  # FIXME: Hard coded config! ideally this won't be here
+        self.cloud_model = CloudModel(self.scheduler_time_handle)
+        self.seeing_model = SeeingModel(self.scheduler_time_handle)
+        self.cloud_model.initialize()
+        self.seeing_model.initialize(Environment(), Filters())
+        self.sky_brightness = SkyModelPre()  # The sky brightness in self.sky uses opsim fields. We need healpix here
 
-        self.propid_counter = 0
-        self.science_proposal_list = []
+        self.night = 0
+
+        self.target_list = {}
 
         # Fixme: hardcoded configuration
-        target_maps = fs.standard_goals()
+        target_maps = {}
+        nside = fs.set_default_nside(nside=32)
+        target_maps['u'] = fs.generate_goal_map(NES_fraction=0.,
+                                        WFD_fraction=0.31, SCP_fraction=0.,
+                                        GP_fraction=0., nside=nside)
+        target_maps['g'] = fs.generate_goal_map(NES_fraction=0.,
+                                        WFD_fraction=0.44, SCP_fraction=0.,
+                                        GP_fraction=0., nside=nside)
+        target_maps['r'] = fs.generate_goal_map(NES_fraction=0.,
+                                        WFD_fraction=1.0, SCP_fraction=0.,
+                                        GP_fraction=0., nside=nside)
+        target_maps['i'] = fs.generate_goal_map(NES_fraction=0.,
+                                        WFD_fraction=1.0, SCP_fraction=0.,
+                                        GP_fraction=0., nside=nside)
+        target_maps['z'] = fs.generate_goal_map(NES_fraction=0.,
+                                        WFD_fraction=0.9, SCP_fraction=0.,
+                                        GP_fraction=0., nside=nside)
+        target_maps['y'] = fs.generate_goal_map(NES_fraction=0.,
+                                        WFD_fraction=0.9, SCP_fraction=0.,
+                                        GP_fraction=0., nside=nside)
+
         filters = self.observatoryModel.filters
         surveys = []
 
         for filtername in filters:
             bfs = []
-            bfs.append(fs.M5_diff_basis_function(filtername=filtername))
+            bfs.append(fs.M5_diff_basis_function(filtername=filtername, nside=nside))
             bfs.append(fs.Target_map_basis_function(filtername=filtername,
                                                     target_map=target_maps[filtername],
-                                                    out_of_bounds_val=hp.UNSEEN))
+                                                    out_of_bounds_val=hp.UNSEEN, nside=nside))
 
-            bfs.append(fs.Zenith_mask_basis_function(maxAlt=78., penalty=-100))
-            bfs.append(fs.Slewtime_basis_function(filtername=filtername))
+            bfs.append(fs.North_south_patch_basis_function(zenith_min_alt=50., nside=nside))
+            # bfs.append(fs.Zenith_mask_basis_function(maxAlt=78., penalty=-100, nside=nside))
+            bfs.append(fs.Slewtime_basis_function(filtername=filtername, nside=nside))
             bfs.append(fs.Strict_filter_basis_function(filtername=filtername))
 
-            weights = np.array([3.0, 0.4, 1., 2., 3.])
-            surveys.append(fs.Greedy_survey_fields(bfs, weights, block_size=1, filtername=filtername, dither=True))
+            weights = np.array([3.0, 0.2, 1., 3., 3.])
+            surveys.append(fs.Greedy_survey_fields(bfs, weights, block_size=1, filtername=filtername, dither=False,
+                                                   nside=nside,
+                                                   prop_id=1,
+                                                   prop_name='WFD'))
 
-        self.scheduler = fs.Core_scheduler(surveys)
+        self.scheduler = fs.Core_scheduler(surveys, nside=nside)
+        self.sky_nside = nside
 
     def start_survey(self, timestamp, night):
 
@@ -56,6 +100,7 @@ class FeatureSchedulerDriver(Driver):
         self.survey_started = True
 
         self.sky.update(timestamp)
+
         (sunset, sunrise) = self.sky.get_night_boundaries(self.params.night_boundary)
         self.log.debug("start_survey sunset=%.6f sunrise=%.6f" % (sunset, sunrise))
         if sunset <= timestamp < sunrise:
@@ -75,6 +120,7 @@ class FeatureSchedulerDriver(Driver):
                       (timestamp, night, 100 * timeprogress))
 
         self.isnight = True
+        self.night = night
 
     def end_night(self, timestamp, night):
 
@@ -97,7 +143,7 @@ class FeatureSchedulerDriver(Driver):
                 filter_visits_dict[filter] = np.sum(prop.basis_functions[1].survey_features['N_obs'].feature)
                 total_filter_visits_dict[filter] += filter_visits_dict[filter]
                 self.log.debug("end_night propid=%d name=%s filter=%s visits=%i" %
-                               (prop.propid, prop.name, filter, filter_visits_dict[filter]))
+                               (prop.prop_id, prop.prop_name, filter, filter_visits_dict[filter]))
 
         previous_midnight_moonphase = self.midnight_moonphase
         self.sky.update(timestamp)
@@ -151,57 +197,211 @@ class FeatureSchedulerDriver(Driver):
 
         # Telemetry stream
         telemetry_stream = {}
-        # Where is self.mjd and self.night and self.filtername coming from?
-        # Should it be self.observatoryModel.current_state.time (which is a unix timestamp)
-        # and then convert to mjd using ts.dateloc.DateProfile?
-        # (I don't see a self.mjd, etc here or in Driver.py)
-        time = self.observatoryModel.current_state.time
-        self.dateprofile.update(time)
-        telemetry_stream['mjd'] = self.dateprofile.mjd
+
+        telemetry_stream['mjd'] = self.observatoryModel.dateprofile.mjd
         telemetry_stream['night'] = self.night
-        telemetry_stream['lmst'], last = calcLmstLast(self.mjd, self.site.longitude_rad)
+        telemetry_stream['lmst'] = self.observatoryModel.dateprofile.lst_rad*12./np.pi
+
+        dp = DateProfile(0, self.observatoryModel.dateprofile.location)
+        mjd, _ = dp(self.sunrise_timestamp)
+        telemetry_stream['next_twilight_start'] = dp.mjd
+
+        dp = DateProfile(0, self.observatoryModel.dateprofile.location)
+        mjd, _ = dp(self.sunset_timestamp)
+        telemetry_stream['next_twilight_end'] = dp.mjd
+        telemetry_stream['last_twilight_end'] = dp.mjd
 
         # Telemetry about where the observatory is pointing and what filter it's using.
         telemetry_stream['filter'] = self.observatoryModel.current_state.filter
-        telemetry_stream['telRA'] = math.degrees(self.observatoryModel.current_state.ra_rad)
-        telemetry_stream['telDec'] = math.degrees(self.observatoryModel.current_state.dec_rad)
-        telemetry_stream['telAlt'] = math.degrees(self.observatoryModel.current_state.alt_rad)
-        telemetry_stream['telAz'] = math.degrees(self.observatoryModel.current_state.az_rad)
+        telemetry_stream['telRA'] = np.degrees(self.observatoryModel.current_state.ra_rad)
+        telemetry_stream['telDec'] = np.degrees(self.observatoryModel.current_state.dec_rad)
+        telemetry_stream['telAlt'] = np.degrees(self.observatoryModel.current_state.alt_rad)
+        telemetry_stream['telAz'] = np.degrees(self.observatoryModel.current_state.az_rad)
+        # telemetry_stream['telRA'] = self.observatoryModel.current_state.ra_rad
+        # telemetry_stream['telDec'] = self.observatoryModel.current_state.dec_rad
+        # telemetry_stream['telAlt'] = self.observatoryModel.current_state.alt_rad
+        # telemetry_stream['telAz'] = self.observatoryModel.current_state.az_rad
 
         # What is the sky brightness over the sky (healpix map)
-        telemetry_stream['skybrightness'] = self.sky.returnMags(self.mjd)
+        telemetry_stream['skybrightness'] = self.sky_brightness.returnMags(self.observatoryModel.dateprofile.mjd)
 
         # Find expected slewtimes over the sky.
         # The slewtimes telemetry is expected to be a healpix map of slewtimes, in the current filter.
         # There are other features that balance the filter change cost, separately.
         # (this filter aspect may be something to revisit in the future?)
         # Note that these slewtimes are -1 where the telescope is not allowed to point.
-        current_filter = self.observatoryModel.current_state.filter
         alt, az = stupidFast_RaDec2AltAz(self.scheduler.ra_grid_rad,
                                          self.scheduler.dec_grid_rad,
-                                         self.site.latitude_rad, self.site.longitude_rad,
-                                         self.mjd, telemetry_stream['lmst'])
-        telemetry_stream['slewtimes'] = self.observatoryModel.get_approximateSlewTimes(alt, az,
-                                                                                       current_filter)
+                                         self.observatoryModel.location.latitude_rad,
+                                         self.observatoryModel.location.longitude_rad,
+                                         self.observatoryModel.dateprofile.mjd,
+                                         self.observatoryModel.dateprofile.lst_rad)
+        current_filter = self.observatoryModel.current_state.filter
+
+        telemetry_stream['slewtimes'] = self.observatoryModel.get_approximate_slew_delay(alt, az,
+                                                                                         current_filter)
         # What is the airmass over the sky (healpix map).
-        telemetry_stream['airmass'] = self.sky.returnAirmass(self.mjd)
-        delta_t = (self.mjd-self.mjd_start)*24.*3600.
-        telemetry_stream['clouds'] = self.cloud_model.get_cloud(delta_t)
+
+        telemetry_stream['airmass'] = self.sky_brightness.returnAirmass(self.observatoryModel.dateprofile.mjd)
+        delta_t = (self.time-self.start_time)
+        telemetry_stream['clouds'] = self.cloud_model.get_cloud(int(delta_t))
         for filtername in ['u', 'g', 'r', 'i', 'z', 'y']:
             fwhm_500, fwhm_geometric, fwhm_effective = self.seeing_model.calculate_seeing(delta_t, filtername,
                                                                                           telemetry_stream['airmass'])
             telemetry_stream['FWHMeff_%s' % filtername] = fwhm_effective  # arcsec
             telemetry_stream['FWHM_geometric_%s' % filtername] = fwhm_geometric
 
-        telemetry_stream['next_twilight_start'] = self.next_twilight_start(self.mjd)
-        telemetry_stream['next_twilight_end'] = self.next_twilight_end(self.mjd)
-        telemetry_stream['last_twilight_end'] = self.last_twilight_end(self.mjd)
-        sunMoon_info = self.sky.returnSunMoon(self.mjd)
+        sunMoon_info = self.sky_brightness.returnSunMoon(self.observatoryModel.dateprofile.mjd)
         # Pretty sure these are radians
         telemetry_stream['sunAlt'] = np.max(sunMoon_info['sunAlt'])
         telemetry_stream['moonAlt'] = np.max(sunMoon_info['moonAlt'])
 
-        self.scheduler.update_conditions(telemetry_stream)
-        self.last_winner_target = self.scheduler.request_observation()
+        dict_of_lists = {}
+        for key in telemetry_stream:
+            dict_of_lists[key] = np.array(telemetry_stream[key])
 
+        self.scheduler.update_conditions(telemetry_stream)
+        winner_target = self.scheduler.request_observation()
+
+        self.log.debug(winner_target)
+        self.scheduler_winner_target = winner_target
+
+        target = Target()
+
+        if winner_target['field_id'][0] in self.target_list:
+            if winner_target['filter'][0] in self.target_list[winner_target['field_id'][0]]:
+                target = self.target_list[winner_target['field_id'][0]][winner_target['filter'][0]]
+            else:
+                self.targetid += 1
+                target.targetid = self.targetid
+                target.fieldid = winner_target['field_id'][0]
+                target.filter = str(winner_target['filter'][0])
+                target.num_exp = winner_target['nexp'][0]
+                target.exp_times = [winner_target['exptime'][0]/winner_target['nexp'][0]] * winner_target['nexp'][0]
+                target.ra_rad = winner_target['RA'][0]
+                target.dec_rad = winner_target['dec'][0]
+                target.propid = 1
+                target.goal = 100
+                target.visits = 0
+                target.progress = 0.0
+                target.groupid = -1
+                target.groupix = -1
+                target.propid_list = [1]
+                target.need_list = [target.need]
+                target.bonus_list = [target.bonus]
+                target.value_list = [target.value]
+                target.propboost_list = [target.propboost]
+                target.sequenceid_list = [target.sequenceid]
+                target.subsequencename_list = [target.subsequencename]
+                target.groupid_list = [target.groupid]
+                target.groupix_list = [target.groupix]
+                target.is_deep_drilling_list = [target.is_deep_drilling]
+                target.is_dd_firstvisit_list = [target.is_dd_firstvisit]
+                target.remaining_dd_visits_list = [target.remaining_dd_visits]
+                target.dd_exposures_list = [target.dd_exposures]
+                target.dd_filterchanges_list = [target.dd_filterchanges]
+                target.dd_exptime_list = [target.dd_exptime]
+
+                self.target_list[winner_target['field_id'][0]][winner_target['filter'][0]] = target
+                self.science_proposal_list[0].survey_targets_dict[target.fieldid][winner_target['filter'][0]] = \
+                    target
+        else:
+            self.targetid += 1
+            target.targetid = self.targetid
+            target.fieldid = winner_target['field_id'][0]
+            target.filter = str(winner_target['filter'][0])
+            target.num_exp = winner_target['nexp'][0]
+            target.exp_times = [winner_target['exptime'][0]/winner_target['nexp'][0]] * winner_target['nexp'][0]
+            target.ra_rad = winner_target['RA'][0]
+            target.dec_rad = winner_target['dec'][0]
+            target.propid = 1
+            target.goal = 100
+            target.visits = 0
+            target.progress = 0.0
+            target.groupid = -1
+            target.groupix = -1
+            target.propid_list = [1]
+            target.need_list = [target.need]
+            target.bonus_list = [target.bonus]
+            target.value_list = [target.value]
+            target.propboost_list = [target.propboost]
+            target.sequenceid_list = [target.sequenceid]
+            target.subsequencename_list = [target.subsequencename]
+            target.groupid_list = [target.groupid]
+            target.groupix_list = [target.groupix]
+            target.is_deep_drilling_list = [target.is_deep_drilling]
+            target.is_dd_firstvisit_list = [target.is_dd_firstvisit]
+            target.remaining_dd_visits_list = [target.remaining_dd_visits]
+            target.dd_exposures_list = [target.dd_exposures]
+            target.dd_filterchanges_list = [target.dd_filterchanges]
+            target.dd_exptime_list = [target.dd_exptime]
+            self.target_list[winner_target['field_id'][0]] = {winner_target['filter'][0]: target}
+            self.science_proposal_list[0].survey_targets_dict[target.fieldid] = {winner_target['filter'][0]: target}
+        target.time = self.time
+        # target.propid = [1]
+
+        slewtime = self.observatoryModel.get_slew_delay(target)
+        if slewtime > 0.:
+            hpid = _raDec2Hpid(self.sky_nside, target.ra_rad, target.dec_rad)
+            self.scheduler_winner_target['mjd'] = telemetry_stream['mjd']+slewtime/60./60./24.
+            self.scheduler_winner_target['night'] = self.night
+            self.scheduler_winner_target['slewtime'] = slewtime
+            self.scheduler_winner_target['skybrightness'] = \
+                self.sky_brightness.returnMags(self.observatoryModel.dateprofile.mjd,
+                                               indx=[hpid],
+                                               extrapolate=True)[winner_target['filter'][0]]
+            self.scheduler_winner_target['FWHMeff'] = telemetry_stream['FWHMeff_%s' % winner_target['filter'][0]][hpid]
+            self.scheduler_winner_target['FWHM_geometric'] = \
+                telemetry_stream['FWHM_geometric_%s' % winner_target['filter'][0]][hpid]
+            self.scheduler_winner_target['airmass'] = telemetry_stream['airmass'][hpid]
+            self.scheduler_winner_target['fivesigmadepth'] = m5_flat_sed(self.scheduler_winner_target['filter'][0],
+                                                        self.scheduler_winner_target['skybrightness'],
+                                                        self.scheduler_winner_target['FWHMeff'],
+                                                        self.scheduler_winner_target['exptime'],
+                                                        self.scheduler_winner_target['airmass'])
+            self.scheduler_winner_target['alt'] = target.alt_rad
+            self.scheduler_winner_target['az'] = target.az_rad
+            self.scheduler_winner_target['clouds'] = self.cloud
+            self.scheduler_winner_target['sunAlt'] = telemetry_stream['sunAlt']
+            self.scheduler_winner_target['moonAlt'] = telemetry_stream['moonAlt']
+
+            self.observatoryModel2.set_state(self.observatoryState)
+            self.observatoryModel2.observe(target)
+
+        # self.log.debug(target)
+
+            self.last_winner_target = target.get_copy()
+        else:
+            self.last_winner_target = self.nulltarget
+
+        self.log.debug(self.scheduler_winner_target)
         return self.last_winner_target
+
+    def register_observation(self, observation):
+
+        self.log.debug('Registering: %s' % self.scheduler_winner_target)
+        self.scheduler.add_observation(self.scheduler_winner_target)
+        self.science_proposal_list[0].winners_list = [observation]
+
+        return super(FeatureSchedulerDriver, self).register_observation(observation)
+
+    def update_time(self, timestamp, night):
+
+        delta_time = timestamp-self.time
+        self.time = timestamp
+        self.scheduler_time_handle.update_time(delta_time, 'seconds')
+        self.observatoryModel.update_state(self.time)
+
+        if not self.survey_started:
+            self.start_survey(timestamp, night)
+
+        if self.isnight:
+            # if round(timestamp) >= round(self.sunrise_timestamp):
+            if timestamp >= self.sunrise_timestamp:
+                self.end_night(timestamp, night)
+        else:
+            # if round(timestamp) >= round(self.sunset_timestamp):
+            if timestamp >= self.sunset_timestamp:
+                self.start_night(timestamp, night)
+
+        return self.isnight

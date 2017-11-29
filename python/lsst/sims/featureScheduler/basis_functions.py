@@ -7,10 +7,11 @@ from . import utils
 import healpy as hp
 from lsst.sims.utils import haversine, _hpid2RaDec
 from lsst.sims.skybrightness_pre import M5percentiles
+import logging
 import matplotlib.pylab as plt
 
 default_nside = utils.set_default_nside()
-
+log = logging.getLogger(__name__)
 
 class Base_basis_function(object):
     """
