@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+import os
 from builtins import zip
 from builtins import object
 import numpy as np
@@ -14,14 +15,12 @@ from lsst.sims.featureScheduler.thomson import xyz2thetaphi, thetaphi2xyz
 import copy
 import logging
 
-log = logging.getLogger(__name__)
-
 default_nside = set_default_nside()
-
+log = logging.getLogger(__name__)
 
 class BaseSurvey(object):
     def __init__(self, basis_functions, basis_weights, extra_features=None, smoothing_kernel=None,
-                 ignore_obs='dummy', nside=default_nside, prop_id=-1, prop_name=''):
+                 ignore_obs='dummy', nside=default_nside):
         """
         Parameters
         ----------
@@ -51,6 +50,7 @@ class BaseSurvey(object):
         self.basis_functions = basis_functions
         self.basis_weights = basis_weights
         self.reward = None
+        self.save_reward_id = 1
         if extra_features is None:
             self.extra_features = {}
         else:
@@ -65,9 +65,6 @@ class BaseSurvey(object):
         self.reward_checked = False
         # count how many times we calc reward function
         self.reward_count = 0
-
-        self.prop_id = prop_id
-        self.prop_name = prop_name
 
     def add_observation(self, observation, **kwargs):
         # ugh, I think here I have to assume observation is an array and not a dict.
@@ -129,6 +126,7 @@ class BaseSurvey(object):
         else:
             # If not feasable, negative infinity reward
             self.reward = -np.inf
+
         if self.smoothing_kernel is not None:
             self.smooth_reward()
             return self.reward_smooth
@@ -553,7 +551,7 @@ class Simple_greedy_survey_fields(BaseSurvey):
     Chop down the reward function to just look at unmasked opsim field locations.
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, filtername='r',
-                 block_size=25, smoothing_kernel=None, nside=default_nside, ignore_obs='ack', pid=''):
+                 block_size=25, smoothing_kernel=None, nside=default_nside, ignore_obs='ack'):
         super(Simple_greedy_survey_fields, self).__init__(basis_functions=basis_functions,
                                                           basis_weights=basis_weights,
                                                           extra_features=extra_features,
@@ -602,7 +600,8 @@ class Greedy_survey_fields(BaseSurvey):
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, filtername='r',
                  block_size=25, smoothing_kernel=None, nside=default_nside,
-                 dither=False, seed=42, ignore_obs='ack', fields=None, prop_id=-1, prop_name=''):
+                 dither=False, seed=42, ignore_obs='ack',
+                 tag_fields=False, exclude_nontaged_fields=False, tag_map=None):
         if extra_features is None:
             extra_features = {}
             extra_features['night'] = features.Current_night()
@@ -610,30 +609,43 @@ class Greedy_survey_fields(BaseSurvey):
                                                    basis_weights=basis_weights,
                                                    extra_features=extra_features,
                                                    smoothing_kernel=smoothing_kernel,
-                                                   ignore_obs=ignore_obs,
-                                                   prop_id=prop_id,
-                                                   prop_name=prop_name)
+                                                   ignore_obs=ignore_obs)
         self.nside = nside
         self.filtername = filtername
         # Load the OpSim field tesselation
-        if fields is None:
-            self.fields_init = read_fields()
-        else:
-            self.fields_init = fields
+        self.fields_init = read_fields()
         self.fields = self.fields_init.copy()
         self.block_size = block_size
         self._hp2fieldsetup(self.fields['RA'], self.fields['dec'])
         np.random.seed(seed)
         self.dither = dither
         self.night = extra_features['night'].feature + 0
+        self.inside_tagged = np.zeros_like(self.hp2fields) == 0
+
+        if tag_fields:
+            for i in range(len(self.fields)):
+                field_pixels = np.where(self.hp2fields == self.fields['field_id'][i])[0]
+                field_tags = tag_map[field_pixels]
+                if np.all(field_tags == 0):
+                    tag = 0
+                else:
+                    unique_tags = np.unique(field_tags[field_tags > 0])
+                    npixel_tags = np.zeros_like(unique_tags)
+                    for itag in range(len(unique_tags)):
+                        npixel_tags[itag] = np.sum(field_tags == unique_tags[itag])
+                    tag = unique_tags[np.argmax(npixel_tags)]
+                self.fields['tag'][i] = tag
+
+            self.inside_tagged = np.where(self.fields['tag'][self.hp2fields] != 0)
+
 
     def _spin_fields(self, lon=None, lat=None):
         """Spin the field tesselation
         """
         if lon is None:
-            lon = 0.  # np.random.rand()*np.pi*2
+            lon = 0. # np.random.rand()*np.pi*2
         if lat is None:
-            lat = 0.  # np.random.rand()*np.pi*2
+            lat = 0. # np.random.rand()*np.pi*2
         # rotate longitude
         ra = (self.fields['RA'] + lon) % (2.*np.pi)
         dec = self.fields['dec'] + 0
@@ -675,6 +687,25 @@ class Greedy_survey_fields(BaseSurvey):
         x, y, z = treexyz(hp_ra, hp_dec)
         d, self.hp2fields = tree.query(list(zip(x, y, z)), k=1)
 
+    def add_observation(self, observation, **kwargs):
+        # ugh, I think here I have to assume observation is an array and not a dict.
+        # if 'indx' in kwargs.keys():
+        #     indx_list = np.array([])
+        #     for i in kwargs['indx']:
+        #         indx_list = np.append(indx_list,
+        #                               np.arange(hp.nside2npix(self.nside))[np.where(self.hp2fields == self.hp2fields[i])])
+        #     kwargs['indx'] = np.array(np.unique(indx_list),
+        #                               dtype=int)
+        #     log.debug('%s -> %s' % (kwargs['indx'], indx_list))
+
+        if self.ignore_obs not in observation['note']:
+            for bf in self.basis_functions:
+                bf.add_observation(observation, **kwargs)
+            for feature in self.extra_features:
+                if hasattr(self.extra_features[feature], 'add_observation'):
+                    self.extra_features[feature].add_observation(observation, **kwargs)
+            self.reward_checked = False
+
     def __call__(self):
         """
         Just point at the highest reward healpix
@@ -683,18 +714,30 @@ class Greedy_survey_fields(BaseSurvey):
             self.reward = self.calc_reward_function()
         # Let's find the best N from the fields
         order = np.argsort(self.reward)[::-1]
-        best_hp = order[0:self.block_size]
-        best_fields = np.unique(self.hp2fields[best_hp])
-        observations = []
-        for field in best_fields:
-            obs = empty_observation()
-            obs['RA'] = self.fields['RA'][field]
-            obs['dec'] = self.fields['dec'][field]
-            obs['filter'] = self.filtername
-            obs['nexp'] = 2.
-            obs['exptime'] = 30.
-            obs['field_id'] = self.fields['field_id'][field]
-            observations.append(obs)
+
+        iter = 0
+        while True:
+            best_hp = order[iter*self.block_size:(iter+1)*self.block_size]
+            best_fields = np.unique(self.hp2fields[best_hp])
+            observations = []
+            for field in best_fields:
+                obs = empty_observation()
+                obs['RA'] = self.fields['RA'][field]
+                obs['dec'] = self.fields['dec'][field]
+                obs['filter'] = self.filtername
+                obs['nexp'] = 2.  # FIXME: hardcoded
+                obs['exptime'] = 30.  # FIXME: hardcoded
+                obs['field_id'] = self.fields['field_id'][field]
+                obs['survey_id'] = self.fields['tag'][field]
+                if self.fields['tag'][field] == 0:
+                    continue
+
+                observations.append(obs)
+                # break
+            iter += 1
+            if len(observations) > 0 or (iter+2)*self.block_size > len(order):
+                break
+
         return observations
 
 

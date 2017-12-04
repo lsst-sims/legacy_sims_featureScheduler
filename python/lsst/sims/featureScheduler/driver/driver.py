@@ -1,5 +1,6 @@
 
 import numpy as np
+from importlib import import_module
 from numpy.lib.recfunctions import append_fields
 
 from lsst.sims.ocs.environment import SeeingModel, CloudModel
@@ -14,10 +15,8 @@ import lsst.sims.featureScheduler as fs
 from lsst.sims.featureScheduler import stupidFast_RaDec2AltAz
 from lsst.ts.dateloc import DateProfile
 from lsst.ts.scheduler import Driver
-import healpy as hp
+from lsst.ts.scheduler.proposals import AreaDistributionProposal
 import logging
-
-# from model_notime import SeeingModel_no_time, CloudModel_no_time
 
 __all__ = ["FeatureSchedulerDriver"]
 
@@ -46,51 +45,12 @@ class FeatureSchedulerDriver(Driver):
 
         self.target_list = {}
 
-        # Fixme: hardcoded configuration
-        target_maps = {}
-        nside = fs.set_default_nside(nside=32)
-        target_maps['u'] = fs.generate_goal_map(NES_fraction=0.,
-                                        WFD_fraction=0.31, SCP_fraction=0.,
-                                        GP_fraction=0., nside=nside)
-        target_maps['g'] = fs.generate_goal_map(NES_fraction=0.,
-                                        WFD_fraction=0.44, SCP_fraction=0.,
-                                        GP_fraction=0., nside=nside)
-        target_maps['r'] = fs.generate_goal_map(NES_fraction=0.,
-                                        WFD_fraction=1.0, SCP_fraction=0.,
-                                        GP_fraction=0., nside=nside)
-        target_maps['i'] = fs.generate_goal_map(NES_fraction=0.,
-                                        WFD_fraction=1.0, SCP_fraction=0.,
-                                        GP_fraction=0., nside=nside)
-        target_maps['z'] = fs.generate_goal_map(NES_fraction=0.,
-                                        WFD_fraction=0.9, SCP_fraction=0.,
-                                        GP_fraction=0., nside=nside)
-        target_maps['y'] = fs.generate_goal_map(NES_fraction=0.,
-                                        WFD_fraction=0.9, SCP_fraction=0.,
-                                        GP_fraction=0., nside=nside)
+        self.scheduler = None
+        self.sky_nside = 32
+        self.scheduler_visit_counting_bfs = 0
 
-        filters = self.observatoryModel.filters
-        surveys = []
+        self.proposal_id_dict = {}
 
-        for filtername in filters:
-            bfs = []
-            bfs.append(fs.M5_diff_basis_function(filtername=filtername, nside=nside))
-            bfs.append(fs.Target_map_basis_function(filtername=filtername,
-                                                    target_map=target_maps[filtername],
-                                                    out_of_bounds_val=hp.UNSEEN, nside=nside))
-
-            bfs.append(fs.North_south_patch_basis_function(zenith_min_alt=50., nside=nside))
-            # bfs.append(fs.Zenith_mask_basis_function(maxAlt=78., penalty=-100, nside=nside))
-            bfs.append(fs.Slewtime_basis_function(filtername=filtername, nside=nside))
-            bfs.append(fs.Strict_filter_basis_function(filtername=filtername))
-
-            weights = np.array([3.0, 0.2, 1., 3., 3.])
-            surveys.append(fs.Greedy_survey_fields(bfs, weights, block_size=1, filtername=filtername, dither=False,
-                                                   nside=nside,
-                                                   prop_id=1,
-                                                   prop_name='WFD'))
-
-        self.scheduler = fs.Core_scheduler(surveys, nside=nside)
-        self.sky_nside = nside
 
     def start_survey(self, timestamp, night):
 
@@ -108,6 +68,54 @@ class FeatureSchedulerDriver(Driver):
 
         self.sunset_timestamp = sunset
         self.sunrise_timestamp = sunrise
+
+    def create_area_proposal(self, propid, name, config_dict):
+        '''Override create_area_proposal from superclass.
+
+        :param propid:
+        :param name:
+        :param config_dict:
+        :return:
+        '''
+        # Load configuration from a python module.
+        # TODO:
+        # This can be changed later to load from a given string, I'm planning on getting the name from
+        # lsst.sims.ocs.configuration.survey.general_proposals
+        conf = import_module('lsst.sims.featureScheduler.driver.config')
+
+        self.scheduler = conf.scheduler
+        self.sky_nside = conf.nside
+        self.scheduler_visit_counting_bfs = conf.scheduler_visit_counting_bfs
+
+        # Now, configure the different proposals inside Driver
+        # Get the proposal list from feature based scheduler
+        # proposal_id_list = np.array([])
+        # proposal_name_list = np.array([])
+        for prop in self.scheduler.surveys:
+            for i, pid in enumerate(prop.basis_functions[self.scheduler_visit_counting_bfs].id_list):
+                self.proposal_id_dict[pid] = [0,
+                                              prop.basis_functions[self.scheduler_visit_counting_bfs].name_list[i]]
+
+            # np.append(proposal_id_list,
+            #           prop.basis_functions[self.scheduler_visit_counting_bfs].id_list)
+            # np.append(proposal_name_list,
+            #           prop.basis_functions[self.scheduler_visit_counting_bfs].name_list)
+
+        # proposal_id_list = np.unique(proposal_id_list)
+        # proposal_name_list = np.unique(proposal_name_list)
+
+        for pid in self.proposal_id_dict.keys():
+            self.proposal_id_dict[pid][0] = self.propid_counter
+            self.propid_counter += 1
+
+            self.log.debug('%s: %s' % (pid, self.proposal_id_dict[pid]))
+
+            area_prop = AreaDistributionProposal(pid,
+                                                 self.proposal_id_dict[pid][1],
+                                                 config_dict,
+                                                 self.sky)
+            area_prop.configure_constraints(self.params)
+            self.science_proposal_list.append(area_prop)
 
     def end_survey(self):
 
@@ -140,7 +148,8 @@ class FeatureSchedulerDriver(Driver):
             for filter in self.observatoryModel.filters:
                 if filter not in total_filter_visits_dict:
                     total_filter_visits_dict[filter] = 0
-                filter_visits_dict[filter] = np.sum(prop.basis_functions[1].survey_features['N_obs'].feature)
+                filter_visits_dict[filter] = \
+                    np.sum(prop.basis_functions[self.scheduler_visit_counting_bfs].survey_features['N_obs'].feature)
                 total_filter_visits_dict[filter] += filter_visits_dict[filter]
                 self.log.debug("end_night propid=%d name=%s filter=%s visits=%i" %
                                (prop.prop_id, prop.prop_name, filter, filter_visits_dict[filter]))
@@ -213,6 +222,7 @@ class FeatureSchedulerDriver(Driver):
 
         # Telemetry about where the observatory is pointing and what filter it's using.
         telemetry_stream['filter'] = self.observatoryModel.current_state.filter
+        telemetry_stream['mounted_filters'] = self.observatoryModel.current_state.mountedfilters
         telemetry_stream['telRA'] = np.degrees(self.observatoryModel.current_state.ra_rad)
         telemetry_stream['telDec'] = np.degrees(self.observatoryModel.current_state.dec_rad)
         telemetry_stream['telAlt'] = np.degrees(self.observatoryModel.current_state.alt_rad)
@@ -263,98 +273,45 @@ class FeatureSchedulerDriver(Driver):
         self.scheduler.update_conditions(telemetry_stream)
         winner_target = self.scheduler.request_observation()
 
-        self.log.debug(winner_target)
         self.scheduler_winner_target = winner_target
 
-        target = Target()
+        hpid = _raDec2Hpid(self.sky_nside, winner_target['RA'][0], winner_target['dec'][0])
+        # Fixme: How to determine the survey that generated the target? Im assuming it was the first one
+        # self.log.debug('target_hpid: %i ' % hpid)
+        # self.log.debug('target: %s' % winner_target)
+
+        propid = winner_target['survey_id'][0]
+        filtername = winner_target['filter'][0]
+        indx = self.proposal_id_dict[propid][0]
 
         if winner_target['field_id'][0] in self.target_list:
             if winner_target['filter'][0] in self.target_list[winner_target['field_id'][0]]:
                 target = self.target_list[winner_target['field_id'][0]][winner_target['filter'][0]]
             else:
-                self.targetid += 1
-                target.targetid = self.targetid
-                target.fieldid = winner_target['field_id'][0]
-                target.filter = str(winner_target['filter'][0])
-                target.num_exp = winner_target['nexp'][0]
-                target.exp_times = [winner_target['exptime'][0]/winner_target['nexp'][0]] * winner_target['nexp'][0]
-                target.ra_rad = winner_target['RA'][0]
-                target.dec_rad = winner_target['dec'][0]
-                target.propid = 1
-                target.goal = 100
-                target.visits = 0
-                target.progress = 0.0
-                target.groupid = -1
-                target.groupix = -1
-                target.propid_list = [1]
-                target.need_list = [target.need]
-                target.bonus_list = [target.bonus]
-                target.value_list = [target.value]
-                target.propboost_list = [target.propboost]
-                target.sequenceid_list = [target.sequenceid]
-                target.subsequencename_list = [target.subsequencename]
-                target.groupid_list = [target.groupid]
-                target.groupix_list = [target.groupix]
-                target.is_deep_drilling_list = [target.is_deep_drilling]
-                target.is_dd_firstvisit_list = [target.is_dd_firstvisit]
-                target.remaining_dd_visits_list = [target.remaining_dd_visits]
-                target.dd_exposures_list = [target.dd_exposures]
-                target.dd_filterchanges_list = [target.dd_filterchanges]
-                target.dd_exptime_list = [target.dd_exptime]
-
+                target = self.generate_target(winner_target[0])
                 self.target_list[winner_target['field_id'][0]][winner_target['filter'][0]] = target
-                self.science_proposal_list[0].survey_targets_dict[target.fieldid][winner_target['filter'][0]] = \
-                    target
+                self.science_proposal_list[indx].survey_targets_dict[target.fieldid][filtername] = target
         else:
-            self.targetid += 1
-            target.targetid = self.targetid
-            target.fieldid = winner_target['field_id'][0]
-            target.filter = str(winner_target['filter'][0])
-            target.num_exp = winner_target['nexp'][0]
-            target.exp_times = [winner_target['exptime'][0]/winner_target['nexp'][0]] * winner_target['nexp'][0]
-            target.ra_rad = winner_target['RA'][0]
-            target.dec_rad = winner_target['dec'][0]
-            target.propid = 1
-            target.goal = 100
-            target.visits = 0
-            target.progress = 0.0
-            target.groupid = -1
-            target.groupix = -1
-            target.propid_list = [1]
-            target.need_list = [target.need]
-            target.bonus_list = [target.bonus]
-            target.value_list = [target.value]
-            target.propboost_list = [target.propboost]
-            target.sequenceid_list = [target.sequenceid]
-            target.subsequencename_list = [target.subsequencename]
-            target.groupid_list = [target.groupid]
-            target.groupix_list = [target.groupix]
-            target.is_deep_drilling_list = [target.is_deep_drilling]
-            target.is_dd_firstvisit_list = [target.is_dd_firstvisit]
-            target.remaining_dd_visits_list = [target.remaining_dd_visits]
-            target.dd_exposures_list = [target.dd_exposures]
-            target.dd_filterchanges_list = [target.dd_filterchanges]
-            target.dd_exptime_list = [target.dd_exptime]
-            self.target_list[winner_target['field_id'][0]] = {winner_target['filter'][0]: target}
-            self.science_proposal_list[0].survey_targets_dict[target.fieldid] = {winner_target['filter'][0]: target}
+            target = self.generate_target(winner_target[0])
+            self.target_list[target.fieldid] = {filtername: target}
+            self.science_proposal_list[indx].survey_targets_dict[target.fieldid] = {filtername: target}
         target.time = self.time
         # target.propid = [1]
 
         slewtime = self.observatoryModel.get_slew_delay(target)
         if slewtime > 0.:
-            hpid = _raDec2Hpid(self.sky_nside, target.ra_rad, target.dec_rad)
             self.scheduler_winner_target['mjd'] = telemetry_stream['mjd']+slewtime/60./60./24.
             self.scheduler_winner_target['night'] = self.night
             self.scheduler_winner_target['slewtime'] = slewtime
             self.scheduler_winner_target['skybrightness'] = \
                 self.sky_brightness.returnMags(self.observatoryModel.dateprofile.mjd,
                                                indx=[hpid],
-                                               extrapolate=True)[winner_target['filter'][0]]
-            self.scheduler_winner_target['FWHMeff'] = telemetry_stream['FWHMeff_%s' % winner_target['filter'][0]][hpid]
+                                               extrapolate=True)[filtername]
+            self.scheduler_winner_target['FWHMeff'] = telemetry_stream['FWHMeff_%s' % filtername][hpid]
             self.scheduler_winner_target['FWHM_geometric'] = \
                 telemetry_stream['FWHM_geometric_%s' % winner_target['filter'][0]][hpid]
             self.scheduler_winner_target['airmass'] = telemetry_stream['airmass'][hpid]
-            self.scheduler_winner_target['fivesigmadepth'] = m5_flat_sed(self.scheduler_winner_target['filter'][0],
+            self.scheduler_winner_target['fivesigmadepth'] = m5_flat_sed(filtername,
                                                         self.scheduler_winner_target['skybrightness'],
                                                         self.scheduler_winner_target['FWHMeff'],
                                                         self.scheduler_winner_target['exptime'],
@@ -367,21 +324,27 @@ class FeatureSchedulerDriver(Driver):
 
             self.observatoryModel2.set_state(self.observatoryState)
             self.observatoryModel2.observe(target)
+            target.seeing = self.seeing
+            target.airmass = telemetry_stream['airmass'][hpid]
+            target.sky_brightness = self.sky_brightness.returnMags(self.observatoryModel.dateprofile.mjd,
+                                                                   indx=[hpid],
+                                                                   extrapolate=True)[filtername][0]
 
-        # self.log.debug(target)
+            self.log.debug(target)
 
             self.last_winner_target = target.get_copy()
         else:
             self.last_winner_target = self.nulltarget
 
-        self.log.debug(self.scheduler_winner_target)
         return self.last_winner_target
 
     def register_observation(self, observation):
-
-        self.log.debug('Registering: %s' % self.scheduler_winner_target)
+        # obs_hpid = np.where(self.scheduler.surveys[0].hp2fields == self.scheduler_winner_target['survey_id'])
         self.scheduler.add_observation(self.scheduler_winner_target)
-        self.science_proposal_list[0].winners_list = [observation]
+        # self.log.debug('propid: %i' % self.last_winner_target.propid)
+        # self.log.debug(self.proposal_id_dict)
+        idx = self.proposal_id_dict[self.last_winner_target.propid][0]
+        self.science_proposal_list[idx].winners_list = [observation]
 
         return super(FeatureSchedulerDriver, self).register_observation(observation)
 
@@ -405,3 +368,46 @@ class FeatureSchedulerDriver(Driver):
                 self.start_night(timestamp, night)
 
         return self.isnight
+
+    def generate_target(self, fb_observation):
+        '''Takes an observation array given by the feature based scheduler and generate an appropriate OpSim target.
+
+        :param fb_observation: numpy.array
+        :return: Target
+        '''
+
+        self.targetid += 1
+        filtername = fb_observation['filter']
+        propid = fb_observation['survey_id']
+
+        target = Target()
+        target.targetid = self.targetid
+        target.fieldid = fb_observation['field_id']
+        target.filter = str(filtername)
+        target.num_exp = fb_observation['nexp']
+        target.exp_times = [fb_observation['exptime'] / fb_observation['nexp']] * fb_observation['nexp']
+        target.ra_rad = fb_observation['RA']
+        target.dec_rad = fb_observation['dec']
+        target.propid = propid
+        target.goal = 100
+        target.visits = 0
+        target.progress = 0.0
+        target.groupid = -1
+        target.groupix = -1
+        target.propid_list = [propid]
+        target.need_list = [target.need]
+        target.bonus_list = [target.bonus]
+        target.value_list = [target.value]
+        target.propboost_list = [target.propboost]
+        target.sequenceid_list = [target.sequenceid]
+        target.subsequencename_list = [target.subsequencename]
+        target.groupid_list = [target.groupid]
+        target.groupix_list = [target.groupix]
+        target.is_deep_drilling_list = [target.is_deep_drilling]
+        target.is_dd_firstvisit_list = [target.is_dd_firstvisit]
+        target.remaining_dd_visits_list = [target.remaining_dd_visits]
+        target.dd_exposures_list = [target.dd_exposures]
+        target.dd_filterchanges_list = [target.dd_filterchanges]
+        target.dd_exptime_list = [target.dd_exptime]
+
+        return target

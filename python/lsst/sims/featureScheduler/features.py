@@ -321,6 +321,9 @@ class Current_filter(BaseConditionsFeature):
     def update_conditions(self, conditions):
         self.feature = conditions['filter']
 
+class Mounted_filters(BaseConditionsFeature):
+    def update_conditions(self, conditions):
+        self.feature = conditions['mounted_filters']
 
 class Sun_moon_alts(BaseConditionsFeature):
     def update_conditions(self, conditions):
