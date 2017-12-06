@@ -4,9 +4,10 @@ import numpy as np
 import healpy as hp
 from lsst.sims.utils import _hpid2RaDec
 from .utils import hp_in_lsst_fov, set_default_nside
+import logging
 
 default_nside = set_default_nside()
-
+log = logging.getLogger(__name__)
 
 class Core_scheduler(object):
     """Core scheduler that takes completed obsrevations and observatory status and requests observations.
@@ -94,9 +95,10 @@ class Core_scheduler(object):
         Compute reward function for each survey and fill the observing queue with the
         observations from the highest reward survey.
         """
-        rewards = []
-        for survey in self.surveys:
-            rewards.append(np.max(survey.calc_reward_function()))
+        rewards = np.zeros(len(self.surveys))
+
+        for i, survey in enumerate(self.surveys):
+            rewards[i] = np.max(survey.calc_reward_function())
 
         # Take a min here, so the surveys will be executed in the order they are
         # entered if there is a tie.

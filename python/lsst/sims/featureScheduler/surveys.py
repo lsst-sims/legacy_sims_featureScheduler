@@ -689,14 +689,6 @@ class Greedy_survey_fields(BaseSurvey):
 
     def add_observation(self, observation, **kwargs):
         # ugh, I think here I have to assume observation is an array and not a dict.
-        # if 'indx' in kwargs.keys():
-        #     indx_list = np.array([])
-        #     for i in kwargs['indx']:
-        #         indx_list = np.append(indx_list,
-        #                               np.arange(hp.nside2npix(self.nside))[np.where(self.hp2fields == self.hp2fields[i])])
-        #     kwargs['indx'] = np.array(np.unique(indx_list),
-        #                               dtype=int)
-        #     log.debug('%s -> %s' % (kwargs['indx'], indx_list))
 
         if self.ignore_obs not in observation['note']:
             for bf in self.basis_functions:
@@ -712,6 +704,7 @@ class Greedy_survey_fields(BaseSurvey):
         """
         if not self.reward_checked:
             self.reward = self.calc_reward_function()
+
         # Let's find the best N from the fields
         order = np.argsort(self.reward)[::-1]
 
@@ -721,6 +714,8 @@ class Greedy_survey_fields(BaseSurvey):
             best_fields = np.unique(self.hp2fields[best_hp])
             observations = []
             for field in best_fields:
+                if self.fields['tag'][field] == 0:
+                    continue
                 obs = empty_observation()
                 obs['RA'] = self.fields['RA'][field]
                 obs['dec'] = self.fields['dec'][field]
@@ -729,11 +724,9 @@ class Greedy_survey_fields(BaseSurvey):
                 obs['exptime'] = 30.  # FIXME: hardcoded
                 obs['field_id'] = self.fields['field_id'][field]
                 obs['survey_id'] = self.fields['tag'][field]
-                if self.fields['tag'][field] == 0:
-                    continue
 
                 observations.append(obs)
-                # break
+                break
             iter += 1
             if len(observations) > 0 or (iter+2)*self.block_size > len(order):
                 break

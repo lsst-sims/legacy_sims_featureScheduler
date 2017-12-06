@@ -49,7 +49,7 @@ for filtername in filters:
     bfs.append(fs.Slewtime_basis_function(filtername=filtername, nside=nside))
     bfs.append(fs.Strict_filter_basis_function(filtername=filtername))
 
-    weights = np.array([3.0, 0.2, 1., 3., 3.])
+    weights = np.array([3.0, 0.5, 1., 3., 3.])
     surveys.append(fs.Greedy_survey_fields(bfs, weights, block_size=1, filtername=filtername, dither=False,
                                            nside=nside, smoothing_kernel=9,
                                            tag_fields=True, tag_map=target_maps[filtername][1]))
