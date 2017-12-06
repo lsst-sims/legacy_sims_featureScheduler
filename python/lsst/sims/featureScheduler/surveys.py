@@ -956,7 +956,11 @@ class Pairs_survey_scripted(Scripted_survey):
         if len(self.observing_queue) > 0:
             # Check if the time is good and we are in a good filter.
             in_window = np.abs(self.observing_queue[0]['mjd']-self.extra_features['current_mjd'].feature) < self.ttol
-            infilt = self.extra_features['current_filter'].feature in self.filt_to_pair
+            # If the observatory was closed, current filter is None
+            if self.extra_features['current_filter'].feature is None:
+                infilt = True
+            else:
+                infilt = self.extra_features['current_filter'].feature in self.filt_to_pair
 
             if in_window & infilt:
                 result = self.reward_val
@@ -971,12 +975,18 @@ class Pairs_survey_scripted(Scripted_survey):
         result = []
         if len(self.observing_queue) > 0:
             in_window = np.abs(self.observing_queue[0]['mjd']-self.extra_features['current_mjd'].feature) < self.ttol
-            infilt = self.extra_features['current_filter'].feature in self.filt_to_pair
+            if self.extra_features['current_filter'].feature is None:
+                infilt = True
+            else:
+                infilt = self.extra_features['current_filter'].feature in self.filt_to_pair
             if in_window & infilt:
                 result = self.observing_queue.pop(0)
                 result['note'] = self.note
                 # Make sure we don't change filter if we don't have to.
-                result['filter'] = self.extra_features['current_filter'].feature
+                if self.extra_features['current_filter'].feature is None:
+                    result['filter'] = self.observing_queue[0]['filter']
+                else:
+                    result['filter'] = self.extra_features['current_filter'].feature
                 result = [result]
         return result
 

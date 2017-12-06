@@ -441,7 +441,8 @@ class Strict_filter_basis_function(Base_basis_function):
 class Rolling_mask_basis_function(Base_basis_function):
     """Have a simple mask that turns on and off
     """
-    def __init__(self, mask=None, survey_features=None, condition_features=None,
+    def __init__(self, mask=None, year_mod=2, year_offset=0,
+                 survey_features=None, condition_features=None,
                  nside=default_nside, mjd_start=0):
         """
         Parameters
@@ -450,9 +451,15 @@ class Rolling_mask_basis_function(Base_basis_function):
             A HEALpix map that marks which pixels should be masked on even years
         mjd_start : float
             The starting MJD of the survey (days)
+        year_mod : int (2)
+            How often should the mask be toggled on
+        year_offset : int (0)
+            A possible offset to when the mask starts/stops
         """
         self.mjd_start = mjd_start
         self.mask = np.where(mask == True)
+        self.year_mod = year_mod
+        self.year_offset = year_offset
         if condition_features is None:
             self.condition_features = {}
             self.condition_features['mjd'] = features.Current_mjd()
@@ -464,12 +471,12 @@ class Rolling_mask_basis_function(Base_basis_function):
         """If year is even, apply mask, otherwise, not
         """
         year = np.floor((self.condition_features['mjd'].feature-self.mjd_start)/365.25)
-        if year % 2 == 0:
-            # Year is even, mask out region
+        if (year + self.year_offset) % self.year_mod == 0:
+            # This is a year we should turn the mask on
             result = self.nomask.copy()
             result[self.mask] = hp.UNSEEN
         else:
-            # Year is odd, all pixels are live
+            # Not a mask year, all pixels are live
             result = self.nomask
         return result
 
