@@ -983,9 +983,7 @@ class Pairs_survey_scripted(Scripted_survey):
                 result = self.observing_queue.pop(0)
                 result['note'] = self.note
                 # Make sure we don't change filter if we don't have to.
-                if self.extra_features['current_filter'].feature is None:
-                    result['filter'] = self.observing_queue[0]['filter']
-                else:
+                if self.extra_features['current_filter'].feature is not None:
                     result['filter'] = self.extra_features['current_filter'].feature
                 result = [result]
         return result
