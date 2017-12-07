@@ -7,10 +7,11 @@ from . import utils
 import healpy as hp
 from lsst.sims.utils import haversine, _hpid2RaDec
 from lsst.sims.skybrightness_pre import M5percentiles
+import logging
 import matplotlib.pylab as plt
 
 default_nside = utils.set_default_nside()
-
+log = logging.getLogger(__name__)
 
 class Base_basis_function(object):
     """
@@ -212,20 +213,27 @@ class North_south_patch_basis_function(Base_basis_function):
 class Target_map_basis_function(Base_basis_function):
     """Normalize the maps first to make things smoother
     """
-    def __init__(self, filtername='r', nside=default_nside, target_map=None,
+    def __init__(self, filtername='r', nside=default_nside, target_map=None, id_map=None, name_list=None,
                  survey_features=None, condition_features=None, norm_factor=240./2.5e6,
                  out_of_bounds_val=-10.):
         """
         Parameters
         ----------
-        visits_per_point : float (10.)
-            How many visits can a healpixel be ahead or behind before it counts as 1 point.
-        target_map : numpy array (None)
+        :param filtername: (string 'r')
+            The name of the filter for this target map.
+        :param nside: int (default_nside)
+            The healpix resolution.
+        :param target_map: numpy array (None)
             A healpix map showing the ratio of observations desired for all points on the sky
-        norm_factor : float (800./2.5e6)
+        :param id_map: numpy array (None)
+            A healpix map with the id of the different regions of the sky. Useful for identifying
+            different surveys in the same basis map
+        :param survey_features:
+        :param condition_features:
+        :param norm_factor: float (800./2.5e6)
             for converting target map to number of observations. This is a convience scaling,
             It should be degenerate with the weight of the basis function.
-        out_of_bounds_val : float (10.)
+        :param out_of_bounds_val: float (10.)
             Point value to give regions where there are no observations requested
         """
         self.norm_factor = norm_factor
@@ -242,8 +250,36 @@ class Target_map_basis_function(Base_basis_function):
             self.target_map = utils.generate_goal_map(filtername=filtername)
         else:
             self.target_map = target_map
-        self.out_of_bounds_area = np.where(self.target_map == 0)[0]
+
+        self.out_of_bounds_area = np.where(self.target_map == 0.)[0]
         self.out_of_bounds_val = out_of_bounds_val
+
+        # Configuring id map and id list
+        if id_map is None:
+            self.id_map = np.ones(len(self.target_map), dtype=int)
+            self.id_list = np.zeros(1, dtype=int)
+        elif len(id_map) != len(self.target_map):
+            raise IOError('Length of name_map[%i] and target_map[%i] does not match.' % (len(id_map),
+                                                                                         len(self.target_map)))
+        else:
+            self.id_map = id_map
+            self.id_list = np.unique(id_map[id_map != 0])
+            self.out_of_bounds_area = np.where(id_map == 0)
+
+        # Configuring name list
+        self.name_list = np.chararray(len(self.id_list), itemsize=72, unicode=True)
+        if name_list is None:
+            for i in range(len(self.name_list)):
+                self.name_list[i] = 'PROP %04i' % (i+1)
+        elif len(name_list) >= len(self.id_list):
+            for i in range(len(self.name_list)):
+                self.name_list[i] = name_list[i]
+        else:
+            for i in range(len(name_list)):
+                self.name_list[i] = name_list[i]
+
+            for i in range(len(name_list), len(self.name_list)):
+                self.name_list[i] = 'PROP %04i' % (i + 1)
 
     def __call__(self, indx=None):
         """
@@ -405,6 +441,7 @@ class Strict_filter_basis_function(Base_basis_function):
         if condition_features is None:
             self.condition_features = {}
             self.condition_features['Current_filter'] = features.Current_filter()
+            self.condition_features['Mounted_filter'] = features.Mounted_filters()
             self.condition_features['Sun_moon_alts'] = features.Sun_moon_alts()
             self.condition_features['Current_mjd'] = features.Current_mjd()
         if survey_features is None:
@@ -430,7 +467,10 @@ class Strict_filter_basis_function(Base_basis_function):
         # Did we just finish a DD sequence
         wasDD = self.survey_features['Last_observation'].feature['note'] == 'DD'
 
-        if moon_changed | in_filter | time_past | twi_changed | wasDD:
+        # Is the filter mounted?
+        mounted = self.filtername in self.condition_features['Mounted_filter'].feature
+
+        if (moon_changed | in_filter | time_past | twi_changed | wasDD) & mounted:
             result = 1.
         else:
             result = 0.

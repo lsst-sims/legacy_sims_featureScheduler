@@ -4,6 +4,7 @@ from builtins import object
 import numpy as np
 import healpy as hp
 import pandas as pd
+import logging
 from scipy.spatial import cKDTree as kdtree
 from lsst.sims.utils import _hpid2RaDec, calcLmstLast, _raDec2Hpid
 from astropy.coordinates import SkyCoord
@@ -12,8 +13,10 @@ import os
 import sys
 from lsst.utils import getPackageDir
 import sqlite3 as db
+from lsst.ts.scheduler.fields import FieldsDatabase
 import matplotlib.pylab as plt
 
+log = logging.getLogger(__name__)
 
 def set_default_nside(nside=None):
     """
@@ -144,10 +147,10 @@ def empty_observation():
     """
     names = ['RA', 'dec', 'mjd', 'exptime', 'filter', 'rotSkyPos', 'nexp',
              'airmass', 'FWHMeff', 'FWHM_geometric', 'skybrightness', 'night', 'slewtime', 'fivesigmadepth',
-             'alt', 'az', 'clouds', 'moonAlt', 'sunAlt', 'note']
+             'alt', 'az', 'clouds', 'moonAlt', 'sunAlt', 'note', 'field_id', 'survey_id']
     # units of rad, rad,   days,  seconds,   string, radians (E of N?)
     types = [float, float, float, float, '|U1', float, int, float, float, float, float, int, float, float,
-             float, float, float, float, float, '|U40']
+             float, float, float, float, float, '|U40', int, int]
     result = np.zeros(1, dtype=list(zip(names, types)))
     return result
 
@@ -168,19 +171,29 @@ def empty_scheduled_observation():
 
 def read_fields():
     """
-    Read in the old Field coordinates
+    Read in the Field coordinates
     Returns
     -------
     numpy.array
         With RA and dec in radians.
     """
-    names = ['RA', 'dec']
-    types = [float, float]
-    data_dir = os.path.join(getPackageDir('sims_featureScheduler'), 'python/lsst/sims/featureScheduler/')
-    filepath = os.path.join(data_dir, 'fieldID.lis')
-    fields = np.loadtxt(filepath, dtype=list(zip(names, types)))
-    fields['RA'] = np.radians(fields['RA'])
-    fields['dec'] = np.radians(fields['dec'])
+    sql = "select * from Field"
+    db = FieldsDatabase()
+    res = db.query(sql)
+    names = ['field_id', 'fov_rad', 'RA', 'dec', 'gl', 'gb', 'el', 'eb', 'tag']
+    types = [int, float, float, float, float, float, float, float, int]
+    fields = np.zeros(len(res), dtype=list(zip(names, types)))
+
+    for i, row in enumerate(res):
+        fields['field_id'][i] = row[0]
+        fields['fov_rad'][i] = row[1]
+        fields['RA'][i] = np.radians(row[2])
+        fields['dec'][i] = np.radians(row[3])
+        fields['gl'][i] = row[4]
+        fields['gb'][i] = row[5]
+        fields['el'][i] = row[6]
+        fields['eb'][i] = row[7]
+
     return fields
 
 
@@ -369,32 +382,69 @@ def generate_goal_map(nside=set_default_nside(), NES_fraction = .3, WFD_fraction
                       NES_width=15., NES_dec_min=0., NES_fill=True,
                       SCP_dec_max=-60., gp_center_width=10.,
                       gp_end_width=4., gp_long1=70., gp_long2=290.,
-                      wfd_dec_min=-60., wfd_dec_max=0.):
+                      wfd_dec_min=-60., wfd_dec_max=0.,
+                      generate_id_map=False):
     """
     Handy function that will put together a target map in the proper order.
     """
 
     # Note, some regions overlap, thus order regions are added is important.
     result = np.zeros(hp.nside2npix(nside), dtype=float)
+    id_map = np.zeros(hp.nside2npix(nside), dtype=int)
+    pid = 1
+    prop_name_list = []
+
+    nes = NES_healpixels(nside=nside, width=NES_width,
+                         dec_min=NES_dec_min, fill_gap=NES_fill)
+    result[np.where(nes != 0)] = 0
+    result += NES_fraction*nes
+
+    if NES_fraction > 0.:
+        id_map[np.where(nes != 0)] = 1
+        pid += 1
+        prop_name_list.append('NorthEclipticSpur')
+
     result += NES_fraction*NES_healpixels(nside=nside, width=NES_width,
                                           dec_min=NES_dec_min, fill_gap=NES_fill)
+
     wfd = WFD_healpixels(nside=nside, dec_min=wfd_dec_min, dec_max=wfd_dec_max)
     result[np.where(wfd != 0)] = 0
     result += WFD_fraction*wfd
+
+    if WFD_fraction > 0.:
+        id_map[np.where(wfd != 0)] = 3
+        pid += 1
+        prop_name_list.append('WideFastDeep')
+
     scp = SCP_healpixels(nside=nside, dec_max=SCP_dec_max)
     result[np.where(scp != 0)] = 0
     result += SCP_fraction*scp
+
+    if SCP_fraction > 0.:
+        id_map[np.where(scp != 0)] = 2
+        pid += 1
+        prop_name_list.append('SouthCelestialPole')
+
     gp = galactic_plane_healpixels(nside=nside, center_width=gp_center_width,
                                    end_width=gp_end_width, gal_long1=gp_long1,
                                    gal_long2=gp_long2)
     result[np.where(gp != 0)] = 0
     result += GP_fraction*gp
-    return result
+
+    if GP_fraction > 0.:
+        id_map[np.where(gp != 0)] = 4
+        pid += 1
+        prop_name_list.append('GalacticPlane')
+
+    if generate_id_map:
+        return result, id_map, prop_name_list
+    else:
+        return result
 
 
 def standard_goals(nside=set_default_nside()):
     """
-    A quick fucntion to generate the "standard" goal maps.
+    A quick function to generate the "standard" goal maps.
     """
     # Find the number of healpixels we expect to observe per observation
 
