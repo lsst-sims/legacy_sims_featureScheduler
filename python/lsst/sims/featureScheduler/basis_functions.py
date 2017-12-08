@@ -304,6 +304,51 @@ class Target_map_basis_function(Base_basis_function):
 
         return result
 
+class Avoid_Fast_Revists(Base_basis_function):
+    """Marks targets as unseen if they are in a specified time window in order to avoid fast revisits.
+    """
+    def __init__(self, filtername='r', nside=default_nside, gap_min=25.,
+                 survey_features=None, condition_features=None,
+                 out_of_bounds_val=-10.):
+        """
+        Parameters
+        ----------
+        :param filtername: (string 'r')
+            The name of the filter for this target map.
+        :param gap_min : float (25.)
+            Minimum time for the gap (minutes).
+        :param nside: int (default_nside)
+            The healpix resolution.
+        :param survey_features:
+        :param condition_features:
+        :param out_of_bounds_val: float (10.)
+            Point value to give regions where there are no observations requested
+        """
+        self.gap_min = gap_min/60./24.
+        self.nside = nside
+        self.out_of_bounds_val = out_of_bounds_val
+
+        if survey_features is None:
+            self.survey_features = dict()
+            self.survey_features['Last_observed'] = features.Last_observed(filtername=filtername)
+
+        if condition_features is None:
+            self.condition_features = {}
+            # Current MJD
+            self.condition_features['Current_mjd'] = features.Current_mjd()
+
+        super(Avoid_Fast_Revists, self).__init__(survey_features=self.survey_features,
+                                                          condition_features=self.condition_features)
+
+    def __call__(self, indx=None):
+        result = np.ones(hp.nside2npix(self.nside), dtype=float)
+        if indx is None:
+            indx = np.arange(result.size)
+        diff = self.condition_features['Current_mjd'].feature - self.survey_features['Last_observed'].feature[indx]
+        bad = np.where(diff < self.gap_min)[0]
+        result[indx[bad]] = hp.UNSEEN
+        return result
+
 
 class Visit_repeat_basis_function(Base_basis_function):
     """

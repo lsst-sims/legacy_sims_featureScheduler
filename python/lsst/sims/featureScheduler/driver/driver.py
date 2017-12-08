@@ -112,6 +112,9 @@ class FeatureSchedulerDriver(Driver):
 
         self.night = night
         super(FeatureSchedulerDriver, self).start_night(timestamp, night)
+        for fieldid in self.target_list.keys():
+            for filtername in self.target_list[fieldid].keys():
+                self.target_list[fieldid][filtername].groupix = 0
 
     def select_next_target(self):
 
@@ -262,8 +265,8 @@ class FeatureSchedulerDriver(Driver):
         target.goal = 100
         target.visits = 0
         target.progress = 0.0
-        target.groupid = -1
-        target.groupix = -1
+        target.groupid = 1
+        target.groupix = 0
         target.propid_list = [propid]
         target.need_list = [target.need]
         target.bonus_list = [target.bonus]
