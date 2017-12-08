@@ -3,7 +3,8 @@ import os
 from builtins import zip
 from builtins import object
 import numpy as np
-from .utils import empty_observation, set_default_nside, read_fields, stupidFast_altAz2RaDec, raster_sort, stupidFast_RaDec2AltAz, gnomonic_project_toxy, treexyz
+from .utils import (empty_observation, set_default_nside, hp_in_lsst_fov, read_fields, stupidFast_altAz2RaDec,
+                    raster_sort, stupidFast_RaDec2AltAz, gnomonic_project_toxy, treexyz)
 from lsst.sims.utils import _hpid2RaDec, _raDec2Hpid, Site, _angularSeparation
 import healpy as hp
 from . import features
@@ -683,12 +684,18 @@ class Greedy_survey_fields(BaseSurvey):
         """Map each healpixel to nearest field. This will only work if healpix
         resolution is higher than field resolution.
         """
-        x, y, z = treexyz(ra, dec)
-        tree = kdtree(list(zip(x, y, z)), leafsize=leafsize, balanced_tree=False, compact_nodes=False)
-        hpid = np.arange(hp.nside2npix(self.nside))
-        hp_ra, hp_dec = _hpid2RaDec(self.nside, hpid)
-        x, y, z = treexyz(hp_ra, hp_dec)
-        d, self.hp2fields = tree.query(list(zip(x, y, z)), k=1)
+        pointing2hpindx = hp_in_lsst_fov(nside=self.nside)
+        self.hp2fields = np.zeros(hp.nside2npix(self.nside), dtype=np.int)
+        for i in range(len(ra)):
+            hpindx = pointing2hpindx(ra[i], dec[i])
+            self.hp2fields[hpindx] = i
+
+        # x, y, z = treexyz(ra, dec)
+        # tree = kdtree(list(zip(x, y, z)), leafsize=leafsize, balanced_tree=False, compact_nodes=False)
+        # hpid = np.arange(hp.nside2npix(self.nside))
+        # hp_ra, hp_dec = _hpid2RaDec(self.nside, hpid)
+        # x, y, z = treexyz(hp_ra, hp_dec)
+        # d, self.hp2fields = tree.query(list(zip(x, y, z)), k=1)
 
     def add_observation(self, observation, **kwargs):
         # ugh, I think here I have to assume observation is an array and not a dict.
