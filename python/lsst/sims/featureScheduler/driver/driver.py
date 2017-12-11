@@ -129,7 +129,6 @@ class FeatureSchedulerDriver(Driver):
         self.scheduler_winner_target = winner_target
 
         hpid = _raDec2Hpid(self.sky_nside, winner_target['RA'][0], winner_target['dec'][0])
-        # Fixme: How to determine the survey that generated the target? Im assuming it was the first one
 
         propid = winner_target['survey_id'][0]
         filtername = winner_target['filter'][0]
@@ -142,8 +141,11 @@ class FeatureSchedulerDriver(Driver):
                 target.targetid = self.targetid
             else:
                 target = self.generate_target(winner_target[0])
-                self.target_list[winner_target['field_id'][0]][winner_target['filter'][0]] = target
-                self.science_proposal_list[indx].survey_targets_dict[target.fieldid][filtername] = target
+                self.target_list[target.fieldid][filtername] = target
+                if target.fieldid in self.science_proposal_list[indx].survey_targets_dict:
+                    self.science_proposal_list[indx].survey_targets_dict[target.fieldid][filtername] = target
+                else:
+                    self.science_proposal_list[indx].survey_targets_dict[target.fieldid] = {filtername: target}
         else:
             target = self.generate_target(winner_target[0])
             self.target_list[target.fieldid] = {filtername: target}
