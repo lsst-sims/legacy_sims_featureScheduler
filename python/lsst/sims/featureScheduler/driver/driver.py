@@ -16,7 +16,7 @@ import lsst.sims.featureScheduler as fs
 from lsst.sims.featureScheduler import stupidFast_RaDec2AltAz
 from lsst.ts.dateloc import DateProfile
 from lsst.ts.scheduler import Driver
-from lsst.ts.scheduler.proposals import AreaDistributionProposal
+from lsst.ts.scheduler.proposals import AreaDistributionProposal, TimeDistributionProposal
 import logging
 
 __all__ = ["FeatureSchedulerDriver"]
@@ -69,6 +69,8 @@ class FeatureSchedulerDriver(Driver):
     def create_area_proposal(self, propid, name, config_dict):
         '''Override create_area_proposal from superclass.
 
+        One call to rule them all!
+
         :param propid:
         :param name:
         :param config_dict:
@@ -86,16 +88,24 @@ class FeatureSchedulerDriver(Driver):
 
         # Now, configure the different proposals inside Driver
         # Get the proposal list from feature based scheduler
+        proposal_type_dict = dict()
         for prop in self.scheduler.surveys:
-            for i, pid in enumerate(prop.basis_functions[self.scheduler_visit_counting_bfs].id_list):
-                self.proposal_id_dict[pid] = [0,
-                                              prop.basis_functions[self.scheduler_visit_counting_bfs].name_list[i]]
+            if prop.survey_type == 'AreaDistributionProposal':
+                for i, pid in enumerate(prop.basis_functions[self.scheduler_visit_counting_bfs].id_list):
+                    self.proposal_id_dict[pid] = [0,
+                                                  prop.basis_functions[self.scheduler_visit_counting_bfs].name_list[i]]
+                    proposal_type_dict[pid] = prop.survey_type
+            elif prop.survey_type == 'TimeDistributionProposal':
+                pid = prop.survey_name.split(":")[0]
+                proposal_type_dict[prop.survey_id] = prop.survey_type
+                self.proposal_id_dict[prop.survey_id] = [0,
+                                                         pid]
 
         for pid in self.proposal_id_dict.keys():
             self.proposal_id_dict[pid][0] = self.propid_counter
             self.propid_counter += 1
 
-            self.log.debug('%s: %s' % (pid, self.proposal_id_dict[pid]))
+            self.log.debug('%s: %s - %s' % (pid, self.proposal_id_dict[pid], proposal_type_dict[pid]))
 
             area_prop = AreaDistributionProposal(pid,
                                                  self.proposal_id_dict[pid][1],
@@ -130,7 +140,7 @@ class FeatureSchedulerDriver(Driver):
 
         hpid = _raDec2Hpid(self.sky_nside, winner_target['RA'][0], winner_target['dec'][0])
         # Fixme: How to determine the survey that generated the target? Im assuming it was the first one
-
+        self.log.debug(winner_target)
         propid = winner_target['survey_id'][0]
         filtername = winner_target['filter'][0]
         indx = self.proposal_id_dict[propid][0]
@@ -142,7 +152,7 @@ class FeatureSchedulerDriver(Driver):
                 target.targetid = self.targetid
             else:
                 target = self.generate_target(winner_target[0])
-                self.target_list[winner_target['field_id'][0]][winner_target['filter'][0]] = target
+                self.target_list[target.fieldid][filtername] = target
                 self.science_proposal_list[indx].survey_targets_dict[target.fieldid][filtername] = target
         else:
             target = self.generate_target(winner_target[0])

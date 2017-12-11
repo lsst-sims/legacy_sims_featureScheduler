@@ -21,7 +21,7 @@ log = logging.getLogger(__name__)
 
 class BaseSurvey(object):
     def __init__(self, basis_functions, basis_weights, extra_features=None, smoothing_kernel=None,
-                 ignore_obs='dummy', nside=default_nside):
+                 ignore_obs='dummy', survey_type='AreaDistributionProposal', nside=default_nside):
         """
         Parameters
         ----------
@@ -52,6 +52,8 @@ class BaseSurvey(object):
         self.basis_weights = basis_weights
         self.reward = None
         self.save_reward_id = 1
+        self.survey_type = survey_type
+
         if extra_features is None:
             self.extra_features = {}
         else:
@@ -763,7 +765,7 @@ class Deep_drilling_survey(BaseSurvey):
                  exptime=30.,
                  nexp=2, ignore_obs='dummy', survey_name='DD', fraction_limit=0.01,
                  HA_limits=[-1.5, 1.], reward_value=101., moon_up=True, readtime=2.,
-                 day_space=2.):
+                 day_space=2., nside=default_nside):
         """
         Parameters
         ----------
@@ -805,6 +807,9 @@ class Deep_drilling_survey(BaseSurvey):
         self.moon_up = moon_up
         self.fraction_limit = fraction_limit
         self.day_space = day_space
+        self.survey_type = 'TimeDistributionProposal'
+        self.survey_id = 5
+        self.nside = nside
 
         if extra_features is None:
             self.extra_features = {}
@@ -839,6 +844,9 @@ class Deep_drilling_survey(BaseSurvey):
                     obs['dec'] = self.dec
                     obs['nexp'] = nexp
                     obs['note'] = survey_name
+                    obs['field_id'] = 6000
+                    obs['survey_id'] = self.survey_id
+
                     self.sequence.append(obs)
         else:
             self.sequence = sequence
@@ -1047,7 +1055,7 @@ class Pairs_survey_scripted(Scripted_survey):
         return result
 
 
-def generate_dd_surveys():
+def generate_dd_surveys(nside=default_nside):
     """Utility to return a list of standard deep drilling field surveys.
 
     XXX-Someone double check that I got the coordinates right!
@@ -1061,40 +1069,48 @@ def generate_dd_surveys():
     surveys.append(Deep_drilling_survey(9.45, -44., sequence='rgizy',
                                         nvis=[20, 10, 20, 26, 20],
                                         survey_name='DD:ELAISS1', reward_value=100, moon_up=None,
-                                        fraction_limit=0.0185))
+                                        fraction_limit=0.0185,
+                                        nside=nside))
     surveys.append(Deep_drilling_survey(9.45, -44., sequence='u',
                                         nvis=[7],
                                         survey_name='DD:u,ELAISS1', reward_value=100, moon_up=False,
-                                        fraction_limit=0.0015))
+                                        fraction_limit=0.0015,
+                                        nside=nside))
 
     # XMM-LSS
     surveys.append(Deep_drilling_survey(35.708333, -4-45/60., sequence='rgizy',
                                         nvis=[20, 10, 20, 26, 20],
                                         survey_name='DD:XMM-LSS', reward_value=100, moon_up=None,
-                                        fraction_limit=0.0185))
+                                        fraction_limit=0.0185,
+                                        nside=nside))
     surveys.append(Deep_drilling_survey(35.708333, -4-45/60., sequence='u',
                                         nvis=[7],
                                         survey_name='DD:u,XMM-LSS', reward_value=100, moon_up=False,
-                                        fraction_limit=0.0015))
+                                        fraction_limit=0.0015,
+                                        nside=nside))
 
     # Extended Chandra Deep Field South
     # XXX--Note, this one can pass near zenith. Should go back and add better planning on this.
     surveys.append(Deep_drilling_survey(53.125, -28.-6/60., sequence='rgizy',
                                         nvis=[20, 10, 20, 26, 20],
                                         survey_name='DD:ECDFS', reward_value=100, moon_up=None,
-                                        fraction_limit=0.0185, HA_limits=[0.2, 1.]))
+                                        fraction_limit=0.0185, HA_limits=[0.2, 1.],
+                                        nside=nside))
     surveys.append(Deep_drilling_survey(53.125, -28.-6/60., sequence='u',
                                         nvis=[7],
                                         survey_name='DD:u,ECDFS', reward_value=100, moon_up=False,
-                                        fraction_limit=0.0015, HA_limits=[0.2, 1.]))
+                                        fraction_limit=0.0015, HA_limits=[0.2, 1.],
+                                        nside=nside))
     # COSMOS
     surveys.append(Deep_drilling_survey(150.1, 2.+10./60.+55/3600., sequence='rgizy',
                                         nvis=[20, 10, 20, 26, 20],
                                         survey_name='DD:COSMOS', reward_value=100, moon_up=None,
-                                        fraction_limit=0.0185))
+                                        fraction_limit=0.0185,
+                                        nside=nside))
     surveys.append(Deep_drilling_survey(150.1, 2.+10./60.+55/3600., sequence='u',
                                         nvis=[7],
                                         survey_name='DD:u,COSMOS', reward_value=100, moon_up=False,
-                                        fraction_limit=0.0015))
+                                        fraction_limit=0.0015,
+                                        nside=nside))
 
     return surveys
