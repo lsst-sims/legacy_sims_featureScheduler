@@ -187,9 +187,9 @@ class FeatureSchedulerDriver(Driver):
             self.observatoryModel2.observe(target)
             target.seeing = self.seeing
 
-            ntime = self.observatoryModel2.current_state.time + self.scheduler_winner_target['exptime']
+            ntime = self.observatoryModel2.current_state.time # + self.scheduler_winner_target['exptime']
             if ntime < self.sunrise_timestamp:
-                self.observatoryModel2.update_state(ntime)
+                # self.observatoryModel2.update_state(ntime)
                 if self.observatoryModel2.current_state.tracking:
                     target.time = self.time
                     if self.last_winner_target.targetid == target.targetid:
