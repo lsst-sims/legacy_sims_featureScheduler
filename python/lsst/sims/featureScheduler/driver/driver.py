@@ -199,7 +199,8 @@ class FeatureSchedulerDriver(Driver):
                         self.last_winner_target = target.get_copy()
                 else:
                     self.log.debug('Could not track object. Trying to change position angle')
-                    self.observatoryModel2.current_state.telrot_rad = 0.
+                    self.observatoryState.telrot_rad = 0.
+                    self.observatoryModel2.set_state(self.observatoryState)
                     self.observatoryModel2.observe(target)
 
                     if self.observatoryModel2.current_state.tracking:
