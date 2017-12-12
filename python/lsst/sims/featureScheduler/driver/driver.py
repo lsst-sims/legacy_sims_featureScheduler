@@ -186,6 +186,7 @@ class FeatureSchedulerDriver(Driver):
             self.observatoryModel2.set_state(self.observatoryState)
             self.observatoryModel2.observe(target)
             target.seeing = self.seeing
+            target.cloud = self.cloud
 
             ntime = self.observatoryModel2.current_state.time # + self.scheduler_winner_target['exptime']
             if ntime < self.sunrise_timestamp:
@@ -197,11 +198,32 @@ class FeatureSchedulerDriver(Driver):
                     else:
                         self.last_winner_target = target.get_copy()
                 else:
-                    self.log.debug("select_next_target: target rejected %s" %
-                                   (str(target)))
-                    self.log.debug("select_next_target: state rejected %s" %
-                                   str(self.observatoryModel2.current_state))
-                    self.last_winner_target = self.nulltarget
+                    # Trying to change the position angle of the camera
+                    if not self.observatoryModel.params.rotator_followsky:
+                        self.observatoryModel.params.rotator_followsky = True
+                        slewtime = self.observatoryModel.get_slew_delay(target)
+                        self.observatoryModel.params.rotator_followsky = False
+                        if slewtime > 0.:
+                            self.scheduler_winner_target['slewtime'] = slewtime
+                            target.slewtime = slewtime
+                            self.observatoryModel2.set_state(self.observatoryState)
+                            self.observatoryModel2.observe(target)
+                            if self.observatoryModel2.current_state.tracking:
+                                target.time = self.time
+                                if self.last_winner_target.targetid == target.targetid:
+                                    self.last_winner_target = self.nulltarget
+                                else:
+                                    self.last_winner_target = target.get_copy()
+                            else:
+
+                                self.log.debug("select_next_target: target rejected %s" %
+                                               (str(target)))
+                                self.log.debug("select_next_target: state rejected %s" %
+                                               str(self.observatoryModel2.current_state))
+
+                                self.last_winner_target = self.nulltarget
+                    else:
+                        self.last_winner_target = self.nulltarget
             else:
                 self.last_winner_target = self.nulltarget
 
