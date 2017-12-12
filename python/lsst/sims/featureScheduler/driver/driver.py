@@ -16,7 +16,9 @@ import lsst.sims.featureScheduler as fs
 from lsst.sims.featureScheduler import stupidFast_RaDec2AltAz
 from lsst.ts.dateloc import DateProfile
 from lsst.ts.scheduler import Driver
-from lsst.ts.scheduler.proposals import AreaDistributionProposal, TimeDistributionProposal
+from lsst.ts.scheduler.proposals import AreaDistributionProposal
+from lsst.sims.featureScheduler.driver.pro import FeatureBasedProposal
+
 import logging
 
 __all__ = ["FeatureSchedulerDriver"]
@@ -107,10 +109,17 @@ class FeatureSchedulerDriver(Driver):
 
             self.log.debug('%s: %s - %s' % (pid, self.proposal_id_dict[pid], proposal_type_dict[pid]))
 
-            area_prop = AreaDistributionProposal(pid,
+            if proposal_type_dict[pid] == 'AreaDistributionProposal':
+                area_prop = AreaDistributionProposal(pid,
+                                                     self.proposal_id_dict[pid][1],
+                                                     config_dict,
+                                                     self.sky)
+            else:
+                area_prop = FeatureBasedProposal(pid,
                                                  self.proposal_id_dict[pid][1],
                                                  config_dict,
                                                  self.sky)
+
             area_prop.configure_constraints(self.params)
             self.science_proposal_list.append(area_prop)
 
@@ -197,9 +206,9 @@ class FeatureSchedulerDriver(Driver):
             self.observatoryModel2.observe(target)
             target.seeing = self.seeing
 
-            ntime = self.observatoryModel2.current_state.time + self.scheduler_winner_target['exptime']
+            ntime = self.observatoryModel2.current_state.time
             if ntime < self.sunrise_timestamp:
-                self.observatoryModel2.update_state(ntime)
+                # self.observatoryModel2.update_state(ntime)
                 if self.observatoryModel2.current_state.tracking:
                     target.time = self.time
                     if self.last_winner_target.targetid == target.targetid:

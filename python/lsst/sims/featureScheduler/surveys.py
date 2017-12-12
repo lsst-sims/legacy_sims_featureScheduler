@@ -834,6 +834,14 @@ class Deep_drilling_survey(BaseSurvey):
             self.extra_features = extra_features
 
         if type(sequence) == str:
+            opsim_fields = read_fields()
+            pointing2hpindx = hp_in_lsst_fov(nside=self.nside)
+            hp2fields = np.zeros(hp.nside2npix(self.nside), dtype=np.int)
+            for i in range(len(opsim_fields['RA'])):
+                hpindx = pointing2hpindx(opsim_fields['RA'][i], opsim_fields['dec'][i])
+                hp2fields[hpindx] = i
+            hpid = _raDec2Hpid(self.nside, self.ra, self.dec)
+
             self.sequence = []
             for num, filtername in zip(nvis, sequence):
                 for j in range(num):
@@ -844,7 +852,7 @@ class Deep_drilling_survey(BaseSurvey):
                     obs['dec'] = self.dec
                     obs['nexp'] = nexp
                     obs['note'] = survey_name
-                    obs['field_id'] = 6000
+                    obs['field_id'] = hp2fields[hpid]
                     obs['survey_id'] = self.survey_id
 
                     self.sequence.append(obs)
