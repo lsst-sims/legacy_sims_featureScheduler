@@ -17,7 +17,7 @@ from lsst.sims.featureScheduler import stupidFast_RaDec2AltAz
 from lsst.ts.dateloc import DateProfile
 from lsst.ts.scheduler import Driver
 from lsst.ts.scheduler.proposals import AreaDistributionProposal
-from lsst.sims.featureScheduler.driver.pro import FeatureBasedProposal
+from lsst.sims.featureScheduler.driver.proposals import FeatureBasedProposal
 
 import logging
 
@@ -50,6 +50,7 @@ class FeatureSchedulerDriver(Driver):
 
         self.proposal_id_dict = {}
 
+        self.time_distribution = False
 
     def start_survey(self, timestamp, night):
 
@@ -152,6 +153,13 @@ class FeatureSchedulerDriver(Driver):
         propid = winner_target['survey_id'][0]
         filtername = winner_target['filter'][0]
         indx = self.proposal_id_dict[propid][0]
+
+        if self.time_distribution and self.scheduler[indx].survey_type != 'TimeDistributionProposal':
+            self.scheduler.flush_queue()
+        elif self.scheduler[indx].survey_type == 'TimeDistributionProposal':
+            self.time_distribution = True
+
+
 
         if winner_target['field_id'][0] in self.target_list:
             if winner_target['filter'][0] in self.target_list[winner_target['field_id'][0]]:
