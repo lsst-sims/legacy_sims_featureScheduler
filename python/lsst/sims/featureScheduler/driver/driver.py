@@ -198,6 +198,7 @@ class FeatureSchedulerDriver(Driver):
                     else:
                         self.last_winner_target = target.get_copy()
                 else:
+                    self.log.debug('target state rejected trying different pa: %s' % target)
                     # Trying to change the position angle of the camera
                     if not self.observatoryModel.params.rotator_followsky:
                         self.observatoryModel.params.rotator_followsky = True
