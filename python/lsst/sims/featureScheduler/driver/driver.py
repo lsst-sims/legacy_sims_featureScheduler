@@ -48,10 +48,6 @@ class FeatureSchedulerDriver(Driver):
 
         self.proposal_id_dict = {}
 
-        self.observatoryModel.params.rotator_followsky = True
-        self.observatoryModel2.params.rotator_followsky = True
-
-
     def start_survey(self, timestamp, night):
 
         self.start_time = timestamp
@@ -176,6 +172,7 @@ class FeatureSchedulerDriver(Driver):
                                                         self.scheduler_winner_target['airmass'])
             self.scheduler_winner_target['alt'] = target.alt_rad
             self.scheduler_winner_target['az'] = target.az_rad
+            self.scheduler_winner_target['rotSkyPos'] = target.ang_rad
             self.scheduler_winner_target['clouds'] = self.cloud
             self.scheduler_winner_target['sunAlt'] = telemetry_stream['sunAlt']
             self.scheduler_winner_target['moonAlt'] = telemetry_stream['moonAlt']
@@ -201,11 +198,22 @@ class FeatureSchedulerDriver(Driver):
                     else:
                         self.last_winner_target = target.get_copy()
                 else:
-                    self.log.debug("select_next_target: target rejected %s" %
-                                   (str(target)))
-                    self.log.debug("select_next_target: state rejected %s" %
-                                   str(self.observatoryModel2.current_state))
-                    self.last_winner_target = self.nulltarget
+                    self.log.debug('Could not track object. Trying to change position angle')
+                    self.observatoryModel2.current_state.telrot_rad = 0.
+                    self.observatoryModel2.observe(target)
+
+                    if self.observatoryModel2.current_state.tracking:
+                        target.time = self.time
+                        if self.last_winner_target.targetid == target.targetid:
+                            self.last_winner_target = self.nulltarget
+                        else:
+                            self.last_winner_target = target.get_copy()
+                    else:
+                        self.log.debug("select_next_target: target rejected %s" %
+                                       (str(target)))
+                        self.log.debug("select_next_target: state rejected %s" %
+                                       str(self.observatoryModel2.current_state))
+                        self.last_winner_target = self.nulltarget
             else:
                 self.last_winner_target = self.nulltarget
 
@@ -314,6 +322,7 @@ class FeatureSchedulerDriver(Driver):
         telemetry_stream['telDec'] = copy.copy(np.degrees(self.observatoryModel.current_state.dec_rad))
         telemetry_stream['telAlt'] = copy.copy(np.degrees(self.observatoryModel.current_state.alt_rad))
         telemetry_stream['telAz'] = copy.copy(np.degrees(self.observatoryModel.current_state.az_rad))
+        telemetry_stream['telRot'] = copy.copy(np.degrees(self.observatoryModel.current_state.rot_rad))
 
         # What is the sky brightness over the sky (healpix map)
         telemetry_stream['skybrightness'] = copy.copy(
