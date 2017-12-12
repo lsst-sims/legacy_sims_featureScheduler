@@ -200,7 +200,7 @@ class FeatureSchedulerDriver(Driver):
                 else:
                     self.log.debug('Could not track object. Trying to change position angle')
                     self.observatoryState.telrot_rad = 0.
-                    target.ang_rad = target.pa_rad
+                    target.ang_rad = self.observatoryState.pa_rad
                     self.observatoryModel2.set_state(self.observatoryState)
                     self.log.debug("New state 1: %s" %
                                    str(self.observatoryModel2.current_state))
