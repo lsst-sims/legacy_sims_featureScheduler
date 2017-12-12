@@ -154,9 +154,9 @@ class FeatureSchedulerDriver(Driver):
         filtername = winner_target['filter'][0]
         indx = self.proposal_id_dict[propid][0]
 
-        if self.time_distribution and self.scheduler[indx].survey_type != 'TimeDistributionProposal':
+        if self.time_distribution and self.scheduler.surveys[indx].survey_type != 'TimeDistributionProposal':
             self.scheduler.flush_queue()
-        elif self.scheduler[indx].survey_type == 'TimeDistributionProposal':
+        elif self.scheduler.surveys[indx].survey_type == 'TimeDistributionProposal':
             self.time_distribution = True
 
 
