@@ -146,6 +146,7 @@ class FeatureSchedulerDriver(Driver):
 
         self.scheduler.update_conditions(telemetry_stream)
         winner_target = self.scheduler.request_observation()
+        self.log.debug('winner target: %s' % winner_target)
         self.scheduler_winner_target = winner_target
 
         hpid = _raDec2Hpid(self.sky_nside, winner_target['RA'][0], winner_target['dec'][0])
@@ -180,7 +181,9 @@ class FeatureSchedulerDriver(Driver):
         target.time = self.time
         # target.propid = [1]
 
-        slewtime = self.observatoryModel.get_slew_delay(target)
+        self.observatoryModel.current_state.telrot_rad = 0.
+        slewtime = self.observatoryModel.get_slew_delay(target, use_telrot=True)
+
         if slewtime > 0.:
             self.scheduler_winner_target['mjd'] = telemetry_stream['mjd']+slewtime/60./60./24.
             self.scheduler_winner_target['night'] = self.night
@@ -200,6 +203,7 @@ class FeatureSchedulerDriver(Driver):
                                                         self.scheduler_winner_target['airmass'])
             self.scheduler_winner_target['alt'] = target.alt_rad
             self.scheduler_winner_target['az'] = target.az_rad
+            self.scheduler_winner_target['rotSkyPos'] = target.ang_rad
             self.scheduler_winner_target['clouds'] = self.cloud
             self.scheduler_winner_target['sunAlt'] = telemetry_stream['sunAlt']
             self.scheduler_winner_target['moonAlt'] = telemetry_stream['moonAlt']
@@ -211,8 +215,10 @@ class FeatureSchedulerDriver(Driver):
                                                                    extrapolate=True)[filtername][0]
 
             self.observatoryModel2.set_state(self.observatoryState)
-            self.observatoryModel2.observe(target)
+            self.observatoryState.telrot_rad = 0.
+            self.observatoryModel2.observe(target, use_telrot=True)
             target.seeing = self.seeing
+            target.cloud = self.cloud
 
             ntime = self.observatoryModel2.current_state.time
             if ntime < self.sunrise_timestamp:
@@ -232,11 +238,11 @@ class FeatureSchedulerDriver(Driver):
             else:
                 self.last_winner_target = self.nulltarget
 
-            self.log.debug(target)
-
-
         else:
+            self.log.debug('Slewtime lower than zero! (slewtime = %f)' % slewtime)
             self.last_winner_target = self.nulltarget
+
+        self.log.debug(self.last_winner_target)
 
         return self.last_winner_target
 
@@ -337,6 +343,7 @@ class FeatureSchedulerDriver(Driver):
         telemetry_stream['telDec'] = copy.copy(np.degrees(self.observatoryModel.current_state.dec_rad))
         telemetry_stream['telAlt'] = copy.copy(np.degrees(self.observatoryModel.current_state.alt_rad))
         telemetry_stream['telAz'] = copy.copy(np.degrees(self.observatoryModel.current_state.az_rad))
+        telemetry_stream['telRot'] = copy.copy(np.degrees(self.observatoryModel.current_state.rot_rad))
 
         # What is the sky brightness over the sky (healpix map)
         telemetry_stream['skybrightness'] = copy.copy(
