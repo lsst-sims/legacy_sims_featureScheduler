@@ -152,7 +152,9 @@ class FeatureSchedulerDriver(Driver):
         target.time = self.time
         # target.propid = [1]
 
-        slewtime = self.observatoryModel.get_slew_delay(target)
+        self.observatoryModel.current_state.telrot_rad = 0.
+        slewtime = self.observatoryModel.get_slew_delay(target, use_telrot=True)
+
         if slewtime > 0.:
             self.scheduler_winner_target['mjd'] = telemetry_stream['mjd']+slewtime/60./60./24.
             self.scheduler_winner_target['night'] = self.night
@@ -184,7 +186,8 @@ class FeatureSchedulerDriver(Driver):
                                                                    extrapolate=True)[filtername][0]
 
             self.observatoryModel2.set_state(self.observatoryState)
-            self.observatoryModel2.observe(target)
+            self.observatoryState.telrot_rad = 0.
+            self.observatoryModel2.observe(target, use_telrot=True)
             target.seeing = self.seeing
             target.cloud = self.cloud
 
@@ -198,36 +201,18 @@ class FeatureSchedulerDriver(Driver):
                     else:
                         self.last_winner_target = target.get_copy()
                 else:
-                    self.log.debug('Could not track object. Trying to change position angle')
-                    self.observatoryState.telrot_rad = 0.
-                    target.ang_rad = self.observatoryState.pa_rad
-                    self.observatoryModel2.set_state(self.observatoryState)
-                    self.log.debug("New state 1: %s" %
+                    self.log.debug("select_next_target: target rejected %s" %
+                                   (str(target)))
+                    self.log.debug("select_next_target: state rejected %s" %
                                    str(self.observatoryModel2.current_state))
-                    self.observatoryModel2.observe(target)
-                    self.log.debug("New state 2: %s" %
-                                   str(self.observatoryModel2.current_state))
-
-                    if self.observatoryModel2.current_state.tracking:
-                        target.time = self.time
-                        if self.last_winner_target.targetid == target.targetid:
-                            self.last_winner_target = self.nulltarget
-                        else:
-                            self.last_winner_target = target.get_copy()
-                    else:
-                        self.log.debug("select_next_target: target rejected %s" %
-                                       (str(target)))
-                        self.log.debug("select_next_target: state rejected %s" %
-                                       str(self.observatoryModel2.current_state))
-                        self.last_winner_target = self.nulltarget
+                    self.last_winner_target = self.nulltarget
             else:
                 self.last_winner_target = self.nulltarget
 
-            self.log.debug(target)
-
-
         else:
             self.last_winner_target = self.nulltarget
+
+        self.log.debug(self.last_winner_target)
 
         return self.last_winner_target
 
