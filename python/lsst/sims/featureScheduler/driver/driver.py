@@ -125,6 +125,7 @@ class FeatureSchedulerDriver(Driver):
 
         self.scheduler.update_conditions(telemetry_stream)
         winner_target = self.scheduler.request_observation()
+        self.log.debug('winner target: %s' % winner_target)
         self.scheduler_winner_target = winner_target
 
         hpid = _raDec2Hpid(self.sky_nside, winner_target['RA'][0], winner_target['dec'][0])
@@ -210,6 +211,7 @@ class FeatureSchedulerDriver(Driver):
                 self.last_winner_target = self.nulltarget
 
         else:
+            self.log.debug('Slewtime lower than zero! (slewtime = %f)' % slewtime)
             self.last_winner_target = self.nulltarget
 
         self.log.debug(self.last_winner_target)
