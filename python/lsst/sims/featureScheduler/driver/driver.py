@@ -340,6 +340,7 @@ class FeatureSchedulerDriver(Driver):
         target.propid = propid
         target.ra_rad = fb_observation['RA']
         target.dec_rad = fb_observation['dec']
+        target.groupix = 0
         self.target_list[fb_observation['field_id']][fb_observation['filter']] = target
 
         return target
