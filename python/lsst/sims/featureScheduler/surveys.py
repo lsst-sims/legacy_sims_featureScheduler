@@ -649,9 +649,9 @@ class Greedy_survey_fields(BaseSurvey):
         """Spin the field tesselation
         """
         if lon is None:
-            lon = 0. # np.random.rand()*np.pi*2
+            lon = np.random.rand()*np.pi*2
         if lat is None:
-            lat = 0. # np.random.rand()*np.pi*2
+            lat = np.random.rand()*np.pi*2
         # rotate longitude
         ra = (self.fields['RA'] + lon) % (2.*np.pi)
         dec = self.fields['dec'] + 0

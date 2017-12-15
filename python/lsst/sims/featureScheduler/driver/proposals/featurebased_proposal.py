@@ -14,7 +14,7 @@ class FeatureBasedProposal(AreaDistributionProposal):
         self.last_observation = observation.get_copy()
         self.last_observation_was_for_this_proposal = False
 
-        if self.propid not in observation.propid_list and not self.params.accept_serendipity:
+        if self.propid not in observation.propid_list:
             return None
 
         fieldid = observation.fieldid
@@ -23,23 +23,22 @@ class FeatureBasedProposal(AreaDistributionProposal):
         tfound = None
         for target in self.winners_list:
             if self.observation_fulfills_target(observation, target):
-                tfound = target
+                tfound = target.get_copy()
                 break
         if tfound is None:
             for target in self.losers_list:
                 if self.observation_fulfills_target(observation, target):
-                    tfound = target
+                    tfound = target.get_copy()
                     break
 
         if tfound is not None:
-            self.log.log(EXTENSIVE, "register_observation: %s" % (target))
+            self.log.log(EXTENSIVE, "register_observation: %s" % tfound)
 
-            target.targetid = observation.targetid
-            target = self.survey_targets_dict[fieldid][filter]
-            target.visits += 1
-            target.progress = float(target.visits) / target.goal
-            target.last_visit_time = observation.time
-
+            tfound.targetid = observation.targetid
+            tfound = self.survey_targets_dict[fieldid][filter]
+            tfound.visits += 1
+            tfound.progress = float(tfound.visits) / tfound.goal
+            tfound.last_visit_time = observation.time
 
             self.survey_targets_visits += 1
             if self.survey_targets_goal > 0:
@@ -55,6 +54,7 @@ class FeatureBasedProposal(AreaDistributionProposal):
 
             self.last_observation_was_for_this_proposal = True
 
+        self.survey_targets_visits += 1
         return tfound
 
 

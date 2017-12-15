@@ -155,18 +155,9 @@ class FeatureSchedulerDriver(Driver):
         filtername = winner_target['filter'][0]
         indx = self.proposal_id_dict[propid][0]
 
-        if self.time_distribution and self.scheduler.surveys[indx].survey_type != 'TimeDistributionProposal':
-            self.scheduler.flush_queue()
-        elif self.scheduler.surveys[indx].survey_type == 'TimeDistributionProposal':
-            self.time_distribution = True
-
-
-
         if winner_target['field_id'][0] in self.target_list:
             if winner_target['filter'][0] in self.target_list[winner_target['field_id'][0]]:
-                target = self.target_list[winner_target['field_id'][0]][winner_target['filter'][0]].get_copy()
-                self.targetid += 1
-                target.targetid = self.targetid
+                target = self.append_target(winner_target[0])
             else:
                 target = self.generate_target(winner_target[0])
                 self.target_list[target.fieldid][filtername] = target
@@ -179,7 +170,6 @@ class FeatureSchedulerDriver(Driver):
             self.target_list[target.fieldid] = {filtername: target}
             self.science_proposal_list[indx].survey_targets_dict[target.fieldid] = {filtername: target}
         target.time = self.time
-        # target.propid = [1]
 
         self.observatoryModel.current_state.telrot_rad = 0.
         slewtime = self.observatoryModel.get_slew_delay(target, use_telrot=True)
@@ -249,6 +239,9 @@ class FeatureSchedulerDriver(Driver):
     def register_observation(self, observation):
         if observation.targetid > 0:
             self.scheduler.add_observation(self.scheduler_winner_target)
+            for propid in self.proposal_id_dict.keys():
+                idx = self.proposal_id_dict[propid][0]
+                self.science_proposal_list[idx].winners_list = []
             idx = self.proposal_id_dict[self.last_winner_target.propid][0]
             self.science_proposal_list[idx].winners_list = [observation]
 
@@ -284,6 +277,7 @@ class FeatureSchedulerDriver(Driver):
         :return: Target
         '''
 
+        self.log.debug('generate: %s' % fb_observation)
         self.targetid += 1
         filtername = fb_observation['filter']
         propid = fb_observation['survey_id']
@@ -317,6 +311,33 @@ class FeatureSchedulerDriver(Driver):
         target.dd_exposures_list = [target.dd_exposures]
         target.dd_filterchanges_list = [target.dd_filterchanges]
         target.dd_exptime_list = [target.dd_exptime]
+
+        return target
+
+    def append_target(self, fb_observation):
+        '''Takes an observation array given by the feature based scheduler and append it to an existing OpSim target.
+
+        :param fb_observation: numpy.array
+        :return: Target
+        '''
+        self.log.debug('append: %s' % fb_observation)
+        target = self.target_list[fb_observation['field_id']][fb_observation['filter']].get_copy()
+        self.targetid += 1
+        target.targetid = self.targetid
+        propid = fb_observation['survey_id']
+        # if propid not in target.propid_list:
+        target.propid_list = [propid]
+        indx = self.proposal_id_dict[propid][0]
+
+        if target.fieldid in self.science_proposal_list[indx].survey_targets_dict:
+            self.science_proposal_list[indx].survey_targets_dict[target.fieldid][target.filter] = target
+        else:
+            self.science_proposal_list[indx].survey_targets_dict[target.fieldid] = {target.filter: target}
+
+        target.propid = propid
+        target.ra_rad = fb_observation['RA']
+        target.dec_rad = fb_observation['dec']
+        self.target_list[fb_observation['field_id']][fb_observation['filter']] = target
 
         return target
 
