@@ -117,9 +117,9 @@ class FeatureSchedulerDriver(Driver):
                                                      self.sky)
             else:
                 area_prop = FeatureBasedProposal(pid,
-                                                 self.proposal_id_dict[pid][1],
-                                                 config_dict,
-                                                 self.sky)
+                                                     self.proposal_id_dict[pid][1],
+                                                     config_dict,
+                                                     self.sky)
 
             area_prop.configure_constraints(self.params)
             self.science_proposal_list.append(area_prop)
@@ -171,7 +171,8 @@ class FeatureSchedulerDriver(Driver):
             self.science_proposal_list[indx].survey_targets_dict[target.fieldid] = {filtername: target}
         target.time = self.time
 
-        self.observatoryModel.current_state.telrot_rad = 0.
+        if target.targetid != self.last_winner_target.targetid:
+            self.observatoryModel.current_state.telrot_rad = 0.
         slewtime = self.observatoryModel.get_slew_delay(target, use_telrot=True)
 
         if slewtime > 0.:
@@ -230,20 +231,20 @@ class FeatureSchedulerDriver(Driver):
 
         else:
             self.log.debug('Slewtime lower than zero! (slewtime = %f)' % slewtime)
+            self.scheduler.flush_queue()
+            self.targetid -= 1
             self.last_winner_target = self.nulltarget
 
         self.log.debug(self.last_winner_target)
+        for propid in self.proposal_id_dict.keys():
+            self.science_proposal_list[self.proposal_id_dict[propid][0]].winners_list = []
+        self.science_proposal_list[indx].winners_list = [target.get_copy()]
 
         return self.last_winner_target
 
     def register_observation(self, observation):
         if observation.targetid > 0:
             self.scheduler.add_observation(self.scheduler_winner_target)
-            for propid in self.proposal_id_dict.keys():
-                idx = self.proposal_id_dict[propid][0]
-                self.science_proposal_list[idx].winners_list = []
-            idx = self.proposal_id_dict[self.last_winner_target.propid][0]
-            self.science_proposal_list[idx].winners_list = [observation]
 
             return super(FeatureSchedulerDriver, self).register_observation(observation)
         else:
@@ -325,8 +326,10 @@ class FeatureSchedulerDriver(Driver):
         self.targetid += 1
         target.targetid = self.targetid
         propid = fb_observation['survey_id']
-        # if propid not in target.propid_list:
-        target.propid_list = [propid]
+        target.propid = propid
+        if propid not in target.propid_list:
+
+            target.propid_list = [propid]
         indx = self.proposal_id_dict[propid][0]
 
         if target.fieldid in self.science_proposal_list[indx].survey_targets_dict:

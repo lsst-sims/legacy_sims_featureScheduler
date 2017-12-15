@@ -839,7 +839,7 @@ class Deep_drilling_survey(BaseSurvey):
             hp2fields = np.zeros(hp.nside2npix(self.nside), dtype=np.int)
             for i in range(len(opsim_fields['RA'])):
                 hpindx = pointing2hpindx(opsim_fields['RA'][i], opsim_fields['dec'][i])
-                hp2fields[hpindx] = i
+                hp2fields[hpindx] = i+1
             hpid = _raDec2Hpid(self.nside, self.ra, self.dec)
 
             self.sequence = []

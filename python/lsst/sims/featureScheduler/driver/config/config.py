@@ -59,8 +59,8 @@ for filtername in filters:
                                            tag_fields=True, tag_map=target_maps[filtername][1]))
 
 # Set up the DD
-# dd_surveys = fs.generate_dd_surveys(nside=nside)
-# surveys.extend(dd_surveys)
+dd_surveys = fs.generate_dd_surveys(nside=nside)
+surveys.extend(dd_surveys)
 
 scheduler = fs.Core_scheduler(surveys, nside=nside)  # Required
 scheduler_visit_counting_bfs = 1  # Required: What is the position of the counting feature on the bfs?
