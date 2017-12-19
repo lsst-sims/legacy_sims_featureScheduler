@@ -271,14 +271,14 @@ class FeatureSchedulerDriver(Driver):
 
         return self.isnight
 
-    def generate_target(self, fb_observation):
+    def generate_target(self, fb_observation, tag='generate'):
         '''Takes an observation array given by the feature based scheduler and generate an appropriate OpSim target.
 
         :param fb_observation: numpy.array
         :return: Target
         '''
 
-        self.log.debug('generate: %s' % fb_observation)
+        self.log.debug('%s: %s' % (tag, fb_observation))
         self.targetid += 1
         filtername = fb_observation['filter']
         propid = fb_observation['survey_id']
@@ -321,26 +321,32 @@ class FeatureSchedulerDriver(Driver):
         :param fb_observation: numpy.array
         :return: Target
         '''
-        self.log.debug('append: %s' % fb_observation)
-        target = self.target_list[fb_observation['field_id']][fb_observation['filter']].get_copy()
-        self.targetid += 1
-        target.targetid = self.targetid
+        # self.log.debug('append: %s' % fb_observation)
+        # target = self.target_list[fb_observation['field_id']][fb_observation['filter']].get_copy()
+        # self.targetid += 1
+        # target.targetid = self.targetid
         propid = fb_observation['survey_id']
-        target.propid = propid
-        # if propid not in target.propid_list:
-
-        target.propid_list = [propid]
+        # target.propid = propid
+        # # if propid not in target.propid_list:
+        #
+        # target.propid_list = [propid]
         indx = self.proposal_id_dict[propid][0]
+        #
+        # if target.fieldid in self.science_proposal_list[indx].survey_targets_dict:
+        #     self.science_proposal_list[indx].survey_targets_dict[target.fieldid][target.filter] = target
+        # else:
+        #     self.science_proposal_list[indx].survey_targets_dict[target.fieldid] = {target.filter: target}
+        #
+        # target.ra_rad = fb_observation['RA']
+        # target.dec_rad = fb_observation['dec']
+        # target.groupix = 0
+        # self.target_list[fb_observation['field_id']][fb_observation['filter']] = target.get_copy()
 
+        target = self.generate_target(fb_observation, 'append')
         if target.fieldid in self.science_proposal_list[indx].survey_targets_dict:
             self.science_proposal_list[indx].survey_targets_dict[target.fieldid][target.filter] = target
         else:
             self.science_proposal_list[indx].survey_targets_dict[target.fieldid] = {target.filter: target}
-
-        target.ra_rad = fb_observation['RA']
-        target.dec_rad = fb_observation['dec']
-        target.groupix = 0
-        self.target_list[fb_observation['field_id']][fb_observation['filter']] = target.get_copy()
 
         return target
 
