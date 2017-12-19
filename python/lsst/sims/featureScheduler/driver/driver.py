@@ -218,6 +218,7 @@ class FeatureSchedulerDriver(Driver):
                     target.time = self.time
                     if self.last_winner_target.targetid == target.targetid:
                         self.last_winner_target = self.nulltarget
+                        self.targetid -= 1
                     else:
                         self.last_winner_target = target.get_copy()
                 else:
@@ -226,8 +227,10 @@ class FeatureSchedulerDriver(Driver):
                     self.log.debug("select_next_target: state rejected %s" %
                                    str(self.observatoryModel2.current_state))
                     self.last_winner_target = self.nulltarget
+                    self.targetid -= 1
             else:
                 self.last_winner_target = self.nulltarget
+                self.targetid -= 1
 
         else:
             self.log.debug('Slewtime lower than zero! (slewtime = %f)' % slewtime)
