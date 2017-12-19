@@ -111,15 +111,15 @@ class FeatureSchedulerDriver(Driver):
             self.log.debug('%s: %s - %s' % (pid, self.proposal_id_dict[pid], proposal_type_dict[pid]))
 
             if proposal_type_dict[pid] == 'AreaDistributionProposal':
-                area_prop = AreaDistributionProposal(pid,
-                                                     self.proposal_id_dict[pid][1],
-                                                     config_dict,
-                                                     self.sky)
+                area_prop = FeatureBasedProposal(pid,
+                                                 self.proposal_id_dict[pid][1],
+                                                 config_dict,
+                                                 self.sky)
             else:
                 area_prop = FeatureBasedProposal(pid,
-                                                     self.proposal_id_dict[pid][1],
-                                                     config_dict,
-                                                     self.sky)
+                                                 self.proposal_id_dict[pid][1],
+                                                 config_dict,
+                                                 self.sky)
 
             area_prop.configure_constraints(self.params)
             self.science_proposal_list.append(area_prop)
