@@ -15,6 +15,10 @@ from lsst.utils import getPackageDir
 import sqlite3 as db
 from lsst.ts.scheduler.fields import FieldsDatabase
 import matplotlib.pylab as plt
+import time
+import datetime
+from . import version
+import warnings
 
 log = logging.getLogger(__name__)
 
@@ -485,6 +489,27 @@ def filter_count_ratios(target_maps):
     return results
 
 
+def run_info_table(observatory):
+    """
+    Make a little table for recording the information of a run
+    """
+    names = ['time', 'datetime', 'ymd', 'version', 'fingerprint', 'observatory_class', 'obs_finger']
+    types = [float, '|U20', '|U20', '|U20', '|U50', '|U20', '|U50']
+    result = np.zeros(1, dtype=list(zip(names, types)))
+    result['time'] = np.float(time.time())
+    now = datetime.datetime.now()
+    result['ymd'] = '%i, %i, %i' % (now.year, now.month, now.day)
+    result['version'] = version.__version__
+    result['fingerprint'] = version.__fingerprint__
+    result['observatory_class'] = observatory.__class__.__name__
+    
+    try:
+        result['obs_finger'] = observatory.version.__fingerprint__
+    except:
+        pass
+    return result
+
+
 def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3., filename=None, delete_past=True):
     """
     run a simulation
@@ -531,11 +556,17 @@ def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3., filenam
     print('Completed %i observations' % len(observations))
     observations = np.array(observations)[:, 0]
     if filename is not None:
-        observations2sqlite(observations, filename=filename, delete_past=delete_past)
+        # don't crash just because some info stuff failed.
+        try:
+            info = run_info_table(observatory)
+        except:
+            info = None
+            warnings.warn('Failed to get info about run, may need to run scons in some pacakges.')
+        observations2sqlite(observations, filename=filename, delete_past=delete_past, info=info)
     return observatory, scheduler, observations
 
 
-def observations2sqlite(observations, filename='observations.db', delete_past=False):
+def observations2sqlite(observations, filename='observations.db', delete_past=False, info=None):
     """
     Take an array of observations and dump it to a sqlite3 database
 
@@ -548,6 +579,8 @@ def observations2sqlite(observations, filename='observations.db', delete_past=Fa
         writing out file.
     delete_past : bool (False)
         If True, overwrite any previous file with the same fileaname.
+    info : np.array (None)
+        A numpy array of information about the run.
 
     Returns
     -------
@@ -573,6 +606,9 @@ def observations2sqlite(observations, filename='observations.db', delete_past=Fa
         df = pd.DataFrame(observations)
         con = db.connect(filename)
         df.to_sql('observations', con, index_label='observationId')
+        if info is not None:
+            df = pd.DataFrame(info)
+            df.to_sql('info', con)
     return observations
 
 
