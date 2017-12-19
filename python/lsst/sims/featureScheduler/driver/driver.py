@@ -327,9 +327,9 @@ class FeatureSchedulerDriver(Driver):
         target.targetid = self.targetid
         propid = fb_observation['survey_id']
         target.propid = propid
-        if propid not in target.propid_list:
+        # if propid not in target.propid_list:
 
-            target.propid_list = [propid]
+        target.propid_list = [propid]
         indx = self.proposal_id_dict[propid][0]
 
         if target.fieldid in self.science_proposal_list[indx].survey_targets_dict:
@@ -337,11 +337,10 @@ class FeatureSchedulerDriver(Driver):
         else:
             self.science_proposal_list[indx].survey_targets_dict[target.fieldid] = {target.filter: target}
 
-        target.propid = propid
         target.ra_rad = fb_observation['RA']
         target.dec_rad = fb_observation['dec']
         target.groupix = 0
-        self.target_list[fb_observation['field_id']][fb_observation['filter']] = target
+        self.target_list[fb_observation['field_id']][fb_observation['filter']] = target.get_copy()
 
         return target
 
