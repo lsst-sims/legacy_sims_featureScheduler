@@ -893,6 +893,9 @@ class Deep_drilling_survey(BaseSurvey):
         # TODO: Make sure it is possible to complete the sequence of observations. Hit any limit?
 
         # Check if we are over-observed relative to the fraction of time alloted.
+        if float(self.extra_features['N_obs'].feature) == 0.:
+            return True
+        
         if self.extra_features['N_obs_self'].feature/float(self.extra_features['N_obs'].feature) > self.fraction_limit:
             return False
         # If we made it this far, good to go
