@@ -843,7 +843,7 @@ class Pairs_survey_scripted(Scripted_survey):
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, filt_to_pair='griz',
                  dt=40., ttol=10., reward_val=101., note='scripted', ignore_obs='ack',
-                 min_alt=30., max_alt=85., lat=-30.2444, nside=default_nside):
+                 min_alt=20., max_alt=85., lat=-30.2444, nside=default_nside):
         """
         Parameters
         ----------
@@ -853,6 +853,12 @@ class Pairs_survey_scripted(Scripted_survey):
             The ideal gap between pairs (minutes)
         ttol : float (10.)
             The time tolerance when gathering a pair (minutes)
+        note : str ('scripted')
+            A note to add to the observation metadata to flag that the observation was requested
+            by this survey.
+        ignore_obs : str ('ack')
+            Ignore observations that have this string in their observation metadata. Useful if
+            one wants to ignore Deep Drilling fields.
         """
         self.lat = np.radians(lat)
         self.note = note
@@ -915,6 +921,9 @@ class Pairs_survey_scripted(Scripted_survey):
                     del self.observing_queue[0]
                 # If we are in the window, but masked, drop it
                 elif (in_window) & (~self._check_mask(self.observing_queue[0])):
+                    del self.observing_queue[0]
+                # If in time window, but in alt exclusion zone
+                elif (in_window) & (~self._check_alts(self.observing_queue[0])):
                     del self.observing_queue[0]
                 else:
                     stale = False
