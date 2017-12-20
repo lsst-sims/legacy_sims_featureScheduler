@@ -748,11 +748,11 @@ class Greedy_survey_fields(BaseSurvey):
 
 def wrapHA(HA):
     """Make sure Hour Angle is between 0 and 24 hours """
-    while HA > 24.:
-        HA -= 24.
-    while HA < 0:
-        HA += 24.
-    return HA
+    # while HA > 24.:
+    #     HA -= 24.
+    # while HA < 0:
+    #     HA += 24.
+    return HA % 24.
 
 
 class Deep_drilling_survey(BaseSurvey):
@@ -802,7 +802,7 @@ class Deep_drilling_survey(BaseSurvey):
         self.dec = np.radians(dec)
         self.ignore_obs = ignore_obs
         self.survey_name = survey_name
-        self.HA_limits = HA_limits
+        self.HA_limits = [wrapHA(limit) for limit in HA_limits]
         self.reward_value = reward_value
         self.moon_up = moon_up
         self.fraction_limit = fraction_limit
@@ -886,11 +886,11 @@ class Deep_drilling_survey(BaseSurvey):
         if self.extra_features['mjd'].feature - self.extra_features['last_obs_self'].feature['mjd'] < self.day_space:
             return False
 
-        # Check if the moon will come up
-        # XXX--to do. Compare next moonrise time to self.apporox time
+        # TODO: Check if the moon will come up. Compare next moonrise time to self.apporox time
 
-        # Check if twilight starts soon
-        # XXX--to do.
+        # TODO: Check if twilight starts soon
+
+        # TODO: Make sure it is possible to complete the sequence of observations. Hit any limit?
 
         # Check if we are over-observed relative to the fraction of time alloted.
         if self.extra_features['N_obs_self'].feature/float(self.extra_features['N_obs'].feature) > self.fraction_limit:
