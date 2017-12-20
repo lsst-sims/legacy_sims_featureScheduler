@@ -867,7 +867,7 @@ class Deep_drilling_survey(BaseSurvey):
         HA = self.extra_features['lmst'].feature - self.ra_hours
         HA = wrapHA(HA)
 
-        if (HA > np.min(self.HA_limits)) & (HA < np.max(self.HA_limits)):
+        if np.min(self.HA_limits) < HA < np.max(self.HA_limits):
             return False
         # Check moon alt
         if self.moon_up is not None:
