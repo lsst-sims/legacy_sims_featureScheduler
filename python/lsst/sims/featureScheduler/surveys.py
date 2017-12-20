@@ -867,7 +867,7 @@ class Deep_drilling_survey(BaseSurvey):
         HA = self.extra_features['lmst'].feature - self.ra_hours
         HA = wrapHA(HA)
 
-        if (HA < np.min(self.HA_limits)) | (HA > np.max(self.HA_limits)):
+        if (HA > np.min(self.HA_limits)) & (HA < np.max(self.HA_limits)):
             return False
         # Check moon alt
         if self.moon_up is not None:
@@ -895,7 +895,7 @@ class Deep_drilling_survey(BaseSurvey):
         # Check if we are over-observed relative to the fraction of time alloted.
         if float(self.extra_features['N_obs'].feature) == 0.:
             return True
-        
+
         if self.extra_features['N_obs_self'].feature/float(self.extra_features['N_obs'].feature) > self.fraction_limit:
             return False
         # If we made it this far, good to go
