@@ -358,7 +358,7 @@ class FeatureSchedulerDriver(Driver):
         telemetry_stream = {}
         telemetry_stream['mjd'] = copy.copy(self.observatoryModel.dateprofile.mjd)
         telemetry_stream['night'] = copy.copy(self.night)
-        telemetry_stream['lmst'] = copy.copy(self.observatoryModel.dateprofile.lst_rad*12./np.pi)
+        telemetry_stream['lmst'] = copy.copy(self.observatoryModel.dateprofile.lst_rad*12./np.pi) % 24.
 
         dp = DateProfile(0, self.observatoryModel.dateprofile.location)
         mjd, _ = dp(self.sunrise_timestamp)

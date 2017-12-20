@@ -764,7 +764,7 @@ class Deep_drilling_survey(BaseSurvey):
                  nvis=[20, 10, 20, 26, 20],
                  exptime=30.,
                  nexp=2, ignore_obs='dummy', survey_name='DD', fraction_limit=0.01,
-                 HA_limits=[-1.5, 1.], reward_value=101., moon_up=True, readtime=2.,
+                 ha_limits=([0., 1.], [22.5, 24.]), reward_value=101., moon_up=True, readtime=2.,
                  day_space=2., nside=default_nside):
         """
         Parameters
@@ -784,7 +784,7 @@ class Deep_drilling_survey(BaseSurvey):
         fraction_limit : float (0.01)
             Do not request observations if the fraction of observations from this
             survey exceeds the frac_limit.
-        HA_limits : list of floats ([-1.5, 1.])
+        ha_limits : list of floats ([-1.5, 1.])
             The range of acceptable hour angles to start a sequence (hours)
         reward_value : float (101.)
             The reward value to report if it is able to start (unitless).
@@ -802,7 +802,7 @@ class Deep_drilling_survey(BaseSurvey):
         self.dec = np.radians(dec)
         self.ignore_obs = ignore_obs
         self.survey_name = survey_name
-        self.HA_limits = [wrapHA(limit) for limit in HA_limits]
+        self.HA_limits = wrapHA(np.array(ha_limits))
         self.reward_value = reward_value
         self.moon_up = moon_up
         self.fraction_limit = fraction_limit
@@ -862,13 +862,21 @@ class Deep_drilling_survey(BaseSurvey):
         self.approx_time = np.sum([o['exptime']+readtime*o['nexp'] for o in obs])
 
     def _check_feasability(self):
-        result = True
+        result = False
         # Check if the LMST is in range
         HA = self.extra_features['lmst'].feature - self.ra_hours
         HA = wrapHA(HA)
 
-        if np.min(self.HA_limits) < HA < np.max(self.HA_limits):
+        for limit in self.HA_limits:
+            result = result or limit[0] <= HA < limit[1]
+
+        if not result:
             return False
+        log.debug('[Feasibity] RA: %.2f | LMST: %.2f | HA: %.2f (%.2f:%.2f)' % (self.ra_hours,
+                                                                                self.extra_features['lmst'].feature,
+                                                                                HA,
+                                                                                np.min(self.HA_limits),
+                                                                                np.max(self.HA_limits)))
         # Check moon alt
         if self.moon_up is not None:
             if self.moon_up:
@@ -1105,12 +1113,12 @@ def generate_dd_surveys(nside=default_nside):
     surveys.append(Deep_drilling_survey(53.125, -28.-6/60., sequence='rgizy',
                                         nvis=[20, 10, 20, 26, 20],
                                         survey_name='DD:ECDFS', reward_value=100, moon_up=None,
-                                        fraction_limit=0.0185, HA_limits=[0.2, 1.],
+                                        fraction_limit=0.0185, ha_limits=[[0.5, 1.5], [23.5, 22.]],
                                         nside=nside))
     surveys.append(Deep_drilling_survey(53.125, -28.-6/60., sequence='u',
                                         nvis=[7],
                                         survey_name='DD:u,ECDFS', reward_value=100, moon_up=False,
-                                        fraction_limit=0.0015, HA_limits=[0.2, 1.],
+                                        fraction_limit=0.0015, ha_limits=[[0.5, 1.5], [23.5, 22.]],
                                         nside=nside))
     # COSMOS
     surveys.append(Deep_drilling_survey(150.1, 2.+10./60.+55/3600., sequence='rgizy',
