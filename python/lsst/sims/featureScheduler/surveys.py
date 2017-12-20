@@ -608,6 +608,7 @@ class Greedy_survey_fields(BaseSurvey):
         if extra_features is None:
             extra_features = {}
             extra_features['night'] = features.Current_night()
+            extra_features['mounted_filters'] = features.Mounted_filters()
         super(Greedy_survey_fields, self).__init__(basis_functions=basis_functions,
                                                    basis_weights=basis_weights,
                                                    extra_features=extra_features,
@@ -644,6 +645,11 @@ class Greedy_survey_fields(BaseSurvey):
             for i in range(len(self.fields)):
                 self.fields['tag'][i] = 1
 
+    def _check_feasability(self):
+        """
+        Check if the survey is feasable in the current conditions
+        """
+        return self.filtername in self.extra_features['mounted_filters'].feature
 
     def _spin_fields(self, lon=None, lat=None):
         """Spin the field tesselation
@@ -802,7 +808,7 @@ class Deep_drilling_survey(BaseSurvey):
         self.dec = np.radians(dec)
         self.ignore_obs = ignore_obs
         self.survey_name = survey_name
-        self.HA_limits = wrapHA(np.array(ha_limits))
+        self.HA_limits = np.array(ha_limits)
         self.reward_value = reward_value
         self.moon_up = moon_up
         self.fraction_limit = fraction_limit
@@ -810,9 +816,13 @@ class Deep_drilling_survey(BaseSurvey):
         self.survey_type = 'TimeDistributionProposal'
         self.survey_id = 5
         self.nside = nside
+        self.filter_list = []
 
         if extra_features is None:
             self.extra_features = {}
+            # Available filters
+            self.extra_features['mounted_filters'] = features.Mounted_filters()
+
             # The total number of observations
             self.extra_features['N_obs'] = features.N_obs_count()
             # The number of observations for this survey
@@ -843,7 +853,9 @@ class Deep_drilling_survey(BaseSurvey):
             hpid = _raDec2Hpid(self.nside, self.ra, self.dec)
 
             self.sequence = []
+            filter_list = []
             for num, filtername in zip(nvis, sequence):
+                filter_list.append(filtername)
                 for j in range(num):
                     obs = empty_observation()
                     obs['filter'] = filtername
@@ -856,27 +868,37 @@ class Deep_drilling_survey(BaseSurvey):
                     obs['survey_id'] = self.survey_id
 
                     self.sequence.append(obs)
+            self.filter_list = np.unique(np.array(filter_list))
         else:
             self.sequence = sequence
 
         self.approx_time = np.sum([o['exptime']+readtime*o['nexp'] for o in obs])
 
     def _check_feasability(self):
-        result = False
+        # Check that all filters are available
+        # for filtername in self.filter_list:
+        result = np.all([filtername in self.extra_features['mounted_filters'].feature
+                         for filtername in self.filter_list])
+        if not result:
+            return False
         # Check if the LMST is in range
         HA = self.extra_features['lmst'].feature - self.ra_hours
         HA = wrapHA(HA)
 
+        result = False
         for limit in self.HA_limits:
             result = result or limit[0] <= HA < limit[1]
+            log.debug('[Feasibity:LIMIT] %.2f:%.2f' % (limit[0], limit[1]))
 
         if not result:
+            log.debug('[Feasibity:FAIL] RA: %.2f | LMST: %.2f | HA: %.2f' % (self.ra_hours,
+                                                                             self.extra_features['lmst'].feature,
+                                                                             HA))
             return False
-        log.debug('[Feasibity] RA: %.2f | LMST: %.2f | HA: %.2f (%.2f:%.2f)' % (self.ra_hours,
-                                                                                self.extra_features['lmst'].feature,
-                                                                                HA,
-                                                                                np.min(self.HA_limits),
-                                                                                np.max(self.HA_limits)))
+        log.debug('[Feasibity:OK] RA: %.2f | LMST: %.2f | HA: %.2f' % (self.ra_hours,
+                                                                       self.extra_features['lmst'].feature,
+                                                                       HA))
+
         # Check moon alt
         if self.moon_up is not None:
             if self.moon_up:
