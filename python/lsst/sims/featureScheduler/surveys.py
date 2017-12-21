@@ -770,7 +770,7 @@ class Deep_drilling_survey(BaseSurvey):
                  nvis=[20, 10, 20, 26, 20],
                  exptime=30.,
                  nexp=2, ignore_obs='dummy', survey_name='DD', fraction_limit=0.01,
-                 ha_limits=([0., 1.], [22.5, 24.]), reward_value=101., moon_up=True, readtime=2.,
+                 ha_limits=([0., 1.5], [22.5, 24.]), reward_value=101., moon_up=True, readtime=2.,
                  day_space=2., nside=default_nside):
         """
         Parameters
@@ -887,17 +887,15 @@ class Deep_drilling_survey(BaseSurvey):
 
         result = False
         for limit in self.HA_limits:
-            result = result or limit[0] <= HA < limit[1]
-            log.debug('[Feasibity:LIMIT] %.2f:%.2f' % (limit[0], limit[1]))
+            lres = limit[0] <= HA < limit[1]
+            result = result or lres
+            log.debug('[Feasibility:%s] HA = %.2f [%.2f:%.2f)' % ('OK' if lres else 'FL',
+                                                                  HA,
+                                                                  limit[0],
+                                                                  limit[1]))
 
         if not result:
-            log.debug('[Feasibity:FAIL] RA: %.2f | LMST: %.2f | HA: %.2f' % (self.ra_hours,
-                                                                             self.extra_features['lmst'].feature,
-                                                                             HA))
             return False
-        log.debug('[Feasibity:OK] RA: %.2f | LMST: %.2f | HA: %.2f' % (self.ra_hours,
-                                                                       self.extra_features['lmst'].feature,
-                                                                       HA))
 
         # Check moon alt
         if self.moon_up is not None:
@@ -1135,12 +1133,12 @@ def generate_dd_surveys(nside=default_nside):
     surveys.append(Deep_drilling_survey(53.125, -28.-6/60., sequence='rgizy',
                                         nvis=[20, 10, 20, 26, 20],
                                         survey_name='DD:ECDFS', reward_value=100, moon_up=None,
-                                        fraction_limit=0.0185, ha_limits=[[0.5, 1.5], [23.5, 22.]],
+                                        fraction_limit=0.0185, ha_limits=[[0.5, 1.5], [22., 23.5]],
                                         nside=nside))
     surveys.append(Deep_drilling_survey(53.125, -28.-6/60., sequence='u',
                                         nvis=[7],
                                         survey_name='DD:u,ECDFS', reward_value=100, moon_up=False,
-                                        fraction_limit=0.0015, ha_limits=[[0.5, 1.5], [23.5, 22.]],
+                                        fraction_limit=0.0015, ha_limits=[[0.5, 1.5], [22., 23.5]],
                                         nside=nside))
     # COSMOS
     surveys.append(Deep_drilling_survey(150.1, 2.+10./60.+55/3600., sequence='rgizy',
