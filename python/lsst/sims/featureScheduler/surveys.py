@@ -624,23 +624,14 @@ class Greedy_survey_fields(BaseSurvey):
         np.random.seed(seed)
         self.dither = dither
         self.night = extra_features['night'].feature + 0
-        self.inside_tagged = np.zeros_like(self.hp2fields) == 0
+        # self.inside_tagged = np.zeros_like(self.hp2fields) == 0
 
         if tag_fields:
-            for i in range(len(self.fields)):
-                field_pixels = np.where(self.hp2fields == self.fields['field_id'][i])[0]
-                field_tags = tag_map[field_pixels]
-                if np.all(field_tags == 0):
-                    tag = 0
-                else:
-                    unique_tags = np.unique(field_tags[field_tags > 0])
-                    npixel_tags = np.zeros_like(unique_tags)
-                    for itag in range(len(unique_tags)):
-                        npixel_tags[itag] = np.sum(field_tags == unique_tags[itag])
-                    tag = unique_tags[np.argmax(npixel_tags)]
-                self.fields['tag'][i] = tag
-
-            self.inside_tagged = np.where(self.fields['tag'][self.hp2fields] != 0)
+            tags = np.unique(tag_map[tag_map > 0])
+            for tag in tags:
+                inside_tag = np.where(tag_map == tag)
+                fields_id = np.unique(self.hp2fields[inside_tag])
+                self.fields['tag'][fields_id] = tag
         else:
             for i in range(len(self.fields)):
                 self.fields['tag'][i] = 1
