@@ -604,7 +604,7 @@ class Greedy_survey_fields(BaseSurvey):
     def __init__(self, basis_functions, basis_weights, extra_features=None, filtername='r',
                  block_size=25, smoothing_kernel=None, nside=default_nside,
                  dither=False, seed=42, ignore_obs='ack',
-                 tag_fields=False, exclude_nontaged_fields=False, tag_map=None):
+                 tag_fields=False, tag_map=None):
         if extra_features is None:
             extra_features = {}
             extra_features['night'] = features.Current_night()
@@ -761,7 +761,7 @@ class Deep_drilling_survey(BaseSurvey):
                  nvis=[20, 10, 20, 26, 20],
                  exptime=30.,
                  nexp=2, ignore_obs='dummy', survey_name='DD', fraction_limit=0.01,
-                 ha_limits=([0., 1.5], [22.5, 24.]), reward_value=101., moon_up=True, readtime=2.,
+                 ha_limits=([0., 1.5], [21.0, 24.]), reward_value=101., moon_up=True, readtime=2.,
                  day_space=2., nside=default_nside):
         """
         Parameters
@@ -1124,12 +1124,12 @@ def generate_dd_surveys(nside=default_nside):
     surveys.append(Deep_drilling_survey(53.125, -28.-6/60., sequence='rgizy',
                                         nvis=[20, 10, 20, 26, 20],
                                         survey_name='DD:ECDFS', reward_value=100, moon_up=None,
-                                        fraction_limit=0.0185, ha_limits=[[0.5, 1.5], [22., 23.5]],
+                                        fraction_limit=0.0185, ha_limits=[[0.5, 1.5], [21., 23.5]],
                                         nside=nside))
     surveys.append(Deep_drilling_survey(53.125, -28.-6/60., sequence='u',
                                         nvis=[7],
                                         survey_name='DD:u,ECDFS', reward_value=100, moon_up=False,
-                                        fraction_limit=0.0015, ha_limits=[[0.5, 1.5], [22., 23.5]],
+                                        fraction_limit=0.0015, ha_limits=[[0.5, 1.5], [21., 23.5]],
                                         nside=nside))
     # COSMOS
     surveys.append(Deep_drilling_survey(150.1, 2.+10./60.+55/3600., sequence='rgizy',

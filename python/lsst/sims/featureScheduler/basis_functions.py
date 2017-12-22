@@ -210,6 +210,76 @@ class North_south_patch_basis_function(Base_basis_function):
         return result
 
 
+class HADecAltAzPatchBasisFunction(Base_basis_function):
+    """Build an AltAz mask using patches defined as Hour Angle and Altitude limits.
+
+    """
+    def __init__(self, nside=default_nside, condition_features=None, survey_features=None,
+                 patches=({'ha_min': 2., 'ha_max': 22.,
+                           'alt_max': 88., 'alt_min': 55.,
+                           'dec_min': -90., 'dec_max': 90,
+                           'az_min': 0., 'az_max': 360.},)):
+        """
+        :param nside:
+        :param condition_features:
+        :param survey_features:
+        :param patches:
+        """
+        self.nside = nside
+        if survey_features is None:
+            self.survey_features = {}
+        if condition_features is None:
+            self.condition_features = dict()
+            self.condition_features['altaz'] = features.AltAzFeature(nside=nside)
+            self.condition_features['lmst'] = features.Current_lmst()
+
+        self.patches = patches
+        ra, dec = utils.ra_dec_hp_map(self.nside)
+        self.ra_hours = ra*12./np.pi % 24.
+        self.dec_deg = dec*180./np.pi
+
+    def __call__(self, indx=None):
+        result = np.empty(hp.nside2npix(self.nside), dtype=float)
+        result.fill(hp.UNSEEN)
+
+        ha = (self.condition_features['lmst'].feature - self.ra_hours) % 24.
+
+        for patch in self.patches:
+            if 'ha_min' in patch and 'ha_max' in patch:
+                ha_mask = np.bitwise_or(ha <= patch['ha_min'],
+                                        ha >= patch['ha_max'])
+            else:
+                ha_mask = np.ones(hp.nside2npix(self.nside), dtype=bool)
+
+            if 'dec_min' in patch and 'dec_max' in patch:
+                dec_mask = np.bitwise_and(self.dec_deg >= patch['dec_min'],
+                                          self.dec_deg <= patch['dec_max'])
+            else:
+                dec_mask = np.ones(hp.nside2npix(self.nside), dtype=bool)
+
+            if 'alt_min' in patch and 'alt_max' in patch:
+                alt_mask = np.bitwise_and(self.condition_features['altaz'].feature['alt'] >=
+                                          patch['alt_min']*np.pi/180.,
+                                          self.condition_features['altaz'].feature['alt'] <=
+                                          patch['alt_max']*np.pi/180.)
+            else:
+                alt_mask = np.ones(hp.nside2npix(self.nside), dtype=bool)
+
+            if 'az_min' in patch and 'az_max' in patch:
+                az_mask = np.bitwise_and(self.condition_features['altaz'].feature['az'] >= patch['az_min']*np.pi/180.,
+                                         self.condition_features['altaz'].feature['az'] <= patch['az_max']*np.pi/180.)
+            else:
+                az_mask = np.ones(hp.nside2npix(self.nside), dtype=bool)
+
+            mask = np.bitwise_and(np.bitwise_and(np.bitwise_and(ha_mask,
+                                                                alt_mask),
+                                                 dec_mask),
+                                  az_mask)
+            result[mask] = 1.0
+
+        return result
+
+
 class Target_map_basis_function(Base_basis_function):
     """Normalize the maps first to make things smoother
     """

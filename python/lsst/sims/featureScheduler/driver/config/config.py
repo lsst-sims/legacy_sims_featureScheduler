@@ -44,7 +44,24 @@ for filtername in filters:
                                             name_list=target_maps[filtername][2],
                                             out_of_bounds_val=hp.UNSEEN, nside=nside))
 
-    bfs.append(fs.North_south_patch_basis_function(zenith_min_alt=50., nside=nside))
+    # bfs.append(fs.North_south_patch_basis_function(zenith_min_alt=50., nside=nside))
+    bfs.append(fs.HADecAltAzPatchBasisFunction(nside=nside,
+                                               patches=({'ha_min': 1.5, 'ha_max': 22.5,
+                                                         'alt_max': 82., 'alt_min': 25.,
+                                                         'dec_min': -10., 'dec_max': 0.},
+                                                        {'ha_min': 2., 'ha_max': 22.,
+                                                         'alt_max': 82., 'alt_min': 25.,
+                                                         'dec_min': -30., 'dec_max': -10.},
+                                                        {'ha_min': 2.5, 'ha_max': 21.5,
+                                                         'alt_max': 82., 'alt_min': 25.,
+                                                         'dec_min': -60., 'dec_max': -30.},
+                                                        {'az_min': 170, 'az_max': 190,
+                                                         'alt_max': 82., 'alt_min': 20.},
+                                                        {'az_min': 0., 'az_max': 10.,
+                                                         'alt_max': 82., 'alt_min': 20.},
+                                                        {'az_min': 350., 'az_max': 360.,
+                                                         'alt_max': 82., 'alt_min': 20.},
+                                                        )))
     # bfs.append(fs.Zenith_mask_basis_function(maxAlt=78., penalty=-100, nside=nside))
     bfs.append(fs.Slewtime_basis_function(filtername=filtername, nside=nside))
     bfs.append(fs.Strict_filter_basis_function(filtername=filtername))
