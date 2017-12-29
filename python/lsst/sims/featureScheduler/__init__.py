@@ -4,3 +4,4 @@ from .basis_functions import *
 from .surveys import *
 from .utils import *
 from .dithering import *
+from .version import *
