@@ -2,6 +2,7 @@ from __future__ import absolute_import
 from builtins import object
 import numpy as np
 from .utils import hp_in_lsst_fov, set_default_nside
+import warnings
 
 default_nside = set_default_nside()
 
@@ -82,7 +83,12 @@ class Core_scheduler(object):
         """
         if len(self.queue) == 0:
             self._fill_queue()
+
+        if len(self.queue) == 0:
+            warnings.warn('Failed to fill queue, trying again')
+            self._fill_queue()
         result = self.queue.pop(0)
+        
         return result
 
     def _fill_queue(self):
