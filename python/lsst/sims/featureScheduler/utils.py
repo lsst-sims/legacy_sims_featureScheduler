@@ -12,13 +12,19 @@ import os
 import sys
 from lsst.utils import getPackageDir
 import sqlite3 as db
-from lsst.ts.scheduler.fields import FieldsDatabase
 import matplotlib.pylab as plt
 import time
 import datetime
 from . import version
 import warnings
 
+_load_local_fieldlist = False
+try:
+    from lsst.ts.scheduler.fields import FieldsDatabase
+except ImportError as err:
+    warnings.warn('''Could not import ts.scheduler. This is required to load the FieldsDatabase. In this case
+it will fallback to loading fields from the local "fieldID.lis" file.''')
+    _load_local_fieldlist = True
 
 def set_default_nside(nside=None):
     """
@@ -179,6 +185,24 @@ def read_fields():
     numpy.array
         With RA and dec in radians.
     """
+    if _load_local_fieldlist:
+        return read_fields_from_localfile()
+    else:
+        return read_fields_from_tscheduler()
+
+
+def read_fields_from_localfile():
+    names = ['field_id', 'fov_rad', 'RA', 'dec', 'gl', 'gb', 'el', 'eb', 'tag']
+    types = [int, float, float, float, float, float, float, float, int]
+    data_dir = os.path.join(getPackageDir('sims_featureScheduler'), 'python/lsst/sims/featureScheduler/')
+    filepath = os.path.join(data_dir, 'fieldID.lis')
+    fields = np.loadtxt(filepath, dtype=list(zip(names, types)))
+    fields['RA'] = np.radians(fields['RA'])
+    fields['dec'] = np.radians(fields['dec'])
+    return fields
+
+
+def read_fields_from_tscheduler():
     sql = "select * from Field"
     db = FieldsDatabase()
     res = db.query(sql)
