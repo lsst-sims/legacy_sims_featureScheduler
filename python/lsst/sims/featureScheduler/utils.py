@@ -18,6 +18,13 @@ import datetime
 from . import version
 import warnings
 
+_load_local_fieldlist = False
+try:
+    from lsst.ts.scheduler.fields import FieldsDatabase
+except ImportError as err:
+    warnings.warn('''Could not import ts.scheduler. This is required to load the FieldsDatabase. In this case
+it will fallback to loading fields from the local "fieldID.lis" file.''')
+    _load_local_fieldlist = True
 
 def set_default_nside(nside=None):
     """
@@ -148,10 +155,10 @@ def empty_observation():
     """
     names = ['RA', 'dec', 'mjd', 'exptime', 'filter', 'rotSkyPos', 'nexp',
              'airmass', 'FWHMeff', 'FWHM_geometric', 'skybrightness', 'night', 'slewtime', 'fivesigmadepth',
-             'alt', 'az', 'clouds', 'moonAlt', 'sunAlt', 'note']
+             'alt', 'az', 'clouds', 'moonAlt', 'sunAlt', 'note', 'field_id', 'survey_id']
     # units of rad, rad,   days,  seconds,   string, radians (E of N?)
     types = [float, float, float, float, '|U1', float, int, float, float, float, float, int, float, float,
-             float, float, float, float, float, '|U40']
+             float, float, float, float, float, '|U40', int, int]
     result = np.zeros(1, dtype=list(zip(names, types)))
     return result
 
@@ -172,19 +179,47 @@ def empty_scheduled_observation():
 
 def read_fields():
     """
-    Read in the old Field coordinates
+    Read in the Field coordinates
     Returns
     -------
     numpy.array
         With RA and dec in radians.
     """
-    names = ['RA', 'dec']
-    types = [float, float]
+    if _load_local_fieldlist:
+        return read_fields_from_localfile()
+    else:
+        return read_fields_from_tscheduler()
+
+
+def read_fields_from_localfile():
+    names = ['field_id', 'fov_rad', 'RA', 'dec', 'gl', 'gb', 'el', 'eb', 'tag']
+    types = [int, float, float, float, float, float, float, float, int]
     data_dir = os.path.join(getPackageDir('sims_featureScheduler'), 'python/lsst/sims/featureScheduler/')
     filepath = os.path.join(data_dir, 'fieldID.lis')
     fields = np.loadtxt(filepath, dtype=list(zip(names, types)))
     fields['RA'] = np.radians(fields['RA'])
     fields['dec'] = np.radians(fields['dec'])
+    return fields
+
+
+def read_fields_from_tscheduler():
+    sql = "select * from Field"
+    db = FieldsDatabase()
+    res = db.query(sql)
+    names = ['field_id', 'fov_rad', 'RA', 'dec', 'gl', 'gb', 'el', 'eb', 'tag']
+    types = [int, float, float, float, float, float, float, float, int]
+    fields = np.zeros(len(res), dtype=list(zip(names, types)))
+
+    for i, row in enumerate(res):
+        fields['field_id'][i] = row[0]
+        fields['fov_rad'][i] = row[1]
+        fields['RA'][i] = np.radians(row[2])
+        fields['dec'][i] = np.radians(row[3])
+        fields['gl'][i] = row[4]
+        fields['gb'][i] = row[5]
+        fields['el'][i] = row[6]
+        fields['eb'][i] = row[7]
+
     return fields
 
 
@@ -398,7 +433,7 @@ def generate_goal_map(nside=set_default_nside(), NES_fraction = .3, WFD_fraction
 
 def standard_goals(nside=set_default_nside()):
     """
-    A quick fucntion to generate the "standard" goal maps.
+    A quick function to generate the "standard" goal maps.
     """
     # Find the number of healpixels we expect to observe per observation
 
@@ -452,7 +487,7 @@ def run_info_table(observatory):
     result['version'] = version.__version__
     result['fingerprint'] = version.__fingerprint__
     result['observatory_class'] = observatory.__class__.__name__
-    
+
     try:
         result['obs_finger'] = observatory.version.__fingerprint__
     except:
