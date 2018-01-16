@@ -793,12 +793,12 @@ class Deep_drilling_survey(BaseSurvey):
             self.sequence = sequence
 
         self.approx_time = np.sum([o['exptime']+readtime*o['nexp'] for o in obs])
+        # Construct list of all the filters that need to be loaded to execute sequence
+        self.filter_set = set([observation['filter'][0] for observation in self.sequence])
 
     def _check_feasability(self):
         # Check that all filters are available
-        # for filtername in self.filter_list:
-        result = np.all([filtername in self.extra_features['mounted_filters'].feature
-                         for filtername in self.filter_list])
+        result = self.filter_set.issubset(set(self.extra_features['mounted_filters'].feature))
         if not result:
             return False
         # Check if the LMST is in range

@@ -192,8 +192,8 @@ def read_fields():
 
 
 def read_fields_from_localfile():
-    names = ['field_id', 'fov_rad', 'RA', 'dec', 'gl', 'gb', 'el', 'eb', 'tag']
-    types = [int, float, float, float, float, float, float, float, int]
+    names = ['RA', 'dec']
+    types = [float, float]
     data_dir = os.path.join(getPackageDir('sims_featureScheduler'), 'python/lsst/sims/featureScheduler/')
     filepath = os.path.join(data_dir, 'fieldID.lis')
     fields = np.loadtxt(filepath, dtype=list(zip(names, types)))
