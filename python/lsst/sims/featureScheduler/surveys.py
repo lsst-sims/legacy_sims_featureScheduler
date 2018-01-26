@@ -14,7 +14,7 @@ from scipy.stats import binned_statistic
 from lsst.sims.featureScheduler.thomson import xyz2thetaphi, thetaphi2xyz
 import copy
 
-default_nside = set_default_nside()
+default_nside = None
 
 
 class BaseSurvey(object):
@@ -42,6 +42,9 @@ class BaseSurvey(object):
 
         if len(basis_functions) != np.size(basis_weights):
             raise ValueError('basis_functions and basis_weights must be same length.')
+
+        if nside is None:
+            nside = set_default_nside()
 
         # XXX-Check that input is a list of features
         self.nside = nside
@@ -189,6 +192,9 @@ class Scripted_survey(BaseSurvey):
             The maximum altitude to attempt to chase a pair to (degrees).
 
         """
+        if nside is None:
+            nside = set_default_nside()
+
         self.min_alt = np.radians(min_alt)
         self.max_alt = np.radians(max_alt)
         self.nside = nside
@@ -311,6 +317,10 @@ class Marching_army_survey(BaseSurvey):
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, smoothing_kernel=None,
                  nside=default_nside, filtername='y', npick=40, site='LSST'):
+
+        if nside is None:
+            nside = set_default_nside()
+
         super(Marching_army_survey, self).__init__(basis_functions=basis_functions,
                                                    basis_weights=basis_weights,
                                                    extra_features=extra_features,
@@ -425,6 +435,10 @@ class Marching_army_survey(BaseSurvey):
 class Marching_experiment(Marching_army_survey):
     def __init__(self, basis_functions, basis_weights, extra_features=None, smoothing_kernel=None,
                  nside=default_nside, filtername='y', npick=20, site='LSST'):
+
+        if nside is None:
+            nside = set_default_nside()
+
         super(Marching_experiment, self).__init__(basis_functions=basis_functions,
                                                   basis_weights=basis_weights,
                                                   extra_features=extra_features,
@@ -470,6 +484,8 @@ class Smooth_area_survey(BaseSurvey):
         max_region_size : float (20.)
            How far away to consider healpixes after the reward function max is found (degrees)
         """
+        if nside is None:
+            nside = set_default_nside()
 
         # After overlap, get about 8 sq deg per pointing.
 
@@ -488,7 +504,7 @@ class Smooth_area_survey(BaseSurvey):
         block_size = int(np.round(max_area/pix_area))
         self.block_size = block_size
         # Make the dithering solving object
-        self.hpc = dithering.hpmap_cross(nside=default_nside)
+        self.hpc = dithering.hpmap_cross(nside=nside)
         self.max_region_size = np.radians(max_region_size)
         self.nside = nside
         self.percentile_clip = percentile_clip
@@ -549,12 +565,14 @@ class Simple_greedy_survey_fields(BaseSurvey):
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, filtername='r',
                  block_size=25, smoothing_kernel=None, nside=default_nside, ignore_obs='ack'):
+        if nside is None:
+            nside = set_default_nside()
         super(Simple_greedy_survey_fields, self).__init__(basis_functions=basis_functions,
                                                           basis_weights=basis_weights,
                                                           extra_features=extra_features,
                                                           smoothing_kernel=smoothing_kernel,
-                                                          ignore_obs=ignore_obs)
-        self.nside = nside
+                                                          ignore_obs=ignore_obs,
+                                                          nside=nside)
         self.filtername = filtername
         self.fields = read_fields()
         self.field_hp = _raDec2Hpid(self.nside, self.fields['RA'], self.fields['dec'])
@@ -598,6 +616,9 @@ class Greedy_survey_fields(BaseSurvey):
     def __init__(self, basis_functions, basis_weights, extra_features=None, filtername='r',
                  block_size=25, smoothing_kernel=None, nside=default_nside,
                  dither=False, seed=42, ignore_obs='ack'):
+        if nside is None:
+            nside = set_default_nside()
+
         if extra_features is None:
             extra_features = {}
             extra_features['night'] = features.Current_night()
@@ -606,8 +627,8 @@ class Greedy_survey_fields(BaseSurvey):
                                                    basis_weights=basis_weights,
                                                    extra_features=extra_features,
                                                    smoothing_kernel=smoothing_kernel,
-                                                   ignore_obs=ignore_obs)
-        self.nside = nside
+                                                   ignore_obs=ignore_obs,
+                                                   nside=nside)
         self.filtername = filtername
         # Load the OpSim field tesselation
         self.fields_init = read_fields()
@@ -874,6 +895,9 @@ class Pairs_survey_scripted(Scripted_survey):
         ttol : float (10.)
             The time tolerance when gathering a pair (minutes)
         """
+        if nside is None:
+            nside = set_default_nside()
+
         self.lat = np.radians(lat)
         self.note = note
         self.ttol = ttol/60./24.
