@@ -9,8 +9,7 @@ from lsst.sims.utils import haversine, _hpid2RaDec
 from lsst.sims.skybrightness_pre import M5percentiles
 import matplotlib.pylab as plt
 
-default_nside = utils.set_default_nside()
-
+default_nside = None
 
 class Base_basis_function(object):
     """
@@ -52,6 +51,8 @@ class Zenith_mask_basis_function(Base_basis_function):
                  survey_features=None, min_alt=20., max_alt=82., penalty=0.):
         """
         """
+        if nside is None:
+            nside = utils.set_default_nside()
         self.penalty = penalty
         self.nside = nside
         if survey_features is None:
@@ -90,6 +91,9 @@ class Quadrant_basis_function(Base_basis_function):
         quadrants : str ('All')
             can be 'All' or a list including any of 'N', 'E', 'S', 'W'
         """
+        if nside is None:
+            nside = utils.set_default_nside()
+
         if quadrants == 'All':
             self.quadrants = ['N', 'E', 'S', 'W']
         else:
@@ -158,6 +162,9 @@ class North_south_patch_basis_function(Base_basis_function):
         azWidth : float (15.)
             The full-width azimuth to leave unmasked (degrees)
         """
+        if nside is None:
+            nside = utils.set_default_nside()
+
         self.lat = np.radians(lat)
 
         if survey_features is None:
@@ -218,8 +225,10 @@ class Target_map_basis_function(Base_basis_function):
         """
         Parameters
         ----------
-        visits_per_point : float (10.)
-            How many visits can a healpixel be ahead or behind before it counts as 1 point.
+        :param filtername: (string 'r')
+            The name of the filter for this target map.
+        :param nside: int (default_nside)
+            The healpix resolution.
         target_map : numpy array (None)
             A healpix map showing the ratio of observations desired for all points on the sky
         norm_factor : float (800./2.5e6)
@@ -228,6 +237,9 @@ class Target_map_basis_function(Base_basis_function):
         out_of_bounds_val : float (10.)
             Point value to give regions where there are no observations requested
         """
+        if nside is None:
+            nside = utils.set_default_nside()
+
         self.norm_factor = norm_factor
         if survey_features is None:
             self.survey_features = {}
@@ -288,6 +300,9 @@ class Avoid_Fast_Revists(Base_basis_function):
         :param out_of_bounds_val: float (10.)
             Point value to give regions where there are no observations requested
         """
+        if nside is None:
+            nside = utils.set_default_nside()
+
         self.gap_min = gap_min/60./24.
         self.nside = nside
         self.out_of_bounds_val = out_of_bounds_val
@@ -332,6 +347,8 @@ class Visit_repeat_basis_function(Base_basis_function):
         npairs : int (1)
             The number of pairs of observations to attempt to gather
         """
+        if nside is None:
+            nside = utils.set_default_nside()
 
         self.gap_min = gap_min/60./24.
         self.gap_max = gap_max/60./24.
@@ -372,6 +389,9 @@ class M5_diff_basis_function(Base_basis_function):
                  nside=default_nside):
         """
         """
+        if nside is None:
+            nside = utils.set_default_nside()
+
         self.filtername = filtername
         self.nside = nside
 
@@ -404,6 +424,9 @@ class Teff_basis_function(Base_basis_function):
         texp : float (30.)
             The exposure time to scale to (seconds).
         """
+        if nside is None:
+            nside = utils.set_default_nside()
+
         self.filtername = filtername
         self.nside = nside
         self.texp = texp
@@ -505,6 +528,9 @@ class Rolling_mask_basis_function(Base_basis_function):
         year_offset : int (0)
             A possible offset to when the mask starts/stops
         """
+        if nside is None:
+            nside = utils.set_default_nside()
+
         self.mjd_start = mjd_start
         self.mask = np.where(mask == True)
         self.year_mod = year_mod
@@ -557,6 +583,9 @@ class Slewtime_basis_function(Base_basis_function):
     """
     def __init__(self, survey_features=None, condition_features=None,
                  max_time=135., filtername='r', nside=default_nside):
+        if nside is None:
+            nside = utils.set_default_nside()
+
         self.maxtime = max_time
         self.nside = nside
         self.filtername = filtername

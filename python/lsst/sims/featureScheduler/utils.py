@@ -196,9 +196,15 @@ def read_fields_from_localfile():
     types = [float, float]
     data_dir = os.path.join(getPackageDir('sims_featureScheduler'), 'python/lsst/sims/featureScheduler/')
     filepath = os.path.join(data_dir, 'fieldID.lis')
-    fields = np.loadtxt(filepath, dtype=list(zip(names, types)))
-    fields['RA'] = np.radians(fields['RA'])
-    fields['dec'] = np.radians(fields['dec'])
+    field_coords = np.loadtxt(filepath, dtype=list(zip(names, types)))
+
+    field_names = ['field_id', 'fov_rad', 'RA', 'dec', 'gl', 'gb', 'el', 'eb', 'tag']
+    field_types = [int, float, float, float, float, float, float, float, int]
+    fields = np.zeros(len(field_coords['RA']), dtype=zip(field_names, field_types))
+
+    fields['RA'] = np.radians(field_coords['RA'])
+    fields['dec'] = np.radians(field_coords['dec'])
+
     return fields
 
 
@@ -256,7 +262,7 @@ def xyz2radec(x, y, z):
     return ra, dec
 
 
-def hp_kd_tree(nside=set_default_nside(), leafsize=100):
+def hp_kd_tree(nside=None, leafsize=100):
     """
     Generate a KD-tree of healpixel locations
 
@@ -271,6 +277,9 @@ def hp_kd_tree(nside=set_default_nside(), leafsize=100):
     -------
     tree : scipy kdtree
     """
+    if nside is None:
+        nside = set_default_nside()
+
     hpid = np.arange(hp.nside2npix(nside))
     ra, dec = _hpid2RaDec(nside, hpid)
     x, y, z = treexyz(ra, dec)
@@ -298,13 +307,16 @@ class hp_in_lsst_fov(object):
     Return the healpixels within a pointing. A very simple LSST camera model with
     no chip/raft gaps.
     """
-    def __init__(self, nside=set_default_nside(), fov_radius=1.75):
+    def __init__(self, nside=None, fov_radius=1.75):
         """
         Parameters
         ----------
         fov_radius : float (1.75)
             Radius of the filed of view in degrees
         """
+        if nside is None:
+            nside = set_default_nside()
+
         self.tree = hp_kd_tree(nside=nside)
         self.radius = rad_length(fov_radius)
 
@@ -327,18 +339,24 @@ class hp_in_lsst_fov(object):
         return np.array(indices)
 
 
-def ra_dec_hp_map(nside=set_default_nside()):
+def ra_dec_hp_map(nside=None):
     """
     Return all the RA,dec points for the centers of a healpix map
     """
+    if nside is None:
+        nside = set_default_nside()
+
     ra, dec = _hpid2RaDec(nside, np.arange(hp.nside2npix(nside)))
     return ra, dec
 
 
-def WFD_healpixels(nside=set_default_nside(), dec_min=-60., dec_max=0.):
+def WFD_healpixels(nside=None, dec_min=-60., dec_max=0.):
     """
     Define a wide fast deep region. Return a healpix map with WFD pixels as 1.
     """
+    if nside is None:
+        nside = set_default_nside()
+
     ra, dec = ra_dec_hp_map(nside=nside)
     result = np.zeros(ra.size)
     good = np.where((dec >= np.radians(dec_min)) & (dec <= np.radians(dec_max)))
@@ -346,10 +364,13 @@ def WFD_healpixels(nside=set_default_nside(), dec_min=-60., dec_max=0.):
     return result
 
 
-def SCP_healpixels(nside=set_default_nside(), dec_max=-60.):
+def SCP_healpixels(nside=None, dec_max=-60.):
     """
     Define the South Celestial Pole region. Return a healpix map with SCP pixels as 1.
     """
+    if nside is None:
+        nside = set_default_nside()
+
     ra, dec = ra_dec_hp_map(nside=nside)
     result = np.zeros(ra.size)
     good = np.where(dec < np.radians(dec_max))
@@ -357,10 +378,13 @@ def SCP_healpixels(nside=set_default_nside(), dec_max=-60.):
     return result
 
 
-def NES_healpixels(nside=set_default_nside(), width=15, dec_min=0., fill_gap=True):
+def NES_healpixels(nside=None, width=15, dec_min=0., fill_gap=True):
     """
     Define the North Ecliptic Spur region. Return a healpix map with NES pixels as 1.
     """
+    if nside is None:
+        nside = set_default_nside()
+
     ra, dec = ra_dec_hp_map(nside=nside)
     result = np.zeros(ra.size)
     coord = SkyCoord(ra=ra*u.rad, dec=dec*u.rad)
@@ -376,11 +400,14 @@ def NES_healpixels(nside=set_default_nside(), width=15, dec_min=0., fill_gap=Tru
     return result
 
 
-def galactic_plane_healpixels(nside=set_default_nside(), center_width=10., end_width=4.,
+def galactic_plane_healpixels(nside=None, center_width=10., end_width=4.,
                               gal_long1=70., gal_long2=290.):
     """
     Define the Galactic Plane region. Return a healpix map with GP pixels as 1.
     """
+    if nside is None:
+        nside = set_default_nside()
+
     ra, dec = ra_dec_hp_map(nside=nside)
     result = np.zeros(ra.size)
     coord = SkyCoord(ra=ra*u.rad, dec=dec*u.rad)
@@ -403,7 +430,7 @@ def galactic_plane_healpixels(nside=set_default_nside(), center_width=10., end_w
     return result
 
 
-def generate_goal_map(nside=set_default_nside(), NES_fraction = .3, WFD_fraction = 1., SCP_fraction=0.4,
+def generate_goal_map(nside=None, NES_fraction = .3, WFD_fraction = 1., SCP_fraction=0.4,
                       GP_fraction = 0.2,
                       NES_width=15., NES_dec_min=0., NES_fill=True,
                       SCP_dec_max=-60., gp_center_width=10.,
@@ -412,6 +439,8 @@ def generate_goal_map(nside=set_default_nside(), NES_fraction = .3, WFD_fraction
     """
     Handy function that will put together a target map in the proper order.
     """
+    if nside is None:
+        nside = set_default_nside()
 
     # Note, some regions overlap, thus order regions are added is important.
     result = np.zeros(hp.nside2npix(nside), dtype=float)
@@ -431,11 +460,13 @@ def generate_goal_map(nside=set_default_nside(), NES_fraction = .3, WFD_fraction
     return result
 
 
-def standard_goals(nside=set_default_nside()):
+def standard_goals(nside=None):
     """
     A quick function to generate the "standard" goal maps.
     """
     # Find the number of healpixels we expect to observe per observation
+    if nside is None:
+        nside = set_default_nside()
 
     result = {}
     result['u'] = generate_goal_map(nside=nside, NES_fraction=0.,

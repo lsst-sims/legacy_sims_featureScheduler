@@ -7,7 +7,7 @@ from . import utils
 from lsst.sims.utils import m5_flat_sed, raDec2Hpid, Site, _hpid2RaDec
 
 
-default_nside = utils.set_default_nside()
+default_nside = None
 
 
 class BaseFeature(object):
@@ -49,6 +49,9 @@ class AltAzFeature(BaseConditionsFeature):
         nside : int (32)
             The nside of the healpixel map to use
         """
+        if nside is None:
+            nside = utils.set_default_nside()
+
         self.ra, self.dec = utils.ra_dec_hp_map(nside)
         if lat is None:
             site = Site(name='LSST')
@@ -135,6 +138,9 @@ class N_observations(BaseSurveyFeature):
         mask_indx : list of ints (None)
             List of healpixel indices to mask and interpolate over
         """
+        if nside is None:
+            nside = utils.set_default_nside()
+
         self.feature = np.zeros(hp.nside2npix(nside), dtype=float)
         self.filtername = filtername
         self.mask_indx = mask_indx
@@ -165,6 +171,8 @@ class Coadded_depth(BaseSurveyFeature):
         Parameters
         ----------
         """
+        if nside is None:
+            nside = utils.set_default_nside()
         self.filtername = filtername
         # Starting at limiting mag of zero should be fine.
         self.feature = np.zeros(hp.nside2npix(nside), dtype=float)
@@ -184,6 +192,9 @@ class Last_observed(BaseSurveyFeature):
     order.
     """
     def __init__(self, filtername='r', nside=default_nside):
+        if nside is None:
+            nside = utils.set_default_nside()
+
         self.filtername = filtername
         self.feature = np.zeros(hp.nside2npix(nside), dtype=float)
 
@@ -206,6 +217,9 @@ class N_obs_night(BaseSurveyFeature):
         nside : int (32)
             Scale of the healpix map
         """
+        if nside is None:
+            nside = utils.set_default_nside()
+
         self.filtername = filtername
         self.feature = np.zeros(hp.nside2npix(nside), dtype=int)
         self.night = None
@@ -231,6 +245,9 @@ class Pair_in_night(BaseSurveyFeature):
         gap_max : float (45.)
             The maximum time gap to consider a successful pair (minutes)
         """
+        if nside is None:
+            nside = utils.set_default_nside()
+
         self.filtername = filtername
         self.feature = np.zeros(hp.nside2npix(nside), dtype=float)
         self.indx = np.arange(self.feature.size)
@@ -277,6 +294,9 @@ class SlewtimeFeature(BaseConditionsFeature):
     The time to change filters is included in a feature
     """
     def __init__(self, nside=default_nside):
+        if nside is None:
+            nside = utils.set_default_nside()
+
         self.feature = None
         self.nside = nside
 
@@ -291,6 +311,9 @@ class M5Depth(BaseConditionsFeature):
     Given current conditions, return the 5-sigma limiting depth for a filter.
     """
     def __init__(self, filtername='r', expTime=30., nside=default_nside):
+        if nside is None:
+            nside = utils.set_default_nside()
+
         self.filtername = filtername
         self.feature = None
         self.expTime = expTime
@@ -376,6 +399,9 @@ class Time_to_set(BaseConditionsFeature):
         alt_min : float
             The minimum altitude one can point the telescope (degrees)
         """
+        if nside is None:
+            nside = utils.set_default_nside()
+
         self.ra, self.dec = _hpid2RaDec(nside, np.arange(hp.nside2npix(nside)))
         self.min_alt = np.radians(alt_min)
 
@@ -422,6 +448,9 @@ class Time_to_alt_limit(BaseConditionsFeature):
         alt_max : float
             The maximum altitude one can point the telescope (degrees)
         """
+        if nside is None:
+            nside = utils.set_default_nside()
+
         self.ra, self.dec = _hpid2RaDec(nside, np.arange(hp.nside2npix(nside)))
         self.max_alt = np.radians(alt_max)
 
@@ -464,6 +493,9 @@ class Time_observable_in_night(BaseConditionsFeature):
         polar_limit : float (-80.)
             Consider anything below dec polar_limit to always be visible. (degrees)
         """
+        if nside is None:
+            nside = utils.set_default_nside()
+
         # most fields should have a min and max lmst where they are less than max_airmass
 
         self.ra, self.dec = _hpid2RaDec(nside, np.arange(hp.nside2npix(nside)))
