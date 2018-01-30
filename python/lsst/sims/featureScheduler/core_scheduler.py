@@ -4,7 +4,7 @@ import numpy as np
 from .utils import hp_in_lsst_fov, set_default_nside
 import warnings
 
-default_nside = set_default_nside()
+default_nside = None
 
 
 class Core_scheduler(object):
@@ -23,6 +23,9 @@ class Core_scheduler(object):
         camera : str ('LSST')
             Which camera to use for computing overlapping HEALpixels for an observation.
         """
+        if nside is None:
+            nside = set_default_nside()
+
         # initialize a queue of observations to request
         self.queue = []
         self.surveys = surveys
