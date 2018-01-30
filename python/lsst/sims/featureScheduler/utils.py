@@ -200,7 +200,7 @@ def read_fields_from_localfile():
 
     field_names = ['field_id', 'fov_rad', 'RA', 'dec', 'gl', 'gb', 'el', 'eb', 'tag']
     field_types = [int, float, float, float, float, float, float, float, int]
-    fields = np.zeros(len(field_coords['RA']), dtype=zip(field_names, field_types))
+    fields = np.zeros(len(field_coords['RA']), dtype=list(zip(field_names, field_types)))
 
     fields['RA'] = np.radians(field_coords['RA'])
     fields['dec'] = np.radians(field_coords['dec'])
