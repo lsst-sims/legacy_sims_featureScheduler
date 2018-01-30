@@ -225,9 +225,9 @@ class Target_map_basis_function(Base_basis_function):
         """
         Parameters
         ----------
-        :param filtername: (string 'r')
+        filtername: (string 'r')
             The name of the filter for this target map.
-        :param nside: int (default_nside)
+        nside: int (default_nside)
             The healpix resolution.
         target_map : numpy array (None)
             A healpix map showing the ratio of observations desired for all points on the sky
@@ -289,15 +289,15 @@ class Avoid_Fast_Revists(Base_basis_function):
         """
         Parameters
         ----------
-        :param filtername: (string 'r')
+        filtername: (string 'r')
             The name of the filter for this target map.
-        :param gap_min : float (25.)
+        gap_min : float (25.)
             Minimum time for the gap (minutes).
-        :param nside: int (default_nside)
+        nside: int (default_nside)
             The healpix resolution.
-        :param survey_features:
-        :param condition_features:
-        :param out_of_bounds_val: float (10.)
+        survey_features:
+        condition_features:
+        out_of_bounds_val: float (10.)
             Point value to give regions where there are no observations requested
         """
         if nside is None:
