@@ -248,7 +248,18 @@ class HADecAltAzPatchBasisFunction(Base_basis_function):
         self.patches = patches
         ra, dec = utils.ra_dec_hp_map(self.nside)
         self.ra_hours = ra*12./np.pi % 24.
-        self.dec_deg = dec*180./np.pi
+        dec_deg = dec*180./np.pi
+
+        # Pre-compute declination masks, since those won't change
+        self.dec_mask = []
+
+        for patch in self.patches:
+            if 'dec_min' in patch and 'dec_max' in patch:
+                dec_mask = np.bitwise_and(dec_deg >= patch['dec_min'],
+                                          dec_deg <= patch['dec_max'])
+            else:
+                dec_mask = np.ones(hp.nside2npix(self.nside), dtype=bool)
+            self.dec_mask.append(dec_mask)
 
     def __call__(self, indx=None):
         result = np.empty(hp.nside2npix(self.nside), dtype=float)
@@ -256,18 +267,12 @@ class HADecAltAzPatchBasisFunction(Base_basis_function):
 
         ha = (self.condition_features['lmst'].feature - self.ra_hours) % 24.
 
-        for patch in self.patches:
+        for i, patch in enumerate(self.patches):
             if 'ha_min' in patch and 'ha_max' in patch:
                 ha_mask = np.bitwise_or(ha <= patch['ha_min'],
                                         ha >= patch['ha_max'])
             else:
                 ha_mask = np.ones(hp.nside2npix(self.nside), dtype=bool)
-
-            if 'dec_min' in patch and 'dec_max' in patch:
-                dec_mask = np.bitwise_and(self.dec_deg >= patch['dec_min'],
-                                          self.dec_deg <= patch['dec_max'])
-            else:
-                dec_mask = np.ones(hp.nside2npix(self.nside), dtype=bool)
 
             if 'alt_min' in patch and 'alt_max' in patch:
                 alt_mask = np.bitwise_and(self.condition_features['altaz'].feature['alt'] >=
@@ -285,7 +290,7 @@ class HADecAltAzPatchBasisFunction(Base_basis_function):
 
             mask = np.bitwise_and(np.bitwise_and(np.bitwise_and(ha_mask,
                                                                 alt_mask),
-                                                 dec_mask),
+                                                 self.dec_mask[i]),
                                   az_mask)
             result[mask] = 1.0
 
@@ -338,10 +343,6 @@ class MeridianStripeBasisFunction(Base_basis_function):
         self.max_alt_rad = max_alt*np.pi/180.
         self.min_alt_rad = min_alt*np.pi/180.
 
-        ra, dec = utils.ra_dec_hp_map(self.nside)
-        self.ra_hours = ra*12./np.pi % 24.
-        self.dec_deg = dec*180./np.pi
-
     def __call__(self, indx=None):
         result = np.empty(hp.nside2npix(self.nside), dtype=float)
         result.fill(hp.UNSEEN)
@@ -371,6 +372,7 @@ class MeridianStripeBasisFunction(Base_basis_function):
         result[np.where(alt > self.max_alt_rad)] = hp.UNSEEN
 
         return result
+
 
 class Target_map_basis_function(Base_basis_function):
     """Normalize the maps first to make things smoother
