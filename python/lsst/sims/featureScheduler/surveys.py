@@ -454,7 +454,7 @@ class Marching_army_survey(BaseSurvey):
         # plt.plot(np.degrees(final_az[indx]), np.degrees(final_alt[indx]), 'o-')
         # plt.scatter(np.degrees(final_az[indx]), np.degrees(final_alt[indx]), c=field_rewards[order][0:npick][indx])
 
-        # Could do something like look at current position and see if observation[0] or [-1] is closer to 
+        # Could do something like look at current position and see if observation[0] or [-1] is closer to
         # the current pointing, then reverse if needed.
 
         return observations
@@ -669,6 +669,7 @@ class Greedy_survey_fields(BaseSurvey):
         self.dither = dither
         self.night = extra_features['night'].feature + 0
         self.tag_map = tag_map
+        self.tag_fields = tag_fields
         # self.inside_tagged = np.zeros_like(self.hp2fields) == 0
 
         if tag_fields:
@@ -750,7 +751,10 @@ class Greedy_survey_fields(BaseSurvey):
             best_fields = np.unique(self.hp2fields[best_hp])
             observations = []
             for field in best_fields:
-                tag = np.unique(self.tag_map[np.where(self.hp2fields == field)])[0]
+                if self.tag_fields:
+                    tag = np.unique(self.tag_map[np.where(self.hp2fields == field)])[0]
+                else:
+                    tag = 1
                 if tag == 0:
                     continue
                 obs = empty_observation()
@@ -761,7 +765,10 @@ class Greedy_survey_fields(BaseSurvey):
                 obs['nexp'] = 2.  # FIXME: hardcoded
                 obs['exptime'] = 30.  # FIXME: hardcoded
                 obs['field_id'] = -1
-                obs['survey_id'] = np.unique(self.tag_map[np.where(self.hp2fields == field)])[0]
+                if self.tag_fields:
+                    obs['survey_id'] = np.unique(self.tag_map[np.where(self.hp2fields == field)])[0]
+                else:
+                    obs['survey_id'] = 1
 
                 observations.append(obs)
                 break
