@@ -13,7 +13,7 @@ from scipy.spatial import cKDTree as kdtree
 from scipy.stats import binned_statistic
 from lsst.sims.featureScheduler.thomson import xyz2thetaphi, thetaphi2xyz
 import copy
-from .comcamTesselate import comcamTesselate
+from .comcamTessellate import comcamTessellate
 
 default_nside = None
 
@@ -612,7 +612,7 @@ def rotx(theta, x, y, z):
 
 class Greedy_survey_fields(BaseSurvey):
     """
-    Use a field tesselation and assign each healpix to a field.
+    Use a field tessellation and assign each healpix to a field.
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, filtername='r',
                  block_size=25, smoothing_kernel=None, nside=default_nside,
@@ -631,7 +631,7 @@ class Greedy_survey_fields(BaseSurvey):
                                                    ignore_obs=ignore_obs,
                                                    nside=nside)
         self.filtername = filtername
-        # Load the OpSim field tesselation
+        # Load the OpSim field tessellation
         self.fields_init = read_fields()
         self.fields = self.fields_init.copy()
         self.block_size = block_size
@@ -647,7 +647,7 @@ class Greedy_survey_fields(BaseSurvey):
         return self.filtername in self.extra_features['mounted_filters'].feature
 
     def _spin_fields(self, lon=None, lat=None):
-        """Spin the field tesselation
+        """Spin the field tessellation
         """
         if lon is None:
             lon = np.random.rand()*np.pi*2
@@ -749,7 +749,7 @@ class Greedy_survey_comcam(Greedy_survey_fields):
                                                    nside=nside)
         self.filtername = filtername
         # Load the comcam field tesselation
-        ras, decs = comcamTesselate(side_length=side_length, overlap=0.11)
+        ras, decs = comcamTessellate(side_length=side_length, overlap=0.11)
         self.fields = np.zeros(ras.size, dtype=list(zip(['RA', 'dec', 'rotSkyPos'],
                                                         [float, float, float])))
         self.fields['RA'] = ras
@@ -770,7 +770,7 @@ class Greedy_survey_comcam(Greedy_survey_fields):
         self.night = extra_features['night'].feature + 0
 
     def _spin_fields(self, lon=None, lat=None):
-        """Spin the field tesselation
+        """Spin the field tessellation
         """
         if lon is None:
             lon = np.random.rand()*np.pi*2

@@ -4,5 +4,5 @@ from .basis_functions import *
 from .surveys import *
 from .utils import *
 from .dithering import *
-from .comcamTesselate import *
+from .comcamTessellate import *
 from .version import *

@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def comcamTesselate(side_length=0.7, overlap=0.11):
+def comcamTessellate(side_length=0.7, overlap=0.11):
     """Tesselate the sphere with a square footprint
 
     XXX--TODO:  This really sucks at the poles, should add some different pole cap behavior.
