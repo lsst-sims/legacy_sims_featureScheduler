@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 from builtins import object
 import numpy as np
-from .utils import hp_in_lsst_fov, set_default_nside
+from .utils import hp_in_lsst_fov, set_default_nside, hp_in_comcam_fov
 import warnings
 
 default_nside = None
@@ -22,6 +22,7 @@ class Core_scheduler(object):
             A HEALpix nside value.
         camera : str ('LSST')
             Which camera to use for computing overlapping HEALpixels for an observation.
+            Can be 'LSST' or 'comcam'
         """
         if nside is None:
             nside = set_default_nside()
@@ -34,6 +35,8 @@ class Core_scheduler(object):
         # Should just make camera a class that takes a pointing and returns healpix indices
         if camera == 'LSST':
             self.pointing2hpindx = hp_in_lsst_fov(nside=nside)
+        elif camera == 'comcam':
+            self.pointing2hpindx = hp_in_comcam_fov(nside=nside)
         else:
             raise ValueError('camera %s not implamented' % camera)
 
@@ -58,7 +61,7 @@ class Core_scheduler(object):
         # XXX-in the future, we may want to refactor to support multiple nside resolutions
         # I think indx would then be a dict with keys 32,64,128, etc. Then each feature would
         # say indx = indx[self.nside]
-        indx = self.pointing2hpindx(observation['RA'], observation['dec'])
+        indx = self.pointing2hpindx(observation['RA'], observation['dec'], observation['rotSkyPos'])
         for survey in self.surveys:
             survey.add_observation(observation, indx=indx)
 
