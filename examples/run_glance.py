@@ -27,7 +27,8 @@ if __name__ == '__main__':
     parser.add_argument("dbfile", type=str, help="sqlite file")
     parser.add_argument("runName", type=str, default=None, help="run name")
     parser.add_argument("--camera", type=str, default='LSST')
+    parser.add_argument("--outDir", type=str, default="Glance")
 
     args = parser.parse_args()
 
-    runGlance(args.dbfile, runName=args.runName, camera=args.camera)
+    runGlance(args.dbfile, runName=args.runName, camera=args.camera, outDir=args.outDir)

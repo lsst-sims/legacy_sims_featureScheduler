@@ -13,7 +13,7 @@ if __name__ == "__main__":
     target_map = fs.standard_goals(nside=nside)
     ra, dec = fs.ra_dec_hp_map(nside=nside)
     out_region = np.where((dec > np.radians(-40)) | (dec < np.radians(-50.)))
-    in_region = np.where((dec <= np.radians(-40)) | (dec >= np.radians(-50.)))
+    in_region = np.where((dec <= np.radians(-40)) & (dec >= np.radians(-50.)))
     for key in target_map:
         target_map[key][out_region] = 0.
         target_map[key][in_region] = 1.
@@ -50,12 +50,12 @@ if __name__ == "__main__":
     observatory = Speed_observatory(nside=nside)
     observatory, scheduler, observations = fs.sim_runner(observatory, scheduler,
                                                          survey_length=survey_length,
-                                                         filename='comcam_baseline_%iyrs.db' % years,
+                                                         filename='comcam_baseline_%id.db' % survey_length,
                                                          delete_past=True)
 
 
 # To run maf:
-#  python run_glance.py comcam_baseline_0yrs.db comcam_test --camera ComCam
+#  python run_glance.py comcam_baseline_1d.db comcam_test --camera ComCam --outDir comcam_1
 
-# Time for 20 days:  205min = 3.5hr.  ~10min per day. 
+# Time for 20 days:  185min = 3.1hr.  ~10min per day. 
 
