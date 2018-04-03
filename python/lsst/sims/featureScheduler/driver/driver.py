@@ -425,7 +425,7 @@ class FeatureSchedulerDriver(Driver):
             self.sky_brightness.returnAirmass(self.observatoryModel.dateprofile.mjd))
 
         delta_t = (self.time-self.start_time)
-        telemetry_stream['clouds'] = copy.copy(self.cloud_model.get_cloud(int(delta_t)))
+        telemetry_stream['bulk_cloud_cover'] = copy.copy(self.cloud_model.get_cloud(int(delta_t)))
 
         for filtername in ['u', 'g', 'r', 'i', 'z', 'y']:
             fwhm_500, fwhm_geometric, fwhm_effective = self.seeing_model.calculate_seeing(delta_t, filtername,
