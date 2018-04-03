@@ -796,10 +796,10 @@ class Bulk_cloud_basis_function(Base_basis_function):
             self.condition_features = condition_features
 
         super(Bulk_cloud_basis_function, self).__init__(survey_features=self.survey_features,
-                                                        condition_features=condition_features)
+                                                        condition_features=self.condition_features)
         self.nside = nside
         if max_cloud_map is None:
-            self.max_cloud_map = np.zeros(hp.nside2npix(nside), dtype=float) + cloud_max
+            self.max_cloud_map = np.ones(hp.nside2npix(nside), dtype=float)
         else:
             self.max_cloud_map = max_cloud_map
         self.out_of_bounds_area = np.where(self.max_cloud_map > 1.)[0]
