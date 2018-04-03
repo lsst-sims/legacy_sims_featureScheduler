@@ -77,7 +77,7 @@ class BulkCloudCover(BaseConditionsFeature):
         self.feature = dict()
 
     def update_conditions(self, conditions, *kwargs):
-        self.feature['bulk_cloud_cover'] = conditions['bulk_cloud_cover']
+        self.feature['bulk_cloud_cover'] = conditions['clouds']
 
 
 class N_obs_count(BaseSurveyFeature):
