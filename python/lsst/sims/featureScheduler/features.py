@@ -18,7 +18,7 @@ class BaseFeature(object):
         # self.feature should be a float, bool, or healpix size numpy array, or numpy masked array
         self.feature = None
 
-    # XXX--Should this actually be a __get__? 
+    # XXX--Should this actually be a __get__?
     def __call__(self):
         return self.feature
 
@@ -255,7 +255,7 @@ class Pair_in_night(BaseSurveyFeature):
         self.gap_min = gap_min / (24.*60)  # Days
         self.gap_max = gap_max / (24.*60)  # Days
         self.night = 0
-        # Need to keep a full record of times and healpixels observed in a night. 
+        # Need to keep a full record of times and healpixels observed in a night.
         self.mjd_log = []
         self.hpid_log = []
 
@@ -637,3 +637,23 @@ class SurveyProposals(BaseSurveyFeature):
             if observation['survey_id'] in self.id.keys():
                 self.feature[self.id_to_index[observation['survey_id']]] += 1
 
+class CloudsFeature(BaseConditionsFeature):
+
+    def __init__(self, nside=default_nside, cloud_max=0.01):
+        """
+        Parameters
+        ----------
+        cloud_max : float
+            The maximum cloud value
+        """
+        if nside is None:
+            nside = utils.set_default_nside()
+        self.cloud_max = cloud_max
+
+    def update_conditions(self, conditions):
+        self.feature = {}
+        self.clouds = conditions['clouds']
+        if self.clouds > self.cloud_max:
+            self.feature = 0
+        else:
+            self.feature = 1
