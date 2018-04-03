@@ -767,3 +767,49 @@ class Slewtime_basis_function(Base_basis_function):
             else:
                 result = (self.maxtime - self.condition_features['slewtime'].feature)/self.maxtime
         return result
+
+
+class Bulk_cloud_basis_function(Base_basis_function):
+
+    def __init__(self, nside=default_nside, max_cloud_map=None,
+                 survey_features=None, condition_features=None, out_of_bounds_val=-10.):
+        """
+        TBD
+
+        :param nside:
+        :param condition_features:
+        :param survey_features:
+        :param cloud_max:
+        """
+        if nside is None:
+            nside = utils.set_default_nside()
+
+        if survey_features is None:
+            self.survey_features = dict()
+        else:
+            self.survey_features = survey_features
+
+        if condition_features is None:
+            self.condition_features = dict()
+            self.condition_features['bulk_cloud'] = features.BulkCloudCover()
+        else:
+            self.condition_features = condition_features
+
+        super(Bulk_cloud_basis_function, self).__init__(survey_features=self.survey_features,
+                                                        condition_features=condition_features)
+        self.nside = nside
+        if max_cloud_map is None:
+            self.max_cloud_map = np.zeros(hp.nside2npix(nside), dtype=float) + cloud_max
+        else:
+            self.max_cloud_map = max_cloud_map
+        self.out_of_bounds_area = np.where(self.max_cloud_map > 1.)[0]
+        self.out_of_bounds_val = out_of_bounds_val
+
+    def __call__(self, indx=None):
+
+        result = np.ones(hp.nside2npix(self.nside))
+
+        clouded = np.where(self.max_cloud_map < self.condition_features['bulk_cloud'].feature)
+        result[clouded] = hp.UNSEEN
+
+        return result

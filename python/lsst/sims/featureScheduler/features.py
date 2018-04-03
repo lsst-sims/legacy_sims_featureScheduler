@@ -69,6 +69,17 @@ class AltAzFeature(BaseConditionsFeature):
         self.feature['az'] = az
 
 
+class BulkCloudCover(BaseConditionsFeature):
+
+    def __init__(self):
+        """Store the bulk cloud cover.
+        """
+        self.feature = dict()
+
+    def update_conditions(self, conditions, *kwargs):
+        self.feature['bulk_cloud_cover'] = conditions['bulk_cloud_cover']
+
+
 class N_obs_count(BaseSurveyFeature):
     """Count the number of observations.
     """
@@ -637,23 +648,3 @@ class SurveyProposals(BaseSurveyFeature):
             if observation['survey_id'] in self.id.keys():
                 self.feature[self.id_to_index[observation['survey_id']]] += 1
 
-class CloudsFeature(BaseConditionsFeature):
-
-    def __init__(self, nside=default_nside, cloud_max=0.01):
-        """
-        Parameters
-        ----------
-        cloud_max : float
-            The maximum cloud value
-        """
-        if nside is None:
-            nside = utils.set_default_nside()
-        self.cloud_max = cloud_max
-
-    def update_conditions(self, conditions):
-        self.feature = {}
-        self.clouds = conditions['clouds']
-        if self.clouds > self.cloud_max:
-            self.feature = 0
-        else:
-            self.feature = 1
