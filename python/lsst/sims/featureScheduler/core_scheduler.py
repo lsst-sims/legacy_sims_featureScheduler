@@ -1,6 +1,8 @@
 from __future__ import absolute_import
 from builtins import object
 import numpy as np
+import healpy as hp
+from lsst.sims.utils import _hpid2RaDec
 from .utils import hp_in_lsst_fov, set_default_nside
 import warnings
 
@@ -30,6 +32,8 @@ class Core_scheduler(object):
         self.queue = []
         self.surveys = surveys
         self.nside = nside
+        hpid = np.arange(hp.nside2npix(nside))
+        self.ra_grid_rad, self.dec_grid_rad = _hpid2RaDec(nside, hpid)
         self.conditions = None
         # Should just make camera a class that takes a pointing and returns healpix indices
         if camera == 'LSST':
@@ -60,6 +64,9 @@ class Core_scheduler(object):
         # say indx = indx[self.nside]
         indx = self.pointing2hpindx(observation['RA'], observation['dec'])
         for survey in self.surveys:
+            # if field_id is set, use survey internal h2fields map
+            # if observation['field_id'] > 0:
+            #     indx = np.where(survey.hp2fields == observation['field_id']-1)[0]
             survey.add_observation(observation, indx=indx)
 
     def update_conditions(self, conditions):
@@ -91,7 +98,7 @@ class Core_scheduler(object):
             warnings.warn('Failed to fill queue, trying again')
             self._fill_queue()
         result = self.queue.pop(0)
-        
+
         return result
 
     def _fill_queue(self):
