@@ -12,10 +12,10 @@ if __name__ == "__main__":
     survey_length = 20.  # Days
     target_map = fs.standard_goals(nside=nside)
     ra, dec = fs.ra_dec_hp_map(nside=nside)
-    out_region = np.where((dec > np.radians(-40)) | (dec < np.radians(-50.)))
-    in_region = np.where((dec <= np.radians(-40)) & (dec >= np.radians(-50.)))
+    # out_region = np.where((dec > np.radians(-40)) | (dec < np.radians(-50.)))
+    in_region = np.where((dec <= np.radians(-40.)) & (dec >= np.radians(-50.)))
     for key in target_map:
-        target_map[key][out_region] = 0.
+        target_map[key] *= 0.
         target_map[key][in_region] = 1.
 
     years = np.round(survey_length/365.25)
@@ -47,7 +47,8 @@ if __name__ == "__main__":
     #surveys.extend(dd_surveys)
 
     scheduler = fs.Core_scheduler(surveys, nside=nside, camera='comcam')
-    observatory = Speed_observatory(nside=nside)
+    # let's try starting this earlier. I think this is June 1, 2020.
+    observatory = Speed_observatory(nside=nside, mjd_start=59001.)
     observatory, scheduler, observations = fs.sim_runner(observatory, scheduler,
                                                          survey_length=survey_length,
                                                          filename='comcam_baseline_%id.db' % survey_length,
