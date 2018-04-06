@@ -10,3 +10,4 @@ setupRequired(sims_speedObservatory)
 
 envPrepend(PYTHONPATH, ${PRODUCT_DIR}/python)
 envPrepend(PATH, ${PRODUCT_DIR}/bin)
+envPrepend(PATH, ${PRODUCT_DIR}/scripts)

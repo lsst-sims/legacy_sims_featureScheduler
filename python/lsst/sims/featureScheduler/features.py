@@ -306,6 +306,13 @@ class SlewtimeFeature(BaseConditionsFeature):
             self.feature = hp.ud_grade(self.feature, nside_out=self.nside)
 
 
+class Observatory(BaseFeature):
+    """Hosts informations regarding the observatory parameters.
+
+    """
+    def __init__(self, config):
+        self.feature = config
+
 class M5Depth(BaseConditionsFeature):
     """
     Given current conditions, return the 5-sigma limiting depth for a filter.
@@ -381,6 +388,13 @@ class Current_night(BaseConditionsFeature):
     def update_conditions(self, conditions):
         self.feature = conditions['night']
 
+class CurrentNightBoundaries(BaseConditionsFeature):
+    def __init__(self):
+        self.feature = -1
+
+    def update_conditions(self, conditions):
+        self.feature = {'last_twilight_end':  conditions['last_twilight_end'],
+                        'next_twilight_start': conditions['next_twilight_start']}
 
 class Current_pointing(BaseConditionsFeature):
     def update_conditions(self, conditions):
@@ -583,6 +597,9 @@ class Rotator_angle(BaseSurveyFeature):
         """
 
         """
+        if nside is None:
+            nside = utils.set_default_nside()
+
         self.filtername = filtername
         # Actually keep a histogram at each healpixel
         self.feature = np.zeros((hp.nside2npix(nside), 360./binsize), dtype=float)
@@ -592,4 +609,31 @@ class Rotator_angle(BaseSurveyFeature):
         if observation['filter'][0] == self.filtername:
             # I think this is how to broadcast things properly.
             self.feature[indx, :] += np.histogram(observation.rotSkyPos, bins=self.bins)[0]
+
+class SurveyProposals(BaseSurveyFeature):
+    """
+    Track the proposals which are part of this survey
+    """
+
+    def __init__(self, ids=(0,), names=('',)):
+        """
+        Parameters
+        ----------
+        filtername : string ('r')
+            Filter to track.
+        nside : int (32)
+            Scale of the healpix map
+        """
+
+        self.id = dict(zip(ids, names))
+        self.id_to_index = dict(zip(ids, range(len(ids))))
+        self.feature = np.zeros(len(self.id))
+
+    def add_observation(self, observation, indx=None):
+        try:
+            if observation['survey_id'][0] in self.id.keys():
+                self.feature[self.id_to_index[observation['survey_id'][0]]] += 1
+        except IndexError:
+            if observation['survey_id'] in self.id.keys():
+                self.feature[self.id_to_index[observation['survey_id']]] += 1
 

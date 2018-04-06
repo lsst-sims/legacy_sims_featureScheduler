@@ -2,9 +2,9 @@ from __future__ import absolute_import
 from builtins import zip
 from builtins import object
 import numpy as np
-from .utils import (empty_observation, set_default_nside, read_fields, stupidFast_altAz2RaDec,
+from .utils import (empty_observation, set_default_nside, hp_in_lsst_fov, read_fields, stupidFast_altAz2RaDec,
                     raster_sort, stupidFast_RaDec2AltAz, gnomonic_project_toxy, treexyz)
-from lsst.sims.utils import _hpid2RaDec, _raDec2Hpid, Site, _angularSeparation
+from lsst.sims.utils import _hpid2RaDec, _raDec2Hpid, Site, _angularSeparation, _altAzPaFromRaDec
 import healpy as hp
 from . import features
 from . import dithering
@@ -15,8 +15,11 @@ from lsst.sims.featureScheduler.thomson import xyz2thetaphi, thetaphi2xyz
 import copy
 from .comcamTessellate import comcamTessellate
 
+import logging
+
 default_nside = None
 
+log = logging.getLogger(__name__)
 
 class BaseSurvey(object):
     def __init__(self, basis_functions, basis_weights, extra_features=None, smoothing_kernel=None,
@@ -48,6 +51,14 @@ class BaseSurvey(object):
             nside = set_default_nside()
 
         # XXX-Check that input is a list of features
+
+        # Load the OpSim field tesselation and map healpix to fields
+        self.nside = nside
+        self.fields_init = read_fields()
+        self.fields = self.fields_init.copy()
+        self.hp2fields = np.array([])
+        self._hp2fieldsetup(self.fields['RA'], self.fields['dec'])
+
         self.nside = nside
         self.ignore_obs = ignore_obs
         self.basis_functions = basis_functions
@@ -67,6 +78,16 @@ class BaseSurvey(object):
         self.reward_checked = False
         # count how many times we calc reward function
         self.reward_count = 0
+
+        # Keep track of all features on the survey
+        self.features = {}
+        for bf in self.basis_functions:
+            for feature_key in bf.survey_features.keys():
+                self.features[feature_key] = bf.survey_features[feature_key]
+            for feature_key in bf.condition_features.keys():
+                self.features[feature_key] = bf.condition_features[feature_key]
+        for feature_key in self.extra_features.keys():
+            self.features[feature_key] = self.extra_features[feature_key]
 
     def add_observation(self, observation, **kwargs):
         # ugh, I think here I have to assume observation is an array and not a dict.
@@ -133,6 +154,16 @@ class BaseSurvey(object):
             return self.reward_smooth
         else:
             return self.reward
+
+    def _hp2fieldsetup(self, ra, dec, leafsize=100):
+        """Map each healpixel to nearest field. This will only work if healpix
+        resolution is higher than field resolution.
+        """
+        pointing2hpindx = hp_in_lsst_fov(nside=self.nside)
+        self.hp2fields = np.zeros(hp.nside2npix(self.nside), dtype=np.int)
+        for i in range(len(ra)):
+            hpindx = pointing2hpindx(ra[i], dec[i])
+            self.hp2fields[hpindx] = i
 
     def __call__(self):
         """
@@ -208,7 +239,8 @@ class Scripted_survey(BaseSurvey):
                                               basis_weights=basis_weights,
                                               extra_features=extra_features,
                                               smoothing_kernel=smoothing_kernel,
-                                              ignore_obs=ignore_obs)
+                                              ignore_obs=ignore_obs,
+                                              nside=nside)
 
     def add_observation(self, observation, indx=None, **kwargs):
         """Check if this matches a scripted observation
@@ -318,14 +350,14 @@ class Marching_army_survey(BaseSurvey):
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, smoothing_kernel=None,
                  nside=default_nside, filtername='y', npick=40, site='LSST'):
-
         if nside is None:
             nside = set_default_nside()
 
         super(Marching_army_survey, self).__init__(basis_functions=basis_functions,
                                                    basis_weights=basis_weights,
                                                    extra_features=extra_features,
-                                                   smoothing_kernel=smoothing_kernel)
+                                                   smoothing_kernel=smoothing_kernel,
+                                                   nside=nside)
         if extra_features is None:
             self.extra_features = {}
             self.extra_features['mjd'] = features.Current_mjd()
@@ -423,7 +455,7 @@ class Marching_army_survey(BaseSurvey):
         # plt.plot(np.degrees(final_az[indx]), np.degrees(final_alt[indx]), 'o-')
         # plt.scatter(np.degrees(final_az[indx]), np.degrees(final_alt[indx]), c=field_rewards[order][0:npick][indx])
 
-        # Could do something like look at current position and see if observation[0] or [-1] is closer to 
+        # Could do something like look at current position and see if observation[0] or [-1] is closer to
         # the current pointing, then reverse if needed.
 
         return observations
@@ -436,7 +468,6 @@ class Marching_army_survey(BaseSurvey):
 class Marching_experiment(Marching_army_survey):
     def __init__(self, basis_functions, basis_weights, extra_features=None, smoothing_kernel=None,
                  nside=default_nside, filtername='y', npick=20, site='LSST'):
-
         if nside is None:
             nside = set_default_nside()
 
@@ -499,7 +530,8 @@ class Smooth_area_survey(BaseSurvey):
         super(Smooth_area_survey, self).__init__(basis_functions=basis_functions,
                                                  basis_weights=basis_weights,
                                                  extra_features=self.extra_features,
-                                                 smoothing_kernel=smoothing_kernel)
+                                                 smoothing_kernel=smoothing_kernel,
+                                                 nside=nside)
         self.filtername = filtername
         pix_area = hp.nside2pixarea(nside, degrees=True)
         block_size = int(np.round(max_area/pix_area))
@@ -596,6 +628,7 @@ class Simple_greedy_survey_fields(BaseSurvey):
             obs['RA'] = self.fields['RA'][field]
             obs['dec'] = self.fields['dec'][field]
             obs['filter'] = self.filtername
+            obs['field_id'] = self.fields['field_id'][field]
             obs['nexp'] = 2.
             obs['exptime'] = 30.
             observations.append(obs)
@@ -616,14 +649,15 @@ class Greedy_survey_fields(BaseSurvey):
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, filtername='r',
                  block_size=25, smoothing_kernel=None, nside=default_nside,
-                 dither=False, seed=42, ignore_obs='ack'):
-        if nside is None:
-            nside = set_default_nside()
-
+                 dither=False, seed=42, ignore_obs='ack',
+                 tag_fields=False, tag_map=None, tag_names=None):
         if extra_features is None:
             extra_features = {}
             extra_features['night'] = features.Current_night()
             extra_features['mounted_filters'] = features.Mounted_filters()
+        if tag_fields and tag_names is not None:
+            extra_features['proposals'] = features.SurveyProposals(ids=tag_names.keys(),
+                                                                   names=tag_names.values())
         super(Greedy_survey_fields, self).__init__(basis_functions=basis_functions,
                                                    basis_weights=basis_weights,
                                                    extra_features=extra_features,
@@ -635,10 +669,22 @@ class Greedy_survey_fields(BaseSurvey):
         self.fields_init = read_fields()
         self.fields = self.fields_init.copy()
         self.block_size = block_size
-        self._hp2fieldsetup(self.fields['RA'], self.fields['dec'])
         np.random.seed(seed)
         self.dither = dither
         self.night = extra_features['night'].feature + 0
+        self.tag_map = tag_map
+        self.tag_fields = tag_fields
+        # self.inside_tagged = np.zeros_like(self.hp2fields) == 0
+
+        if tag_fields:
+            tags = np.unique(tag_map[tag_map > 0])
+            for tag in tags:
+                inside_tag = np.where(tag_map == tag)
+                fields_id = np.unique(self.hp2fields[inside_tag])
+                self.fields['tag'][fields_id] = tag
+        else:
+            for i in range(len(self.fields)):
+                self.fields['tag'][i] = 1
 
     def _check_feasability(self):
         """
@@ -658,7 +704,7 @@ class Greedy_survey_fields(BaseSurvey):
         dec = self.fields['dec'] + 0
 
         # Now to rotate ra and dec about the x-axis
-        x, y, z = thetaphi2xyz(self.fields['RA'], self.fields['dec']+np.pi/2.)
+        x, y, z = thetaphi2xyz(ra, dec+np.pi/2.)
         xp, yp, zp = rotx(lat, x, y, z)
         theta, phi = xyz2thetaphi(xp, yp, zp)
         dec = phi - np.pi/2
@@ -683,16 +729,16 @@ class Greedy_survey_fields(BaseSurvey):
                 self.night = self.extra_features['night'].feature + 0
         self.reward_checked = False
 
-    def _hp2fieldsetup(self, ra, dec, leafsize=100):
-        """Map each healpixel to nearest field. This will only work if healpix
-        resolution is higher than field resolution.
-        """
-        x, y, z = treexyz(ra, dec)
-        tree = kdtree(list(zip(x, y, z)), leafsize=leafsize, balanced_tree=False, compact_nodes=False)
-        hpid = np.arange(hp.nside2npix(self.nside))
-        hp_ra, hp_dec = _hpid2RaDec(self.nside, hpid)
-        x, y, z = treexyz(hp_ra, hp_dec)
-        d, self.hp2fields = tree.query(list(zip(x, y, z)), k=1)
+    def add_observation(self, observation, **kwargs):
+        # ugh, I think here I have to assume observation is an array and not a dict.
+
+        if self.ignore_obs not in observation['note']:
+            for bf in self.basis_functions:
+                bf.add_observation(observation, **kwargs)
+            for feature in self.extra_features:
+                if hasattr(self.extra_features[feature], 'add_observation'):
+                    self.extra_features[feature].add_observation(observation, **kwargs)
+            self.reward_checked = False
 
     def __call__(self):
         """
@@ -702,17 +748,38 @@ class Greedy_survey_fields(BaseSurvey):
             self.reward = self.calc_reward_function()
         # Let's find the best N from the fields
         order = np.argsort(self.reward)[::-1]
-        best_hp = order[0:self.block_size]
-        best_fields = np.unique(self.hp2fields[best_hp])
-        observations = []
-        for field in best_fields:
-            obs = empty_observation()
-            obs['RA'] = self.fields['RA'][field]
-            obs['dec'] = self.fields['dec'][field]
-            obs['filter'] = self.filtername
-            obs['nexp'] = 2.
-            obs['exptime'] = 30.
-            observations.append(obs)
+
+        iter = 0
+        while True:
+            best_hp = order[iter*self.block_size:(iter+1)*self.block_size]
+            best_fields = np.unique(self.hp2fields[best_hp])
+            observations = []
+            for field in best_fields:
+                if self.tag_fields:
+                    tag = np.unique(self.tag_map[np.where(self.hp2fields == field)])[0]
+                else:
+                    tag = 1
+                if tag == 0:
+                    continue
+                obs = empty_observation()
+                obs['RA'] = self.fields['RA'][field]
+                obs['dec'] = self.fields['dec'][field]
+                obs['rotSkyPos'] = 0.
+                obs['filter'] = self.filtername
+                obs['nexp'] = 2.  # FIXME: hardcoded
+                obs['exptime'] = 30.  # FIXME: hardcoded
+                obs['field_id'] = -1
+                if self.tag_fields:
+                    obs['survey_id'] = np.unique(self.tag_map[np.where(self.hp2fields == field)])[0]
+                else:
+                    obs['survey_id'] = 1
+
+                observations.append(obs)
+                break
+            iter += 1
+            if len(observations) > 0 or (iter+2)*self.block_size > len(order):
+                break
+
         return observations
 
 
@@ -853,7 +920,7 @@ class Deep_drilling_survey(BaseSurvey):
                  exptime=30.,
                  nexp=2, ignore_obs='dummy', survey_name='DD', fraction_limit=0.01,
                  ha_limits=([0., 1.5], [21.0, 24.]), reward_value=101., moon_up=True, readtime=2.,
-                 day_space=2.):
+                 day_space=2., nside=default_nside):
         """
         Parameters
         ----------
@@ -884,7 +951,8 @@ class Deep_drilling_survey(BaseSurvey):
             Demand this much spacing between trying to launch a sequence (days)
         """
         # No basis functions for this survey
-        self.basis_functions = []
+        basis_functions = []
+        basis_weights = []
         self.ra = np.radians(RA)
         self.ra_hours = RA/360.*24.
         self.dec = np.radians(dec)
@@ -895,11 +963,20 @@ class Deep_drilling_survey(BaseSurvey):
         self.moon_up = moon_up
         self.fraction_limit = fraction_limit
         self.day_space = day_space
+        self.survey_id = 5
+        self.nside = nside
+        self.filter_list = []
 
         if extra_features is None:
             self.extra_features = {}
+            # Current filter
+            self.extra_features['current_filter'] = features.Current_filter()
             # Available filters
             self.extra_features['mounted_filters'] = features.Mounted_filters()
+            # Observatory information
+            self.extra_features['observatory'] = features.Observatory({'readtime': readtime,
+                                                                       'filter_change_time': 120.}
+                                                                      )  # FIXME:
 
             # The total number of observations
             self.extra_features['N_obs'] = features.N_obs_count()
@@ -917,13 +994,38 @@ class Deep_drilling_survey(BaseSurvey):
             self.extra_features['last_obs_self'] = features.Last_observation(survey_name=self.survey_name)
             # Current MJD
             self.extra_features['mjd'] = features.Current_mjd()
-
+            # Observable time. This includes altitude and night limits
+            # Fixme: add proper altitude limit from ha limits
+            self.extra_features['night_boundaries'] = features.CurrentNightBoundaries()
+            # Proposal information
+            self.extra_features['proposals'] = features.SurveyProposals(ids=(self.survey_id,),
+                                                                        names=(self.survey_name,))
         else:
             self.extra_features = extra_features
 
+        super(Deep_drilling_survey, self).__init__(basis_functions=basis_functions,
+                                                   basis_weights=basis_weights,
+                                                   extra_features=self.extra_features,
+                                                   nside=nside)
+
         if type(sequence) == str:
+            opsim_fields = read_fields()
+            self.pointing2hpindx = hp_in_lsst_fov(nside=self.nside)
+            hp2fields = np.zeros(hp.nside2npix(self.nside), dtype=np.int)
+            for i in range(len(opsim_fields['RA'])):
+                hpindx = self.pointing2hpindx(opsim_fields['RA'][i], opsim_fields['dec'][i])
+                hp2fields[hpindx] = i+1
+            hpid = _raDec2Hpid(self.nside, self.ra, self.dec)
+
+            fields = read_fields()
+            field = fields[hp2fields[hpid]]
+            field['tag'] = self.survey_id
+            self.fields = [field]
+
             self.sequence = []
+            filter_list = []
             for num, filtername in zip(nvis, sequence):
+                filter_list.append(filtername)
                 for j in range(num):
                     obs = empty_observation()
                     obs['filter'] = filtername
@@ -932,11 +1034,16 @@ class Deep_drilling_survey(BaseSurvey):
                     obs['dec'] = self.dec
                     obs['nexp'] = nexp
                     obs['note'] = survey_name
+                    obs['field_id'] = hp2fields[hpid]
+                    obs['survey_id'] = self.survey_id
+
                     self.sequence.append(obs)
+            self.filter_list = np.unique(np.array(filter_list))
         else:
             self.sequence = sequence
 
-        self.approx_time = np.sum([o['exptime']+readtime*o['nexp'] for o in obs])
+        self.approx_time = np.sum([(o['exptime']+readtime)*o['nexp'] for o in obs])
+
         # Construct list of all the filters that need to be loaded to execute sequence
         self.filter_set = set([observation['filter'][0] for observation in self.sequence])
 
@@ -978,6 +1085,23 @@ class Deep_drilling_survey(BaseSurvey):
         # TODO: Check if twilight starts soon
 
         # TODO: Make sure it is possible to complete the sequence of observations. Hit any limit?
+
+        # Check if there's still enough time to complete the observation
+        time_left = (self.extra_features['night_boundaries'].feature['next_twilight_start'] -
+                     self.extra_features['mjd'].feature) * 24.*60.*60.  # convert to seconds
+
+        seq_time = 42.  # Make sure there is enough time for an extra visit after the DD sequence
+        current_filter = self.extra_features['current_filter'].feature
+        for obs in self.sequence:
+            for o in obs:
+                if current_filter != o['filter']:
+                    seq_time += self.extra_features['observatory'].feature['filter_change_time']
+                    current_filter = o['filter']
+                seq_time += o['exptime']+self.extra_features['observatory'].feature['readtime']*o['nexp']
+
+        # log.debug('Time left: %.2f | Approx. time: %.2f' % (time_left, seq_time))
+        if time_left < seq_time:
+            return False
 
         if self.extra_features['N_obs'].feature == 0:
             return True
@@ -1060,13 +1184,13 @@ class Pairs_survey_scripted(Scripted_survey):
             # Check if this observation needs a pair
             # XXX--only supporting single pairs now. Just start up another scripted survey
             # to grab triples, etc? Or add two observations to queue at a time?
-            keys_to_copy = ['RA', 'dec', 'filter', 'exptime', 'nexp']
+            # keys_to_copy = ['RA', 'dec', 'filter', 'exptime', 'nexp']
             if (observation['filter'][0] in self.filt_to_pair) & (np.max(self.extra_features['Pair_map'].feature[indx]) < 1):
                 obs_to_queue = empty_observation()
-                for key in keys_to_copy:
+                for key in observation.dtype.names:
                     obs_to_queue[key] = observation[key]
                 # Fill in the ideal time we would like this observed
-                obs_to_queue['mjd'] = observation['mjd'] + self.dt
+                obs_to_queue['mjd'] += self.dt
                 self.observing_queue.append(obs_to_queue)
 
     def _purge_queue(self):
@@ -1160,7 +1284,7 @@ class Pairs_survey_scripted(Scripted_survey):
         return result
 
 
-def generate_dd_surveys():
+def generate_dd_surveys(nside=default_nside):
     """Utility to return a list of standard deep drilling field surveys.
 
     XXX-Someone double check that I got the coordinates right!
@@ -1174,40 +1298,48 @@ def generate_dd_surveys():
     surveys.append(Deep_drilling_survey(9.45, -44., sequence='rgizy',
                                         nvis=[20, 10, 20, 26, 20],
                                         survey_name='DD:ELAISS1', reward_value=100, moon_up=None,
-                                        fraction_limit=0.0185))
+                                        fraction_limit=0.0185, ha_limits=([0., 1.18], [21.82, 24.]),
+                                        nside=nside))
     surveys.append(Deep_drilling_survey(9.45, -44., sequence='u',
                                         nvis=[7],
                                         survey_name='DD:u,ELAISS1', reward_value=100, moon_up=False,
-                                        fraction_limit=0.0015))
+                                        fraction_limit=0.0015, ha_limits=([0., 1.18], [21.82, 24.]),
+                                        nside=nside))
 
     # XMM-LSS
     surveys.append(Deep_drilling_survey(35.708333, -4-45/60., sequence='rgizy',
                                         nvis=[20, 10, 20, 26, 20],
                                         survey_name='DD:XMM-LSS', reward_value=100, moon_up=None,
-                                        fraction_limit=0.0185))
+                                        fraction_limit=0.0185, ha_limits=([0., 1.3], [21.7, 24.]),
+                                        nside=nside))
     surveys.append(Deep_drilling_survey(35.708333, -4-45/60., sequence='u',
                                         nvis=[7],
                                         survey_name='DD:u,XMM-LSS', reward_value=100, moon_up=False,
-                                        fraction_limit=0.0015))
+                                        fraction_limit=0.0015, ha_limits=([0., 1.3], [21.7, 24.]),
+                                        nside=nside))
 
     # Extended Chandra Deep Field South
     # XXX--Note, this one can pass near zenith. Should go back and add better planning on this.
     surveys.append(Deep_drilling_survey(53.125, -28.-6/60., sequence='rgizy',
                                         nvis=[20, 10, 20, 26, 20],
                                         survey_name='DD:ECDFS', reward_value=100, moon_up=None,
-                                        fraction_limit=0.0185, ha_limits=[[0.5, 1.5], [21., 23.5]]))
+                                        fraction_limit=0.0185, ha_limits=[[0.5, 3.0], [20., 22.5]],
+                                        nside=nside))
     surveys.append(Deep_drilling_survey(53.125, -28.-6/60., sequence='u',
                                         nvis=[7],
                                         survey_name='DD:u,ECDFS', reward_value=100, moon_up=False,
-                                        fraction_limit=0.0015, ha_limits=[[0.5, 1.5], [21., 23.5]]))
+                                        fraction_limit=0.0015, ha_limits=[[0.5, 3.0], [20., 22.5]],
+                                        nside=nside))
     # COSMOS
     surveys.append(Deep_drilling_survey(150.1, 2.+10./60.+55/3600., sequence='rgizy',
                                         nvis=[20, 10, 20, 26, 20],
                                         survey_name='DD:COSMOS', reward_value=100, moon_up=None,
-                                        fraction_limit=0.0185))
+                                        fraction_limit=0.0185, ha_limits=([0., 1.5], [21.5, 24.]),
+                                        nside=nside))
     surveys.append(Deep_drilling_survey(150.1, 2.+10./60.+55/3600., sequence='u',
-                                        nvis=[7],
+                                        nvis=[7], ha_limits=([0., 1.5], [21.5, 24.]),
                                         survey_name='DD:u,COSMOS', reward_value=100, moon_up=False,
-                                        fraction_limit=0.0015))
+                                        fraction_limit=0.0015,
+                                        nside=nside))
 
     return surveys
