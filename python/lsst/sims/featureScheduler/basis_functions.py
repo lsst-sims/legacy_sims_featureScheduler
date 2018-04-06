@@ -770,16 +770,24 @@ class Slewtime_basis_function(Base_basis_function):
 
 
 class Bulk_cloud_basis_function(Base_basis_function):
+    """Mark healpixels on a map as unseen if their cloud values are greater than
+    the same healpixels on a maximum cloud map.
+
+    """
 
     def __init__(self, nside=default_nside, max_cloud_map=None,
                  survey_features=None, condition_features=None, out_of_bounds_val=-10.):
         """
-        TBD
-
-        :param nside:
-        :param condition_features:
-        :param survey_features:
-        :param cloud_max:
+        Parameters
+        ----------
+        nside: int (default_nside)
+            The healpix resolution.
+        max_cloud_map : numpy array (None)
+            A healpix map showing the maximum allowed cloud values for all points on the sky
+        survey_features : dict, opt
+        condition_features : dict, opt
+        out_of_bounds_val : float (10.)
+            Point value to give regions where there are no observations requested
         """
         if nside is None:
             nside = utils.set_default_nside()
@@ -806,6 +814,16 @@ class Bulk_cloud_basis_function(Base_basis_function):
         self.out_of_bounds_val = out_of_bounds_val
 
     def __call__(self, indx=None):
+        """
+        Parameters
+        ----------
+        indx : list (None)
+            Index values to compute, if None, full map is computed
+        Returns
+        -------
+        Healpix map where pixels with a cloud value greater than the max_cloud_map
+        value are marked as unseen.
+        """
 
         result = np.ones(hp.nside2npix(self.nside))
 
