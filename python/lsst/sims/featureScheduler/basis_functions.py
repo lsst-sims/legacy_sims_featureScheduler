@@ -11,6 +11,7 @@ import matplotlib.pylab as plt
 
 default_nside = None
 
+
 class Base_basis_function(object):
     """
     Class that takes features and computes a reward fucntion when called.
@@ -438,6 +439,7 @@ class Target_map_basis_function(Base_basis_function):
 
         return result
 
+
 class Avoid_Fast_Revists(Base_basis_function):
     """Marks targets as unseen if they are in a specified time window in order to avoid fast revisits.
     """
@@ -475,7 +477,7 @@ class Avoid_Fast_Revists(Base_basis_function):
             self.condition_features['Current_mjd'] = features.Current_mjd()
 
         super(Avoid_Fast_Revists, self).__init__(survey_features=self.survey_features,
-                                                          condition_features=self.condition_features)
+                                                 condition_features=self.condition_features)
 
     def __call__(self, indx=None):
         result = np.ones(hp.nside2npix(self.nside), dtype=float)

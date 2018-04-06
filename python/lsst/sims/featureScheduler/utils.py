@@ -4,6 +4,7 @@ from builtins import object
 import numpy as np
 import healpy as hp
 import pandas as pd
+import matplotlib.path as mplPath
 import logging
 from scipy.spatial import cKDTree as kdtree
 from lsst.sims.utils import _hpid2RaDec, calcLmstLast, _raDec2Hpid
@@ -321,7 +322,7 @@ class hp_in_lsst_fov(object):
         self.tree = hp_kd_tree(nside=nside)
         self.radius = rad_length(fov_radius)
 
-    def __call__(self, ra, dec):
+    def __call__(self, ra, dec, *args):
         """
         Parameters
         ----------
@@ -337,6 +338,77 @@ class hp_in_lsst_fov(object):
         """
         x, y, z = treexyz(np.max(ra), np.max(dec))
         indices = self.tree.query_ball_point((x, y, z), self.radius)
+        return np.array(indices)
+
+
+class hp_in_comcam_fov(object):
+    """
+    Return the healpixels within a ComCam pointing. Simple camera model
+    with no chip gaps.
+    """
+    def __init__(self, nside=None, side_length=0.7):
+        """
+        Parameters
+        ----------
+        side_length : float (0.7)
+            The length of one side of the square field of view (degrees).
+        """
+        if nside is None:
+            nside = set_default_nside()
+        self.nside = nside
+        self.tree = hp_kd_tree(nside=nside)
+        self.side_length = np.radians(side_length)
+        self.inner_radius = rad_length(side_length/2.)
+        self.outter_radius = rad_length(side_length/2.*np.sqrt(2.))
+        # The positions of the raft corners, unrotated
+        self.corners_x = np.array([-self.side_length/2., -self.side_length/2., self.side_length/2.,
+                                  self.side_length/2.])
+        self.corners_y = np.array([self.side_length/2., -self.side_length/2., -self.side_length/2.,
+                                  self.side_length/2.])
+
+    def __call__(self, ra, dec, rotSkyPos):
+        """
+        Parameters
+        ----------
+        ra : float
+            RA in radians
+        dec : float
+            Dec in radians
+        rotSkyPos : float
+            The rotation angle of the camera in radians
+        Returns
+        -------
+        indx : numpy array
+            The healpixels that are within the FoV
+        """
+        x, y, z = treexyz(np.max(ra), np.max(dec))
+        # Healpixels within the inner circle
+        indices = self.tree.query_ball_point((x, y, z), self.inner_radius)
+        # Healpixels withing the outer circle
+        indices_all = np.array(self.tree.query_ball_point((x, y, z), self.outter_radius))
+        indices_to_check = indices_all[np.in1d(indices_all, indices, invert=True)]
+
+        cos_rot = np.cos(rotSkyPos)
+        sin_rot = np.sin(rotSkyPos)
+        x_rotated = self.corners_x*cos_rot - self.corners_y*sin_rot
+        y_rotated = self.corners_x*sin_rot + self.corners_y*cos_rot
+
+        # Draw the square that we want to check if points are in.
+        bbPath = mplPath.Path(np.array([[x_rotated[0], y_rotated[0]],
+                                       [x_rotated[1], y_rotated[1]],
+                                       [x_rotated[2], y_rotated[2]],
+                                       [x_rotated[3], y_rotated[3]],
+                                       [x_rotated[0], y_rotated[0]]]))
+
+        ra_to_check, dec_to_check = _hpid2RaDec(self.nside, indices_to_check)
+
+        # Project the indices to check to the tangent plane, see if they fall inside the polygon
+        x, y = gnomonic_project_toxy(ra_to_check, dec_to_check, ra, dec)
+        for i, xcheck in enumerate(x):
+            # I wonder if I can do this all at once rather than a loop?
+            if bbPath.contains_point((x[i], y[i])):
+                indices.append(indices_to_check[i])
+
         return np.array(indices)
 
 

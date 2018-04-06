@@ -13,6 +13,7 @@ from scipy.spatial import cKDTree as kdtree
 from scipy.stats import binned_statistic
 from lsst.sims.featureScheduler.thomson import xyz2thetaphi, thetaphi2xyz
 import copy
+from .comcamTessellate import comcamTessellate
 
 import logging
 
@@ -644,7 +645,7 @@ def rotx(theta, x, y, z):
 
 class Greedy_survey_fields(BaseSurvey):
     """
-    Use a field tesselation and assign each healpix to a field.
+    Use a field tessellation and assign each healpix to a field.
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, filtername='r',
                  block_size=25, smoothing_kernel=None, nside=default_nside,
@@ -664,6 +665,9 @@ class Greedy_survey_fields(BaseSurvey):
                                                    ignore_obs=ignore_obs,
                                                    nside=nside)
         self.filtername = filtername
+        # Load the OpSim field tessellation
+        self.fields_init = read_fields()
+        self.fields = self.fields_init.copy()
         self.block_size = block_size
         np.random.seed(seed)
         self.dither = dither
@@ -689,7 +693,7 @@ class Greedy_survey_fields(BaseSurvey):
         return self.filtername in self.extra_features['mounted_filters'].feature
 
     def _spin_fields(self, lon=None, lat=None):
-        """Spin the field tesselation
+        """Spin the field tessellation
         """
         if lon is None:
             lon = np.random.rand()*np.pi*2
@@ -776,6 +780,128 @@ class Greedy_survey_fields(BaseSurvey):
             if len(observations) > 0 or (iter+2)*self.block_size > len(order):
                 break
 
+        return observations
+
+
+def bearing(ra1, dec1, ra2, dec2):
+    """Compute the bearing between two points, input in radians
+    """
+    delta_lon = ra2 - ra1
+    result = -np.arctan2(np.sin(delta_lon)*np.cos(dec2),
+                         np.cos(dec1)*np.sin(dec2)-np.sin(dec1)*np.cos(dec2)*np.cos(delta_lon))
+    result += 2.*np.pi
+    result = result % (2.*np.pi)
+    return result
+
+
+class Greedy_survey_comcam(Greedy_survey_fields):
+    """Tessellate the sky with comcam, then select pointings based on that.
+    """
+    def __init__(self, basis_functions, basis_weights, extra_features=None, filtername='r',
+                 block_size=25, smoothing_kernel=None, nside=default_nside,
+                 dither=False, seed=42, ignore_obs='ack', side_length=0.7):
+        if nside is None:
+            nside = set_default_nside()
+
+        if extra_features is None:
+            extra_features = {}
+            extra_features['night'] = features.Current_night()
+            extra_features['mounted_filters'] = features.Mounted_filters()
+        super(Greedy_survey_comcam, self).__init__(basis_functions=basis_functions,
+                                                   basis_weights=basis_weights,
+                                                   extra_features=extra_features,
+                                                   filtername=filtername,
+                                                   block_size=block_size, smoothing_kernel=smoothing_kernel,
+                                                   dither=dither, seed=seed, ignore_obs=ignore_obs,
+                                                   nside=nside)
+        self.filtername = filtername
+        # Load the comcam field tesselation
+        ras, decs = comcamTessellate(side_length=side_length, overlap=0.11)
+        self.fields = np.zeros(ras.size, dtype=list(zip(['RA', 'dec', 'rotSkyPos'],
+                                                        [float, float, float])))
+        self.fields['RA'] = ras
+        self.fields['dec'] = decs
+        # Make an array to track the upper edge of the raft
+        self.fields_edge = np.zeros(ras.size, dtype=list(zip(['RA', 'dec'], [float, float])))
+        self.fields_edge['RA'] = self.fields['RA'] + 0.
+        self.fields_edge['dec'] = self.fields['dec'] + np.radians(side_length)
+        # If we wrapped over the north pole
+        wrapped = np.where(self.fields_edge['dec'] > np.pi/2.)
+        self.fields_edge['dec'][wrapped] = np.pi/2. - (self.fields_edge['dec'][wrapped] % np.pi/2)
+        self.fields_edge['RA'][wrapped] = (self.fields_edge['RA'][wrapped] + np.pi) % (2.*np.pi)
+
+        self.block_size = block_size
+        self._hp2fieldsetup(self.fields['RA'], self.fields['dec'])
+        np.random.seed(seed)
+        self.dither = dither
+        self.night = extra_features['night'].feature + 0
+
+    def _spin_fields(self, lon=None, lat=None):
+        """Spin the field tessellation
+        """
+        if lon is None:
+            lon = np.random.rand()*np.pi*2
+        if lat is None:
+            lat = np.random.rand()*np.pi*2
+        # rotate longitude
+        ra = (self.fields['RA'] + lon) % (2.*np.pi)
+        dec = self.fields['dec'] + 0
+
+        ra_edge = (self.fields_edge['RA'] + lon) % (2.*np.pi)
+        dec_edge = self.fields_edge['dec'] + 0
+
+        # Now to rotate ra and dec about the x-axis
+        x, y, z = thetaphi2xyz(ra, dec+np.pi/2.)
+        xp, yp, zp = rotx(lat, x, y, z)
+        theta, phi = xyz2thetaphi(xp, yp, zp)
+        dec = phi - np.pi/2
+        ra = theta + np.pi
+
+        self.fields['RA'] = ra
+        self.fields['dec'] = dec
+
+        # Rotate the upper raft edge
+        x, y, z = thetaphi2xyz(ra_edge, dec_edge+np.pi/2.)
+        xp, yp, zp = rotx(lat, x, y, z)
+        theta, phi = xyz2thetaphi(xp, yp, zp)
+        dec_edge = phi - np.pi/2
+        ra_edge = theta + np.pi
+
+        self.fields_edge['RA'] = ra_edge
+        self.fields_edge['dec'] = dec_edge
+        # There's probably a more elegant way to do this. The rotSkyPos is
+        # probably something like lat*sin(ra) but I'm too lazy to figure it out.
+        self.fields['rotSkyPos'] = bearing(self.fields['RA'], self.fields['dec'],
+                                           self.fields_edge['RA'], self.fields_edge['dec'])
+
+        # Rebuild the kdtree with the new positions
+        # XXX-may be doing some ra,dec to conversions xyz more than needed.
+        self._hp2fieldsetup(ra, dec)
+
+    def __call__(self):
+        """
+        Just point at the highest reward healpix
+        """
+        if not self.reward_checked:
+            self.reward = self.calc_reward_function()
+        # Let's find the best N from the fields
+        order = np.argsort(self.reward)[::-1]
+        best_hp = order[0:self.block_size]
+        best_fields = np.unique(self.hp2fields[best_hp])
+        observations = []
+        for field in best_fields:
+            obs = empty_observation()
+            obs['RA'] = self.fields['RA'][field]
+            obs['dec'] = self.fields['dec'][field]
+            obs['filter'] = self.filtername
+            obs['nexp'] = 2.
+            obs['exptime'] = 30.
+            # XXX-TODO: not all rotSkyPos are possible, need to add feature
+            # that tracks min/max rotSkyPos, (and current rotSkyPos given rotTelPos)
+            # then set rotSkyPos to the closest possible given that there can be 90 degree
+            # shifts.
+            obs['rotSkyPos'] = self.fields['rotSkyPos'][field]
+            observations.append(obs)
         return observations
 
 
