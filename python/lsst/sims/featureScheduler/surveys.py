@@ -141,6 +141,8 @@ class BaseSurvey(object):
                 if hasattr(self.reward, 'mask'):
                     indx = np.where(self.reward.mask == False)[0]
             self.reward[mask] = hp.UNSEEN
+            self.reward.mask = mask
+            self.reward.fill_value = hp.UNSEEN
             # inf reward means it trumps everything.
             if np.any(np.isinf(self.reward)):
                 self.reward = np.inf
@@ -743,7 +745,7 @@ class Greedy_survey_fields(BaseSurvey):
         if not self.reward_checked:
             self.reward = self.calc_reward_function()
         # Let's find the best N from the fields
-        order = np.argsort(self.reward)[::-1]
+        order = np.argsort(self.reward.data)[::-1]
 
         iter = 0
         while True:

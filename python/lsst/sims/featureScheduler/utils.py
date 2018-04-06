@@ -584,10 +584,19 @@ def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3., filenam
     observations = []
     mjd_track = mjd + 0
     step = 1./24.
+    step_none = 1./60./24.  # 1 minute in days
     mjd_run = end_mjd-mjd_start
+    nskip = 0
 
     while mjd < end_mjd:
         desired_obs = scheduler.request_observation()
+        if desired_obs is None:
+            # No observation. Just step into the future and try again.
+            warnings.warn('No observation. Step into the future and trying again.')
+            observatory.mjd += step_none
+            scheduler.update_conditions(observatory.return_status())
+            nskip += 1
+            continue
 
         attempted_obs = observatory.attempt_observe(desired_obs)
         if attempted_obs is not None:
@@ -607,6 +616,7 @@ def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3., filenam
         #if len(observations) > 3:
         #    import pdb ; pdb.set_trace()
 
+    print('Skipped %i observations' % nskip)
     print('Completed %i observations' % len(observations))
     observations = np.array(observations)[:, 0]
     if filename is not None:
