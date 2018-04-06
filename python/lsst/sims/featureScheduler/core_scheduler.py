@@ -98,11 +98,11 @@ class Core_scheduler(object):
             self._fill_queue()
 
         if len(self.queue) == 0:
-            warnings.warn('Failed to fill queue, trying again')
-            self._fill_queue()
-        result = self.queue.pop(0)
-
-        return result
+            warnings.warn('Failed to fill queue')
+            # self._fill_queue()
+            return None
+        else:
+            return self.queue.pop(0)
 
     def _fill_queue(self):
         """
@@ -116,11 +116,15 @@ class Core_scheduler(object):
 
         # Take a min here, so the surveys will be executed in the order they are
         # entered if there is a tie.
-        good = np.min(np.where(rewards == np.max(rewards)))
+        if np.all(np.bitwise_or(np.isnan(rewards), np.isneginf(rewards))):
+            # All values are invalid
+            self.queue = []
+        else:
+            good = np.min(np.where(rewards == np.max(rewards)))
 
-        # Survey return list of observations
-        result = self.surveys[good]()
-        self.queue = result
+            # Survey return list of observations
+            result = self.surveys[good]()
+            self.queue = result
 
 
 class Core_scheduler_parallel(Core_scheduler):
