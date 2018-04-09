@@ -77,7 +77,7 @@ class BulkCloudCover(BaseConditionsFeature):
         self.feature = dict()
 
     def update_conditions(self, conditions, *kwargs):
-        self.feature['bulk_cloud_cover'] = conditions['clouds']
+        self.feature = conditions['clouds']
 
 
 class N_obs_count(BaseSurveyFeature):
@@ -647,4 +647,3 @@ class SurveyProposals(BaseSurveyFeature):
         except IndexError:
             if observation['survey_id'] in self.id.keys():
                 self.feature[self.id_to_index[observation['survey_id']]] += 1
-
