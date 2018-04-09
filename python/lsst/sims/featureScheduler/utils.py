@@ -121,7 +121,7 @@ def empty_observation():
     observations. Could also add an mjd_min, mjd_max for when an observation should be observed.
     That way we could drop things into the queue for DD fields.
 
-    XXX--might be nice to add a generic "sched_note" str field, to record any metadata that 
+    XXX--might be nice to add a generic "sched_note" str field, to record any metadata that
     would be useful to the scheduler once it's observed. and/or observationID.
 
     Returns
@@ -569,6 +569,44 @@ def generate_goal_map(nside=None, NES_fraction = .3, WFD_fraction = 1., SCP_frac
     else:
         return result
 
+def generate_cloud_map(target_maps=None, filtername='r', wfd_cloud_max=0.7,
+                       scp_cloud_max=0.7, gp_cloud_max=0.7, nes_cloud_max=0.7):
+    """
+    Generate maximum cloud map from a target map produced by generate_goal_map.
+
+    Parameters
+    ----------
+    target_maps : dict (None)
+        A dictionary containing healpix goal maps returned by generate_goal_map.
+    filtername : str
+        Name of filter.
+    wfd_cloud_max : float
+        Maximum cloud value for wide fast deep
+    scp_cloud_max : float
+        Maximum cloud values for south celestial pole
+    gp_cloud_max : float
+        Maximum cloud values for galactic plane
+    nes_cloud_max : float
+        Maximum cloud values for north ecliptic spur
+
+    Returns
+    -------
+    cloud_map : numpy array
+        Healpix where each pixel is assigned a maximum allowed value
+    """
+    cloud_map = np.zeros_like(target_maps[filtername][0])
+
+    wfd_cloud = np.where(target_maps[filtername][1] == 3)
+    scp_cloud = np.where(target_maps[filtername][1] == 2)
+    gp_cloud = np.where(target_maps[filtername][1] == 4)
+    nes_cloud = np.where(target_maps[filtername][1] == 1)
+
+    cloud_map[wfd_cloud] = wfd_cloud_max
+    cloud_map[scp_cloud] = scp_cloud_max
+    cloud_map[gp_cloud]  = gp_cloud_max
+    cloud_map[nes_cloud] = nes_cloud_max
+
+    return cloud_map
 
 def standard_goals(nside=None):
     """

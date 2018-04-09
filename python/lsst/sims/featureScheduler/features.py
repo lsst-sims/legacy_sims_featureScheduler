@@ -18,7 +18,7 @@ class BaseFeature(object):
         # self.feature should be a float, bool, or healpix size numpy array, or numpy masked array
         self.feature = None
 
-    # XXX--Should this actually be a __get__? 
+    # XXX--Should this actually be a __get__?
     def __call__(self):
         return self.feature
 
@@ -67,6 +67,17 @@ class AltAzFeature(BaseConditionsFeature):
                                                self.lat, self.lon, conditions['mjd'])
         self.feature['alt'] = alt
         self.feature['az'] = az
+
+
+class BulkCloudCover(BaseConditionsFeature):
+
+    def __init__(self):
+        """Store the bulk cloud cover.
+        """
+        self.feature = dict()
+
+    def update_conditions(self, conditions, *kwargs):
+        self.feature = conditions['clouds']
 
 
 class N_obs_count(BaseSurveyFeature):
@@ -255,7 +266,7 @@ class Pair_in_night(BaseSurveyFeature):
         self.gap_min = gap_min / (24.*60)  # Days
         self.gap_max = gap_max / (24.*60)  # Days
         self.night = 0
-        # Need to keep a full record of times and healpixels observed in a night. 
+        # Need to keep a full record of times and healpixels observed in a night.
         self.mjd_log = []
         self.hpid_log = []
 
@@ -636,4 +647,3 @@ class SurveyProposals(BaseSurveyFeature):
         except IndexError:
             if observation['survey_id'] in self.id.keys():
                 self.feature[self.id_to_index[observation['survey_id']]] += 1
-

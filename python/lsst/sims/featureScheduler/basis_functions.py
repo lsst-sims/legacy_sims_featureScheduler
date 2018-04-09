@@ -769,3 +769,67 @@ class Slewtime_basis_function(Base_basis_function):
             else:
                 result = (self.maxtime - self.condition_features['slewtime'].feature)/self.maxtime
         return result
+
+
+class Bulk_cloud_basis_function(Base_basis_function):
+    """Mark healpixels on a map as unseen if their cloud values are greater than
+    the same healpixels on a maximum cloud map.
+
+    """
+
+    def __init__(self, nside=default_nside, max_cloud_map=None,
+                 survey_features=None, condition_features=None, out_of_bounds_val=-10.):
+        """
+        Parameters
+        ----------
+        nside: int (default_nside)
+            The healpix resolution.
+        max_cloud_map : numpy array (None)
+            A healpix map showing the maximum allowed cloud values for all points on the sky
+        survey_features : dict, opt
+        condition_features : dict, opt
+        out_of_bounds_val : float (10.)
+            Point value to give regions where there are no observations requested
+        """
+        if nside is None:
+            nside = utils.set_default_nside()
+
+        if survey_features is None:
+            self.survey_features = dict()
+        else:
+            self.survey_features = survey_features
+
+        if condition_features is None:
+            self.condition_features = dict()
+            self.condition_features['bulk_cloud'] = features.BulkCloudCover()
+        else:
+            self.condition_features = condition_features
+
+        super(Bulk_cloud_basis_function, self).__init__(survey_features=self.survey_features,
+                                                        condition_features=self.condition_features)
+        self.nside = nside
+        if max_cloud_map is None:
+            self.max_cloud_map = np.ones(hp.nside2npix(nside), dtype=float)
+        else:
+            self.max_cloud_map = max_cloud_map
+        self.out_of_bounds_area = np.where(self.max_cloud_map > 1.)[0]
+        self.out_of_bounds_val = out_of_bounds_val
+
+    def __call__(self, indx=None):
+        """
+        Parameters
+        ----------
+        indx : list (None)
+            Index values to compute, if None, full map is computed
+        Returns
+        -------
+        Healpix map where pixels with a cloud value greater than the max_cloud_map
+        value are marked as unseen.
+        """
+
+        result = np.ones(hp.nside2npix(self.nside))
+
+        clouded = np.where(self.max_cloud_map < self.condition_features['bulk_cloud'].feature)
+        result[clouded] = hp.UNSEEN
+
+        return result
