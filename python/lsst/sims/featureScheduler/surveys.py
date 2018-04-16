@@ -1003,6 +1003,7 @@ class Deep_drilling_survey(BaseSurvey):
             # Proposal information
             self.extra_features['proposals'] = features.SurveyProposals(ids=(self.survey_id,),
                                                                         names=(self.survey_name,))
+            # Cloud cover information
             self.extra_features['bulk_cloud'] = features.BulkCloudCover()
         else:
             self.extra_features = extra_features
