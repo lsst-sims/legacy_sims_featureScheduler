@@ -4,12 +4,12 @@ import numpy as np
 from importlib import import_module
 from numpy.lib.recfunctions import append_fields
 
-from lsst.sims.ocs.environment import SeeingModel, CloudModel
 from lsst.sims.ocs.configuration import Environment
 from lsst.sims.ocs.configuration.instrument import Filters
 from lsst.sims.ocs.kernel.time_handler import TimeHandler
 from lsst.sims.skybrightness_pre import SkyModelPre
 from lsst.sims.utils import _hpid2RaDec, _raDec2Hpid, Site, calcLmstLast, m5_flat_sed
+from lsst.sims.seeingModel import SeeingModel
 
 from lsst.ts.observatory.model import Target
 import lsst.sims.featureScheduler as fs
@@ -31,13 +31,15 @@ class FeatureSchedulerDriver(Driver):
         Driver.__init__(self)
         self.log = logging.getLogger("featureSchedulerDriver")
 
-        # FIXME: This should probably come from outside telemetry stream. But right now, cloud and seeing are only
-        # floats. Needs to be fixed externally.
-        self.scheduler_time_handle = TimeHandler("2022-10-01")  # FIXME: Hard coded config! ideally this won't be here
-        self.cloud_model = CloudModel(self.scheduler_time_handle)
-        self.seeing_model = SeeingModel(self.scheduler_time_handle)
-        self.cloud_model.initialize()
-        self.seeing_model.initialize(Environment(), Filters())
+        # FIXME: Get parameters for the seeing model!
+        telescope_seeing = 0.25
+        optical_design_seeing = 0.08
+        camera_seeing = 0.3
+
+        self.seeing_model = SeeingModel(telescope_seeing=telescope_seeing,
+                                        optical_design_seeing=optical_design_seeing,
+                                        camera_seeing=camera_seeing)
+
         # self.sky_brightness = SkyModelPre()  # The sky brightness in self.sky uses opsim fields. We need healpix here
         self.sky_brightness = self.sky.sky_brightness
         self.night = 0
@@ -283,7 +285,6 @@ class FeatureSchedulerDriver(Driver):
 
         delta_time = timestamp-self.time
         self.time = timestamp
-        self.scheduler_time_handle.update_time(delta_time, 'seconds')
         self.observatoryModel.update_state(self.time)
 
         if not self.survey_started:
@@ -431,13 +432,14 @@ class FeatureSchedulerDriver(Driver):
             self.sky_brightness.returnAirmass(self.observatoryModel.dateprofile.mjd))
 
         delta_t = (self.time-self.start_time)
-        telemetry_stream['clouds'] = copy.copy(self.cloud_model.get_cloud(int(delta_t)))
+        telemetry_stream['clouds'] = self.cloud
 
-        for filtername in ['u', 'g', 'r', 'i', 'z', 'y']:
-            fwhm_500, fwhm_geometric, fwhm_effective = self.seeing_model.calculate_seeing(delta_t, filtername,
-                                                                                          telemetry_stream['airmass'])
-            telemetry_stream['FWHMeff_%s' % filtername] = copy.copy(fwhm_effective)  # arcsec
-            telemetry_stream['FWHM_geometric_%s' % filtername] = copy.copy(fwhm_geometric)
+        fwhm_geometric, fwhm_effective = self.seeing_model.seeing_at_airmass(self.seeing,
+                                                                             telemetry_stream['airmass'])
+
+        for i, filtername in enumerate(['u', 'g', 'r', 'i', 'z', 'y']):
+            telemetry_stream['FWHMeff_%s' % filtername] = copy.copy(fwhm_effective[i])  # arcsec
+            telemetry_stream['FWHM_geometric_%s' % filtername] = copy.copy(fwhm_geometric[i])
 
         sunMoon_info = self.sky_brightness.returnSunMoon(self.observatoryModel.dateprofile.mjd)
         # Pretty sure these are radians
