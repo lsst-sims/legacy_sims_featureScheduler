@@ -922,7 +922,7 @@ class Deep_drilling_survey(BaseSurvey):
                  exptime=30.,
                  nexp=2, ignore_obs='dummy', survey_name='DD', fraction_limit=0.01,
                  ha_limits=([0., 1.5], [21.0, 24.]), reward_value=101., moon_up=True, readtime=2.,
-                 day_space=2., nside=default_nside):
+                 day_space=2., max_clouds = 0.7, nside=default_nside):
         """
         Parameters
         ----------
@@ -968,6 +968,7 @@ class Deep_drilling_survey(BaseSurvey):
         self.survey_id = 5
         self.nside = nside
         self.filter_list = []
+        self.max_clouds = max_clouds
 
         if extra_features is None:
             self.extra_features = {}
@@ -1002,6 +1003,7 @@ class Deep_drilling_survey(BaseSurvey):
             # Proposal information
             self.extra_features['proposals'] = features.SurveyProposals(ids=(self.survey_id,),
                                                                         names=(self.survey_name,))
+            self.extra_features['bulk_cloud'] = features.BulkCloudCover()
         else:
             self.extra_features = extra_features
 
@@ -1111,6 +1113,11 @@ class Deep_drilling_survey(BaseSurvey):
         # Check if we are over-observed relative to the fraction of time alloted.
         if self.extra_features['N_obs_self'].feature/float(self.extra_features['N_obs'].feature) > self.fraction_limit:
             return False
+
+        # Check clouds
+        if self.extra_features['bulk_cloud'].feature > self.max_clouds:
+            return False
+
         # If we made it this far, good to go
         return result
 
