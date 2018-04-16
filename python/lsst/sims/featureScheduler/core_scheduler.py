@@ -120,11 +120,14 @@ class Core_scheduler(object):
             # All values are invalid
             self.queue = []
         else:
-            good = np.min(np.where(rewards == np.max(rewards)))
+            try:
+                good = np.min(np.where(rewards == np.max(rewards)))
 
-            # Survey return list of observations
-            result = self.surveys[good]()
-            self.queue = result
+                # Survey return list of observations
+                result = self.surveys[good]()
+                self.queue = result
+            except ValueError:
+                self.queue = []
 
 
 class Core_scheduler_parallel(Core_scheduler):
