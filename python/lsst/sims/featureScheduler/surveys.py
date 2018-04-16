@@ -951,6 +951,8 @@ class Deep_drilling_survey(BaseSurvey):
             Readout time for computing approximate time of observing the sequence. (seconds)
         day_space : float (2.)
             Demand this much spacing between trying to launch a sequence (days)
+        max_clouds : float (0.7)
+            Maximum allowed cloud value for an observation.
         """
         # No basis functions for this survey
         basis_functions = []
