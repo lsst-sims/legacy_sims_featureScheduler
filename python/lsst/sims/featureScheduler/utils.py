@@ -451,9 +451,24 @@ def SCP_healpixels(nside=None, dec_max=-60.):
     return result
 
 
-def NES_healpixels(nside=None, width=15, dec_min=0., fill_gap=True):
+def NES_healpixels(nside=None, min_EB=-30.0, max_EB = 10.0, dec_min=2.8):
     """
     Define the North Ecliptic Spur region. Return a healpix map with NES pixels as 1.
+
+    Parameters
+    ----------
+    nside : int
+        A valid healpix nside
+    min_EB : float (-30.)
+        Minimum barycentric true ecliptic latitude (deg)
+    max_EB : float (10.)
+        Maximum barycentric true ecliptic latitude (deg)
+    dec_min : float (2.8)
+        Minimum dec in degrees
+
+    Returns
+    -------
+    result : numpy array
     """
     if nside is None:
         nside = set_default_nside()
@@ -462,13 +477,10 @@ def NES_healpixels(nside=None, width=15, dec_min=0., fill_gap=True):
     result = np.zeros(ra.size)
     coord = SkyCoord(ra=ra*u.rad, dec=dec*u.rad)
     eclip_lat = coord.barycentrictrueecliptic.lat.radian
-    good = np.where((np.abs(eclip_lat) <= np.radians(width)) & (dec > dec_min))
+    good = np.where((eclip_lat > np.radians(min_EB)) &
+                    (eclip_lat < np.radians(max_EB)) &
+                    (dec > np.radians(dec_min)))
     result[good] += 1
-
-    if fill_gap:
-        good = np.where((dec > np.radians(dec_min)) & (ra < np.radians(180)) &
-                        (dec < np.radians(width)))
-        result[good] = 1
 
     return result
 
@@ -505,10 +517,10 @@ def galactic_plane_healpixels(nside=None, center_width=10., end_width=4.,
 
 def generate_goal_map(nside=None, NES_fraction = .3, WFD_fraction = 1., SCP_fraction=0.4,
                       GP_fraction = 0.2,
-                      NES_width=15., NES_dec_min=0., NES_fill=True,
-                      SCP_dec_max=-60., gp_center_width=10.,
+                      NES_min_EB = -30., NES_max_EB = 10, NES_dec_min = 2.8,
+                      SCP_dec_max=-62.5, gp_center_width=10.,
                       gp_end_width=4., gp_long1=70., gp_long2=290.,
-                      wfd_dec_min=-60., wfd_dec_max=0.,
+                      wfd_dec_min=-62.5, wfd_dec_max=2.8,
                       generate_id_map=False):
     """
     Handy function that will put together a target map in the proper order.
@@ -522,8 +534,8 @@ def generate_goal_map(nside=None, NES_fraction = .3, WFD_fraction = 1., SCP_frac
     pid = 1
     prop_name_dict = dict()
 
-    nes = NES_healpixels(nside=nside, width=NES_width,
-                         dec_min=NES_dec_min, fill_gap=NES_fill)
+    nes = NES_healpixels(nside=nside, min_EB = NES_min_EB, max_EB = NES_max_EB,
+                         dec_min=NES_dec_min)
     result[np.where(nes != 0)] = 0
     result += NES_fraction*nes
 
@@ -531,9 +543,6 @@ def generate_goal_map(nside=None, NES_fraction = .3, WFD_fraction = 1., SCP_frac
         id_map[np.where(nes != 0)] = 1
         pid += 1
         prop_name_dict[1] = 'NorthEclipticSpur'
-
-    result += NES_fraction*NES_healpixels(nside=nside, width=NES_width,
-                                          dec_min=NES_dec_min, fill_gap=NES_fill)
 
     wfd = WFD_healpixels(nside=nside, dec_min=wfd_dec_min, dec_max=wfd_dec_max)
     result[np.where(wfd != 0)] = 0
