@@ -451,9 +451,24 @@ def SCP_healpixels(nside=None, dec_max=-60.):
     return result
 
 
-def NES_healpixels(nside=None, width=15, dec_min=0., fill_gap=True):
+def NES_healpixels(nside=None, min_EB=-30.0, max_EB = 10.0, dec_min=2.8):
     """
     Define the North Ecliptic Spur region. Return a healpix map with NES pixels as 1.
+
+    Parameters
+    ----------
+    nside : int
+        A valid healpix nside
+    min_EB : float (-30.)
+        Minimum barycentric true ecliptic latitude (deg)
+    max_EB : float (10.)
+        Maximum barycentric true ecliptic latitude (deg)
+    dec_min : float (2.8)
+        Minimum dec in degrees
+
+    Returns
+    -------
+    result : numpy array
     """
     if nside is None:
         nside = set_default_nside()
@@ -462,13 +477,10 @@ def NES_healpixels(nside=None, width=15, dec_min=0., fill_gap=True):
     result = np.zeros(ra.size)
     coord = SkyCoord(ra=ra*u.rad, dec=dec*u.rad)
     eclip_lat = coord.barycentrictrueecliptic.lat.radian
-    good = np.where((np.abs(eclip_lat) <= np.radians(width)) & (dec > dec_min))
+    good = np.where((eclip_lat > np.radians(min_EB)) &
+                    (eclip_lat < np.radians(max_EB)) &
+                    (dec > np.radians(dec_min)))
     result[good] += 1
-
-    if fill_gap:
-        good = np.where((dec > np.radians(dec_min)) & (ra < np.radians(180)) &
-                        (dec < np.radians(width)))
-        result[good] = 1
 
     return result
 
