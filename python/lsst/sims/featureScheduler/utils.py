@@ -517,7 +517,7 @@ def galactic_plane_healpixels(nside=None, center_width=10., end_width=4.,
 
 def generate_goal_map(nside=None, NES_fraction = .3, WFD_fraction = 1., SCP_fraction=0.4,
                       GP_fraction = 0.2,
-                      NES_width=15., NES_dec_min=0., NES_fill=True,
+                      NES_min_EB = -30., NES_max_EB = 10, NES_dec_min = 2.8,
                       SCP_dec_max=-60., gp_center_width=10.,
                       gp_end_width=4., gp_long1=70., gp_long2=290.,
                       wfd_dec_min=-60., wfd_dec_max=0.,
@@ -534,8 +534,8 @@ def generate_goal_map(nside=None, NES_fraction = .3, WFD_fraction = 1., SCP_frac
     pid = 1
     prop_name_dict = dict()
 
-    nes = NES_healpixels(nside=nside, width=NES_width,
-                         dec_min=NES_dec_min, fill_gap=NES_fill)
+    nes = NES_healpixels(nside=nside, min_EB = NES_min_EB, max_EB = NES_max_EB,
+                         dec_min=NES_dec_min)
     result[np.where(nes != 0)] = 0
     result += NES_fraction*nes
 
@@ -543,9 +543,6 @@ def generate_goal_map(nside=None, NES_fraction = .3, WFD_fraction = 1., SCP_frac
         id_map[np.where(nes != 0)] = 1
         pid += 1
         prop_name_dict[1] = 'NorthEclipticSpur'
-
-    result += NES_fraction*NES_healpixels(nside=nside, width=NES_width,
-                                          dec_min=NES_dec_min, fill_gap=NES_fill)
 
     wfd = WFD_healpixels(nside=nside, dec_min=wfd_dec_min, dec_max=wfd_dec_max)
     result[np.where(wfd != 0)] = 0
