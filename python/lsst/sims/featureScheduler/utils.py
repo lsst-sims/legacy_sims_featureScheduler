@@ -518,9 +518,9 @@ def galactic_plane_healpixels(nside=None, center_width=10., end_width=4.,
 def generate_goal_map(nside=None, NES_fraction = .3, WFD_fraction = 1., SCP_fraction=0.4,
                       GP_fraction = 0.2,
                       NES_min_EB = -30., NES_max_EB = 10, NES_dec_min = 2.8,
-                      SCP_dec_max=-60., gp_center_width=10.,
+                      SCP_dec_max=-62.5, gp_center_width=10.,
                       gp_end_width=4., gp_long1=70., gp_long2=290.,
-                      wfd_dec_min=-60., wfd_dec_max=0.,
+                      wfd_dec_min=-62.5, wfd_dec_max=2.8,
                       generate_id_map=False):
     """
     Handy function that will put together a target map in the proper order.
