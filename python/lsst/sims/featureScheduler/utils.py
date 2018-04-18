@@ -436,6 +436,35 @@ def WFD_healpixels(nside=None, dec_min=-60., dec_max=0.):
     result[good] += 1
     return result
 
+def WFD_upper_edge_healpixels(nside=None, dec_min=2.8, dec_max=None):
+    """
+    Define a strip at the northern edge of the WFD area.
+
+    Parameters
+    ----------
+    nside : int
+        A valid healpix nside
+    dec_min : float (2.8)
+        Minimum dec of the strip (deg)
+    dec_max : float (None)
+        Maximum dec of strip (deg). If left None dec_max is dec_min + 1.75.
+        1.75 is the FOV radius in deg.
+    Returns
+    -------
+    result : numpy array
+    """
+    if nside is None:
+        nside = set_default_nside()
+
+    if dec_max is None:
+        dec_max = dec_min + 1.75
+
+    ra, dec = ra_dec_hp_map(nside=nside)
+    result = np.zeros(ra.size)
+    good = np.where((dec >= np.radians(dec_min)) & (dec <= np.radians(dec_max)))
+    result[good] += 1
+    return result
+
 
 def SCP_healpixels(nside=None, dec_max=-60.):
     """
@@ -516,7 +545,7 @@ def galactic_plane_healpixels(nside=None, center_width=10., end_width=4.,
 
 
 def generate_goal_map(nside=None, NES_fraction = .3, WFD_fraction = 1., SCP_fraction=0.4,
-                      GP_fraction = 0.2,
+                      GP_fraction = 0.2, WFD_upper_edge_fraction = 0.25,
                       NES_min_EB = -30., NES_max_EB = 10, NES_dec_min = 2.8,
                       SCP_dec_max=-62.5, gp_center_width=10.,
                       gp_end_width=4., gp_long1=70., gp_long2=290.,
@@ -533,6 +562,15 @@ def generate_goal_map(nside=None, NES_fraction = .3, WFD_fraction = 1., SCP_frac
     id_map = np.zeros(hp.nside2npix(nside), dtype=int)
     pid = 1
     prop_name_dict = dict()
+
+    wfd_upper_edge = WFD_upper_edge_healpixels(nside=nside, dec_min=wfd_dec_max)
+    result[np.where(wfd_upper_edge != 0)] = 0
+    result += WFD_upper_edge_fraction*wfd_upper_edge
+
+    if WFD_upper_edge_fraction > 0.:
+        id_map[np.where(wfd_upper_edge != 0)] = 3
+        pid += 1
+        prop_name_dict[3] = 'WideFastDeep'
 
     nes = NES_healpixels(nside=nside, min_EB = NES_min_EB, max_EB = NES_max_EB,
                          dec_min=NES_dec_min)
