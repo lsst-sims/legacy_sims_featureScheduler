@@ -23,6 +23,8 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
+bin/
+python/lsst/sims/featureScheduler/version.py
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -44,6 +46,10 @@ nosetests.xml
 coverage.xml
 *,cover
 .hypothesis/
+
+.sconf_temp
+.sconsign.dblite
+ups/*.cfgc
 
 # Translations
 *.mo
