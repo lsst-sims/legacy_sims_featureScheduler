@@ -563,50 +563,47 @@ def generate_goal_map(nside=None, NES_fraction = .3, WFD_fraction = 1., SCP_frac
     pid = 1
     prop_name_dict = dict()
 
-    wfd_upper_edge = WFD_upper_edge_healpixels(nside=nside, dec_min=wfd_dec_max)
-    result[np.where(wfd_upper_edge != 0)] = 0
-    result += WFD_upper_edge_fraction*wfd_upper_edge
-
     if WFD_upper_edge_fraction > 0.:
+        wfd_upper_edge = WFD_upper_edge_healpixels(nside=nside, dec_min=wfd_dec_max)
+        result[np.where(wfd_upper_edge != 0)] = 0
+        result += WFD_upper_edge_fraction*wfd_upper_edge
         id_map[np.where(wfd_upper_edge != 0)] = 3
         pid += 1
         prop_name_dict[3] = 'WideFastDeep'
 
-    nes = NES_healpixels(nside=nside, min_EB = NES_min_EB, max_EB = NES_max_EB,
-                         dec_min=NES_dec_min)
-    result[np.where(nes != 0)] = 0
-    result += NES_fraction*nes
 
     if NES_fraction > 0.:
+        nes = NES_healpixels(nside=nside, min_EB = NES_min_EB, max_EB = NES_max_EB,
+                             dec_min=NES_dec_min)
+        result[np.where(nes != 0)] = 0
+        result += NES_fraction*nes
         id_map[np.where(nes != 0)] = 1
         pid += 1
         prop_name_dict[1] = 'NorthEclipticSpur'
 
-    wfd = WFD_healpixels(nside=nside, dec_min=wfd_dec_min, dec_max=wfd_dec_max)
-    result[np.where(wfd != 0)] = 0
-    result += WFD_fraction*wfd
-
     if WFD_fraction > 0.:
+        wfd = WFD_healpixels(nside=nside, dec_min=wfd_dec_min, dec_max=wfd_dec_max)
+        result[np.where(wfd != 0)] = 0
+        result += WFD_fraction*wfd
         id_map[np.where(wfd != 0)] = 3
         pid += 1
         prop_name_dict[3] = 'WideFastDeep'
 
-    scp = SCP_healpixels(nside=nside, dec_max=SCP_dec_max)
-    result[np.where(scp != 0)] = 0
-    result += SCP_fraction*scp
-
     if SCP_fraction > 0.:
+        scp = SCP_healpixels(nside=nside, dec_max=SCP_dec_max)
+        result[np.where(scp != 0)] = 0
+        result += SCP_fraction*scp
         id_map[np.where(scp != 0)] = 2
         pid += 1
         prop_name_dict[2] = 'SouthCelestialPole'
 
-    gp = galactic_plane_healpixels(nside=nside, center_width=gp_center_width,
-                                   end_width=gp_end_width, gal_long1=gp_long1,
-                                   gal_long2=gp_long2)
-    result[np.where(gp != 0)] = 0
-    result += GP_fraction*gp
 
     if GP_fraction > 0.:
+        gp = galactic_plane_healpixels(nside=nside, center_width=gp_center_width,
+                                       end_width=gp_end_width, gal_long1=gp_long1,
+                                       gal_long2=gp_long2)
+        result[np.where(gp != 0)] = 0
+        result += GP_fraction*gp
         id_map[np.where(gp != 0)] = 4
         pid += 1
         prop_name_dict[4] = 'GalacticPlane'
