@@ -447,7 +447,7 @@ def WFD_upper_edge_healpixels(nside=None, dec_min=2.8, dec_max=None):
     dec_min : float (2.8)
         Minimum dec of the strip (deg)
     dec_max : float (None)
-        Maximum dec of strip (deg). If left None dec_max is dec_min + 1.75.
+        Maximum dec of strip (deg). If left None dec_max is dec_min + 3.*1.75.
         1.75 is the FOV radius in deg.
     Returns
     -------
@@ -457,7 +457,7 @@ def WFD_upper_edge_healpixels(nside=None, dec_min=2.8, dec_max=None):
         nside = set_default_nside()
 
     if dec_max is None:
-        dec_max = dec_min + 1.75
+        dec_max = dec_min + 3.*1.75
 
     ra, dec = ra_dec_hp_map(nside=nside)
     result = np.zeros(ra.size)
