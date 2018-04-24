@@ -1144,7 +1144,7 @@ class Deep_drilling_survey(BaseSurvey):
             moon_separation = _angularSeparation(self.extra_features['moon'].feature['moonRA'],
                                                  self.extra_features['moon'].feature['moonDec'],
                                                  observation['RA'],
-                                                 observation['Dec'])
+                                                 observation['dec'])
             if moon_separation < self.moon_distance:
                 return False
 
