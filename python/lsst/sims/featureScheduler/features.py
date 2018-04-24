@@ -362,6 +362,7 @@ class Current_filter(BaseConditionsFeature):
     def update_conditions(self, conditions):
         self.feature = conditions['filter']
 
+
 class Mounted_filters(BaseConditionsFeature):
     def update_conditions(self, conditions):
         if 'mounted_filters' in conditions:
@@ -369,9 +370,19 @@ class Mounted_filters(BaseConditionsFeature):
         else:
             self.feature = ['u', 'g', 'r', 'i', 'z', 'y']
 
+
 class Sun_moon_alts(BaseConditionsFeature):
     def update_conditions(self, conditions):
         self.feature = {'moonAlt': conditions['moonAlt'], 'sunAlt': conditions['sunAlt']}
+
+
+class Moon(BaseConditionsFeature):
+    def update_conditions(self, conditions):
+        self.feature = {'moonAlt': conditions['moonAlt'],
+                        'moonAz': conditions['moonAz'],
+                        'moonPhase': conditions['moonPhase'],
+                        'moonRA': conditions['moonRA'],
+                        'moonDec': conditions['moonDec']}
 
 
 class Current_mjd(BaseConditionsFeature):

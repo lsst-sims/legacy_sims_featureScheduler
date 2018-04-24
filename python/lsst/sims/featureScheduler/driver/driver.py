@@ -441,9 +441,17 @@ class FeatureSchedulerDriver(Driver):
             telemetry_stream['FWHMeff_%s' % filtername] = copy.copy(fwhm_effective[i])  # arcsec
             telemetry_stream['FWHM_geometric_%s' % filtername] = copy.copy(fwhm_geometric[i])
 
-        sunMoon_info = self.sky_brightness.returnSunMoon(self.observatoryModel.dateprofile.mjd)
+        self.sky.update(self.time)
+
+        sunMoon_info = self.sky.get_moon_sun_info(np.array([0.0]), np.array([0.0]))
+
         # Pretty sure these are radians
         telemetry_stream['sunAlt'] = copy.copy(np.max(sunMoon_info['sunAlt']))
         telemetry_stream['moonAlt'] = copy.copy(np.max(sunMoon_info['moonAlt']))
+
+        telemetry_stream['moonAz'] = copy.copy(np.max(sunMoon_info['moonAz']))
+        telemetry_stream['moonRA'] = copy.copy(np.max(sunMoon_info['moonRA']))
+        telemetry_stream['moonDec'] = copy.copy(np.max(sunMoon_info['moonDec']))
+        telemetry_stream['moonPhase'] = copy.copy(np.max(sunMoon_info['moonPhase']))
 
         return telemetry_stream
