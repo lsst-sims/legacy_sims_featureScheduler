@@ -58,7 +58,12 @@ for filtername in filters:
                                            tag_names=target_maps[filtername][2]))
 
 # Set up pairs
-surveys.append(fs.Pairs_survey_scripted([], [], ignore_obs='DD'))
+pairs_bfs = []
+pairs_bfs.append(fs.MeridianStripeBasisFunction(nside=nside, zenith_pad=(30.,), width=(16.,)))
+pairs_bfs.append(fs.Moon_avoidance_basis_function(nside=nside, moon_distance=30.))
+
+surveys.append(fs.Pairs_survey_scripted(pairs_bfs, [1., 1.], ignore_obs='DD'))
+# surveys.append(fs.Pairs_survey_scripted([], [], ignore_obs='DD'))
 
 # Set up the DD
 # ELAIS S1

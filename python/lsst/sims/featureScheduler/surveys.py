@@ -1141,8 +1141,8 @@ class Deep_drilling_survey(BaseSurvey):
 
         # Check moon distance
         if self.moon_up is not None:
-            moon_separation = _angularSeparation(self.extra_features['moon'].feature['RA'],
-                                                 self.extra_features['moon'].feature['Dec'],
+            moon_separation = _angularSeparation(self.extra_features['moon'].feature['moonRA'],
+                                                 self.extra_features['moon'].feature['moonDec'],
                                                  observation['RA'],
                                                  observation['Dec'])
             if moon_separation < self.moon_distance:
@@ -1284,7 +1284,14 @@ class Pairs_survey_scripted(Scripted_survey):
         hpid = _raDec2Hpid(self.nside, observation['RA'], observation['dec'])[0]
         # XXX--note this is using the sky brightness. Should make features/basis functions
         # that explicitly mask moon and alt limits for clarity and use them here.
-        skyval = self.extra_features['m5_depth'].feature[hpid]
+        if len(self.basis_functions) == 0:
+            skyval = self.extra_features['m5_depth'].feature[hpid]
+        else:
+            skyval_arr = np.zeros(len(self.basis_functions))
+            for i,bf in enumerate(self.basis_functions):
+                skyval_arr[i] = bf()[hpid]
+            skyval = np.min(skyval_arr)
+
         if skyval > 0:
             return True
         else:
