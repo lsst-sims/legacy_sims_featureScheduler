@@ -1232,7 +1232,8 @@ class Pairs_survey_scripted(Scripted_survey):
             # to grab triples, etc? Or add two observations to queue at a time?
             # keys_to_copy = ['RA', 'dec', 'filter', 'exptime', 'nexp']
             if ((observation['filter'][0] in self.filt_to_pair) and
-                    (np.max(self.extra_features['Pair_map'].feature[indx]) < 1)):
+                    (np.max(self.extra_features['Pair_map'].feature[indx]) < 1) and
+                    self._check_mask(observation)):
                 obs_to_queue = empty_observation()
                 for key in observation.dtype.names:
                     obs_to_queue[key] = observation[key]
@@ -1331,7 +1332,7 @@ class Pairs_survey_scripted(Scripted_survey):
 
             if in_window & infilt:
                 result = self.observing_queue.pop(0)
-                result['note'] = self.note
+                result['note'] = 'pair(%s)' % self.note
                 # Make sure we don't change filter if we don't have to.
                 if self.extra_features['current_filter'].feature is not None:
                     result['filter'] = self.extra_features['current_filter'].feature
