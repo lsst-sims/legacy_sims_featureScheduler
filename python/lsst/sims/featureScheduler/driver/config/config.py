@@ -58,7 +58,7 @@ for filtername in filters:
                                            tag_names=target_maps[filtername][2]))
 
 # Set up pairs
-# surveys.append(fs.Pairs_survey_scripted([], [], ignore_obs='DD'))
+surveys.append(fs.Pairs_survey_scripted([], [], ignore_obs='DD'))
 
 # Set up the DD
 # ELAIS S1
