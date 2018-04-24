@@ -5,7 +5,7 @@ import numpy.ma as ma
 from . import features
 from . import utils
 import healpy as hp
-from lsst.sims.utils import haversine, _hpid2RaDec
+from lsst.sims.utils import haversine, _hpid2RaDec, _angularSeparation
 from lsst.sims.skybrightness_pre import M5percentiles
 import matplotlib.pylab as plt
 
@@ -831,5 +831,45 @@ class Bulk_cloud_basis_function(Base_basis_function):
 
         clouded = np.where(self.max_cloud_map < self.condition_features['bulk_cloud'].feature)
         result[clouded] = hp.UNSEEN
+
+        return result
+
+
+class Moon_avoidance_basis_function(Base_basis_function):
+    """Mark regions that are closer than a certain .
+
+    """
+    def __init__(self, nside=default_nside, condition_features=None, survey_features=None,
+                 moon_distance=30.):
+        """
+        Parameters
+        moon_distance: float (30.)
+            Minimum allowed moon distance. (degrees)
+        """
+        if nside is None:
+            nside = utils.set_default_nside()
+
+        self.nside = nside
+        if survey_features is None:
+            self.survey_features = {}
+        if condition_features is None:
+            self.condition_features = dict()
+            self.condition_features['altaz'] = features.AltAzFeature(nside=nside)
+            self.condition_features['lmst'] = features.Current_lmst()
+            self.condition_features['moon'] = features.Moon()
+
+        self.moon_distance = np.radians(moon_distance)
+
+    def __call__(self, indx=None):
+        result = np.ones(hp.nside2npix(self.nside), dtype=float)
+
+        alt = self.condition_features['altaz'].feature['alt']
+        az = self.condition_features['altaz'].feature['az']
+
+        angular_distance = _angularSeparation(az, alt,
+                                              self.condition_features['moon'].feature['moonAz'],
+                                              self.condition_features['moon'].feature['moonAlt'])
+
+        result[angular_distance < self.moon_distance] = hp.UNSEEN
 
         return result

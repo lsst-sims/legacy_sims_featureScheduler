@@ -1143,7 +1143,7 @@ class Pairs_survey_scripted(Scripted_survey):
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, filt_to_pair='griz',
                  dt=40., ttol=10., reward_val=101., note='scripted', ignore_obs='ack',
-                 min_alt=30., max_alt=85., lat=-30.2444, nside=default_nside):
+                 min_alt=30., max_alt=85., lat=-30.2444, moon_distance=30., nside=default_nside):
         """
         Parameters
         ----------
@@ -1161,6 +1161,7 @@ class Pairs_survey_scripted(Scripted_survey):
         self.note = note
         self.ttol = ttol/60./24.
         self.dt = dt/60./24.  # To days
+        self._moon_distance = np.radians(moon_distance)
         if extra_features is None:
             self.extra_features = {}
             self.extra_features['Pair_map'] = features.Pair_in_night(filtername=filt_to_pair)
@@ -1169,6 +1170,7 @@ class Pairs_survey_scripted(Scripted_survey):
             self.extra_features['altaz'] = features.AltAzFeature(nside=nside)
             self.extra_features['current_lmst'] = features.Current_lmst()
             self.extra_features['m5_depth'] = features.M5Depth(filtername='r', nside=nside)
+            self.extra_features['Moon'] = features.Moon()
 
         super(Pairs_survey_scripted, self).__init__(basis_functions=basis_functions,
                                                     basis_weights=basis_weights,
@@ -1197,7 +1199,8 @@ class Pairs_survey_scripted(Scripted_survey):
             # XXX--only supporting single pairs now. Just start up another scripted survey
             # to grab triples, etc? Or add two observations to queue at a time?
             # keys_to_copy = ['RA', 'dec', 'filter', 'exptime', 'nexp']
-            if (observation['filter'][0] in self.filt_to_pair) & (np.max(self.extra_features['Pair_map'].feature[indx]) < 1):
+            if ((observation['filter'][0] in self.filt_to_pair) and
+                    (np.max(self.extra_features['Pair_map'].feature[indx]) < 1)):
                 obs_to_queue = empty_observation()
                 for key in observation.dtype.names:
                     obs_to_queue[key] = observation[key]
@@ -1286,13 +1289,16 @@ class Pairs_survey_scripted(Scripted_survey):
                 infilt = True
             else:
                 infilt = self.extra_features['current_filter'].feature in self.filt_to_pair
+
             if in_window & infilt:
                 result = self.observing_queue.pop(0)
                 result['note'] = self.note
                 # Make sure we don't change filter if we don't have to.
                 if self.extra_features['current_filter'].feature is not None:
                     result['filter'] = self.extra_features['current_filter'].feature
-                result = [result]
+                # Make sure it is observable!
+                if self._check_mask(result):
+                    result = [result]
         return result
 
 
