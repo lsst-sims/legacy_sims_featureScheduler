@@ -5,6 +5,9 @@ import healpy as hp
 from lsst.sims.utils import _hpid2RaDec
 from .utils import hp_in_lsst_fov, set_default_nside, hp_in_comcam_fov
 import warnings
+import logging
+
+log = logging.getLogger(__name__)
 
 default_nside = None
 
@@ -31,6 +34,9 @@ class Core_scheduler(object):
 
         # initialize a queue of observations to request
         self.queue = []
+        self.is_sequence = False
+        self.survey_index = None
+
         self.surveys = surveys
         self.nside = nside
         hpid = np.arange(hp.nside2npix(nside))
@@ -102,7 +108,18 @@ class Core_scheduler(object):
             # self._fill_queue()
             return None
         else:
-            return self.queue.pop(0)
+            observation = self.queue.pop(0)
+            if self.is_sequence:
+                log.debug('Sequence! Checking feasibility...')
+                if self.surveys[self.survey_index].check_feasibility(observation):
+                    log.debug('Observations ok...')
+                    return observation
+                else:
+                    log.debug('Sequence interrupted! Cleaning queue!')
+                    self._clean_queue()
+                    return None
+            else:
+                return observation
 
     def _fill_queue(self):
         """
@@ -118,7 +135,7 @@ class Core_scheduler(object):
         # entered if there is a tie.
         if np.all(np.bitwise_or(np.isnan(rewards), np.isneginf(rewards))):
             # All values are invalid
-            self.queue = []
+            self._clean_queue()
         else:
             try:
                 good = np.min(np.where(rewards == np.max(rewards)))
@@ -126,9 +143,18 @@ class Core_scheduler(object):
                 # Survey return list of observations
                 result = self.surveys[good]()
                 self.queue = result
+                self.is_sequence = self.surveys[good].sequence
+                self.survey_index = good
             except ValueError:
-                self.queue = []
+                self._clean_queue()
 
+    def _clean_queue(self):
+        """
+        Clean queue.
+        """
+        self.queue = []
+        self.is_sequence = False
+        self.survey_index = None
 
 class Core_scheduler_parallel(Core_scheduler):
     """Execute survey methods in parallel

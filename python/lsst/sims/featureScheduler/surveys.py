@@ -64,6 +64,8 @@ class BaseSurvey(object):
         self.basis_functions = basis_functions
         self.basis_weights = basis_weights
         self.reward = None
+        self.sequence = False  # Specifies the survey gives sequence of observations
+
         if extra_features is None:
             self.extra_features = {}
         else:
@@ -922,7 +924,7 @@ class Deep_drilling_survey(BaseSurvey):
                  exptime=30.,
                  nexp=2, ignore_obs='dummy', survey_name='DD', fraction_limit=0.01,
                  ha_limits=([0., 1.5], [21.0, 24.]), reward_value=101., moon_up=True, readtime=2.,
-                 day_space=2., max_clouds = 0.7, nside=default_nside):
+                 day_space=2., max_clouds=0.7, moon_distance=30., nside=default_nside):
         """
         Parameters
         ----------
@@ -971,6 +973,8 @@ class Deep_drilling_survey(BaseSurvey):
         self.nside = nside
         self.filter_list = []
         self.max_clouds = max_clouds
+        self.moon_distance = np.radians(moon_distance)
+        self.sequence = True  # Specifies the survey gives sequence of observations
 
         if extra_features is None:
             self.extra_features = {}
@@ -991,6 +995,9 @@ class Deep_drilling_survey(BaseSurvey):
             self.extra_features['lmst'] = features.Current_lmst()
             # Moon altitude
             self.extra_features['sun_moon_alt'] = features.Sun_moon_alts()
+            # Moon altitude
+            self.extra_features['moon'] = features.Moon()
+
             # Time to next moon rise
 
             # Time to twilight
@@ -1123,6 +1130,31 @@ class Deep_drilling_survey(BaseSurvey):
 
         # If we made it this far, good to go
         return result
+
+    def check_feasibility(self, observation):
+        '''
+        This method enables external calls to check if a given observations that belongs to this survey is
+        feasible or not. This is called once a sequence has started to make sure it can continue.
+
+        :return:
+        '''
+
+        # Check moon distance
+        if self.moon_up is not None:
+            moon_separation = _angularSeparation(self.extra_features['moon'].feature['RA'],
+                                                 self.extra_features['moon'].feature['Dec'],
+                                                 observation['RA'],
+                                                 observation['Dec'])
+            if moon_separation < self.moon_distance:
+                return False
+
+        # Check clouds
+        if self.extra_features['bulk_cloud'].feature > self.max_clouds:
+            return False
+
+        # If we made it this far, good to go
+        return True
+
 
     def calc_reward_function(self):
         result = -np.inf
