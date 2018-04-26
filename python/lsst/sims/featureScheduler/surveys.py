@@ -1282,7 +1282,10 @@ class Pairs_survey_scripted(Scripted_survey):
         True if the observation is good to observe
         False if the proposed observation is masked
         """
-        hpid = _raDec2Hpid(self.nside, observation['RA'], observation['dec'])[0]
+        try:
+            hpid = _raDec2Hpid(self.nside, observation['RA'], observation['dec'])[0]
+        except IndexError:
+            hpid = _raDec2Hpid(self.nside, observation['RA'], observation['dec'])
         # XXX--note this is using the sky brightness. Should make features/basis functions
         # that explicitly mask moon and alt limits for clarity and use them here.
         if len(self.basis_functions) == 0:
