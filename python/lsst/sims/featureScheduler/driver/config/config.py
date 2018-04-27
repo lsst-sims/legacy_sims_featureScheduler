@@ -7,37 +7,37 @@ target_maps = {}
 nside = fs.set_default_nside(nside=32)  # Required
 
 target_maps['u'] = fs.generate_goal_map(NES_fraction=0.,
-                                        WFD_fraction=0.31, SCP_fraction=0.15,
+                                        WFD_fraction=0.31*1.2, SCP_fraction=0.15,
                                         GP_fraction=0.15,
                                         WFD_upper_edge_fraction=0.0,
                                         nside=nside,
                                         generate_id_map=True)
 target_maps['g'] = fs.generate_goal_map(NES_fraction=0.2,
-                                        WFD_fraction=0.44, SCP_fraction=0.15,
+                                        WFD_fraction=0.44*1.2, SCP_fraction=0.15,
                                         GP_fraction=0.15,
                                         WFD_upper_edge_fraction=0.0,
                                         nside=nside,
                                         generate_id_map=True)
 target_maps['r'] = fs.generate_goal_map(NES_fraction=0.46,
-                                        WFD_fraction=1.0, SCP_fraction=0.15,
+                                        WFD_fraction=1.0*1.2, SCP_fraction=0.15,
                                         WFD_upper_edge_fraction=0.0,
                                         GP_fraction=0.15,
                                         nside=nside,
                                         generate_id_map=True)
 target_maps['i'] = fs.generate_goal_map(NES_fraction=0.46,
-                                        WFD_fraction=1.0, SCP_fraction=0.15,
+                                        WFD_fraction=1.0*1.2, SCP_fraction=0.15,
                                         GP_fraction=0.15,
                                         WFD_upper_edge_fraction=0.0,
                                         nside=nside,
                                         generate_id_map=True)
 target_maps['z'] = fs.generate_goal_map(NES_fraction=0.4,
-                                        WFD_fraction=0.9, SCP_fraction=0.15,
+                                        WFD_fraction=0.9*1.2, SCP_fraction=0.15,
                                         GP_fraction=0.15,
                                         WFD_upper_edge_fraction=0.0,
                                         nside=nside,
                                         generate_id_map=True)
 target_maps['y'] = fs.generate_goal_map(NES_fraction=0.,
-                                        WFD_fraction=0.9, SCP_fraction=0.15,
+                                        WFD_fraction=0.9*1.2, SCP_fraction=0.15,
                                         GP_fraction=0.15,
                                         WFD_upper_edge_fraction=0.0,
                                         nside=nside,
