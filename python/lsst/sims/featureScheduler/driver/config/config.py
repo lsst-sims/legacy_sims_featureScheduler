@@ -49,6 +49,11 @@ cloud_map = fs.utils.generate_cloud_map(target_maps,filtername='r',
                                         gp_cloud_max=0.7,
                                         nes_cloud_max=0.7)
 
+width = np.arange(4.,20.,1)
+z_pad = width+8
+weight = (4./width)**2
+height = np.zeros_like(width)+80.
+
 filters = ['u', 'g', 'r', 'i', 'z', 'y']
 surveys = []
 
@@ -59,15 +64,15 @@ for filtername in filters:
                                             target_map=target_maps[filtername][0],
                                             out_of_bounds_val=hp.UNSEEN, nside=nside))
 
-    bfs.append(fs.MeridianStripeBasisFunction(nside=nside,width=(8.,16.,20.,),
-                                              weight=(1, 0.1, 0.05),
-                                              height=(80,80,80),
-                                              zenith_pad=(15.,30.,45.)))
+    bfs.append(fs.MeridianStripeBasisFunction(nside=nside,width=width,
+                                              weight=weight,
+                                              height=height,
+                                              zenith_pad=z_pad))
     bfs.append(fs.Slewtime_basis_function(filtername=filtername, nside=nside, order=6.))
     bfs.append(fs.Strict_filter_basis_function(filtername=filtername))
     bfs.append(fs.Avoid_Fast_Revists(filtername=filtername, gap_min=240., nside=nside))
     bfs.append(fs.Bulk_cloud_basis_function(max_cloud_map=cloud_map,nside=nside))
-    bfs.append(fs.Moon_avoidance_basis_function(nside=nside, moon_distance=30.))
+    bfs.append(fs.Moon_avoidance_basis_function(nside=nside, moon_distance=33.))
 
     weights = np.array([3.0, 0.5, 1., 3., 3., 3., 3.0, 1.0])
     surveys.append(fs.Greedy_survey_fields(bfs, weights, block_size=1,
