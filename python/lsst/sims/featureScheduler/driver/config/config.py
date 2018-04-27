@@ -63,7 +63,7 @@ for filtername in filters:
                                               weight=(1, 0.1, 0.05),
                                               height=(80,80,80),
                                               zenith_pad=(15.,30.,45.)))
-    bfs.append(fs.Slewtime_basis_function(filtername=filtername, nside=nside))
+    bfs.append(fs.Slewtime_basis_function(filtername=filtername, nside=nside, order=6.))
     bfs.append(fs.Strict_filter_basis_function(filtername=filtername))
     bfs.append(fs.Avoid_Fast_Revists(filtername=filtername, gap_min=240., nside=nside))
     bfs.append(fs.Bulk_cloud_basis_function(max_cloud_map=cloud_map,nside=nside))

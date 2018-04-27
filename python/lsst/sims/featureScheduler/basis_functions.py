@@ -742,11 +742,12 @@ class Slewtime_basis_function(Base_basis_function):
     """Reward slews that take little time
     """
     def __init__(self, survey_features=None, condition_features=None,
-                 max_time=135., filtername='r', nside=default_nside):
+                 max_time=135., order=1., filtername='r', nside=default_nside):
         if nside is None:
             nside = utils.set_default_nside()
 
         self.maxtime = max_time
+        self.order = order
         self.nside = nside
         self.filtername = filtername
         if condition_features is None:
@@ -765,7 +766,8 @@ class Slewtime_basis_function(Base_basis_function):
             if np.size(self.condition_features['slewtime'].feature) > 1:
                 result = np.zeros(np.size(self.condition_features['slewtime'].feature), dtype=float)
                 good = np.where(self.condition_features['slewtime'].feature != hp.UNSEEN)
-                result[good] = (self.maxtime - self.condition_features['slewtime'].feature[good])/self.maxtime
+                result[good] = ((self.maxtime - self.condition_features['slewtime'].feature[good]) /
+                                self.maxtime)**self.order
             else:
                 result = (self.maxtime - self.condition_features['slewtime'].feature)/self.maxtime
         return result
