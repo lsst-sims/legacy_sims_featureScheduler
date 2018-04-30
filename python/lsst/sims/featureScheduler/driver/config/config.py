@@ -62,6 +62,7 @@ surveys = []
 def az_w(x):
     return -x/14. + 15./14.
 
+
 patches = []
 
 for ha in np.arange(1., 2.0, 0.2):
@@ -73,7 +74,7 @@ for ha in np.arange(1., 2.0, 0.2):
 
 ha_range = np.arange(0.1, 2.0, 0.2)
 dec_min = np.zeros(len(ha_range)) - 90.
-dec_max = np.zeros(len(ha_range)) - 10.
+dec_max = np.zeros(len(ha_range)) - 1.
 # dec_max[5:] = -10.
 for i, ha in enumerate(ha_range):
     patches.append({'ha_min': ha, 'ha_max': 24. - ha,
@@ -111,13 +112,14 @@ for filtername in filters:
     bfs.append(fs.Bulk_cloud_basis_function(max_cloud_map=cloud_map,nside=nside))
     bfs.append(fs.Moon_avoidance_basis_function(nside=nside, moon_distance=33.))
 
-    weights = np.array([3.0, 0.5, 1., 3., 3., 3., 3.0, 1.0])
+    weights = np.array([3.0, 0.5, 1., 3., 1., 3., 3.0, 1.0])
     surveys.append(fs.Greedy_survey_fields(bfs, weights, block_size=1,
                                            filtername=filtername, dither=True,
                                            nside=nside,
                                            tag_fields=True,
                                            tag_map=target_maps[filtername][1],
-                                           tag_names=target_maps[filtername][2]))
+                                           tag_names=target_maps[filtername][2],
+                                           ignore_obs='DD'))
 
 # Set up pairs
 pairs_bfs = []
@@ -132,7 +134,7 @@ pair_map[nes] = 1.
 pairs_bfs.append(fs.Target_map_basis_function(filtername='',
                                               target_map=pair_map,
                                               out_of_bounds_val=hp.UNSEEN, nside=nside))
-pairs_bfs.append(fs.MeridianStripeBasisFunction(nside=nside, zenith_pad=(30.,), width=(16.,)))
+pairs_bfs.append(fs.MeridianStripeBasisFunction(nside=nside, zenith_pad=(45.,), width=(35.,)))
 pairs_bfs.append(fs.Moon_avoidance_basis_function(nside=nside, moon_distance=30.))
 
 surveys.append(fs.Pairs_survey_scripted(pairs_bfs, [1., 1., 1.], ignore_obs='DD', min_alt=20.))
