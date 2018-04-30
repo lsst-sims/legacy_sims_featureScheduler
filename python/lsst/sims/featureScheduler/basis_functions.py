@@ -225,7 +225,8 @@ class HADecAltAzPatchBasisFunction(Base_basis_function):
                  patches=({'ha_min': 2., 'ha_max': 22.,
                            'alt_max': 88., 'alt_min': 55.,
                            'dec_min': -90., 'dec_max': 90,
-                           'az_min': 0., 'az_max': 360.},)):
+                           'az_min': 0., 'az_max': 360.,
+                           'weight': 1.},)):
         """
         Parameters
         ----------
@@ -293,7 +294,7 @@ class HADecAltAzPatchBasisFunction(Base_basis_function):
                                                                 alt_mask),
                                                  self.dec_mask[i]),
                                   az_mask)
-            result[mask] = 1.0
+            result[mask] = patch['weight'] if 'weight' in patch else 1.
 
         return result
 
@@ -617,7 +618,7 @@ class Strict_filter_basis_function(Base_basis_function):
     twilight starts or stops, or there has been a large gap since the last observation.
 
     """
-    def __init__(self, survey_features=None, condition_features=None, time_lag=10.,
+    def __init__(self, survey_features=None, condition_features=None, time_lag_min=10., time_lag_max=30.,
                  filtername='r', twi_change=-18.):
         """
         Paramters
@@ -627,7 +628,9 @@ class Strict_filter_basis_function(Base_basis_function):
         twi_change : float (-18.)
             The sun altitude to consider twilight starting/ending
         """
-        self.time_lag = time_lag/60./24.  # Convert to days
+        self.time_lag_min = time_lag_min/60./24.  # Convert to days
+        self.time_lag_max = time_lag_max / 60. / 24.  # Convert to days
+
         self.twi_change = np.radians(twi_change)
         self.filtername = filtername
         if condition_features is None:
@@ -643,6 +646,27 @@ class Strict_filter_basis_function(Base_basis_function):
         super(Strict_filter_basis_function, self).__init__(survey_features=self.survey_features,
                                                            condition_features=self.condition_features)
 
+    def filter_change_bonus(self, time):
+
+        lag_min = self.time_lag_min
+        lag_max = self.time_lag_max
+
+        a = 1. / (lag_max - lag_min)
+        b = -a * lag_min
+
+        bonus = a * time + b
+        if hasattr(time, '__iter__'):
+            before_lag = np.where(time <= lag_min)
+            bonus[before_lag] = 0.
+            after_lag = np.where(time >= lag_max)
+            bonus[after_lag] = 1.
+        elif time <= lag_min:
+            return 0.
+        elif time >= lag_max:
+            return 1.
+
+        return bonus
+
     def __call__(self, **kwargs):
         # Did the moon set or rise since last observation?
         moon_changed = self.condition_features['Sun_moon_alts'].feature['moonAlt'] * self.survey_features['Last_observation'].feature['moonAlt'] < 0
@@ -651,7 +675,8 @@ class Strict_filter_basis_function(Base_basis_function):
         in_filter = (self.condition_features['Current_filter'].feature == self.filtername) | (self.condition_features['Current_filter'].feature is None)
 
         # Has enough time past?
-        time_past = (self.condition_features['Current_mjd'].feature - self.survey_features['Last_observation'].feature['mjd']) > self.time_lag
+        lag = self.condition_features['Current_mjd'].feature - self.survey_features['Last_observation'].feature['mjd']
+        time_past = lag > self.time_lag_min
 
         # Did twilight start/end?
         twi_changed = (self.condition_features['Sun_moon_alts'].feature['sunAlt'] - self.twi_change) * (self.survey_features['Last_observation'].feature['sunAlt']- self.twi_change) < 0
@@ -663,7 +688,8 @@ class Strict_filter_basis_function(Base_basis_function):
         mounted = self.filtername in self.condition_features['Mounted_filter'].feature
 
         if (moon_changed | in_filter | time_past | twi_changed | wasDD) & mounted:
-            result = 1.
+            # if we are here and time has not passed, we might as well give it a full bonus... :/
+            result = self.filter_change_bonus(lag) if time_past else 1.
         else:
             result = 0.
 

@@ -160,6 +160,7 @@ class FeatureSchedulerDriver(Driver):
 
     def start_night(self, timestamp, night):
 
+        self.scheduler.flush_queue()
         self.night = night
         super(FeatureSchedulerDriver, self).start_night(timestamp, night)
         for fieldid in self.target_list.keys():
