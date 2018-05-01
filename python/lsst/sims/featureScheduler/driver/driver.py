@@ -425,8 +425,10 @@ class FeatureSchedulerDriver(Driver):
                                          self.observatoryModel.dateprofile.lst_rad)
         current_filter = self.observatoryModel.current_state.filter
 
+        lax_dome = self.observatoryModel.params.domaz_free_range > 0.
         telemetry_stream['slewtimes'] = copy.copy(self.observatoryModel.get_approximate_slew_delay(alt, az,
-                                                                                         current_filter))
+                                                                                                   current_filter,
+                                                                                                   lax_dome=lax_dome))
         # What is the airmass over the sky (healpix map).
 
         telemetry_stream['airmass'] = copy.copy(
