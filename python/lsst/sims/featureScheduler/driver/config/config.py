@@ -107,7 +107,7 @@ for filtername in filters:
     bfs.append(fs.HADecAltAzPatchBasisFunction(nside=nside,
                                                patches=patches[::-1]))
     bfs.append(fs.Slewtime_basis_function(filtername=filtername, nside=nside, order=6.))
-    bfs.append(fs.Strict_filter_basis_function(filtername=filtername, time_lag_min=60., time_lag_max=120.))
+    bfs.append(fs.Strict_filter_basis_function(filtername=filtername, time_lag_min=30., time_lag_max=60.))
     bfs.append(fs.Avoid_Fast_Revists(filtername=filtername, gap_min=240., nside=nside))
     bfs.append(fs.Bulk_cloud_basis_function(max_cloud_map=cloud_map,nside=nside))
     bfs.append(fs.Moon_avoidance_basis_function(nside=nside, moon_distance=33.))
