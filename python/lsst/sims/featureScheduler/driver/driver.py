@@ -276,7 +276,7 @@ class FeatureSchedulerDriver(Driver):
 
     def register_observation(self, observation):
         if observation.targetid > 0:
-            self.scheduler.add_observation(self.scheduler_winner_target)
+            self.scheduler.add_observation(self.scheduler_winner_target[0])
 
             return super(FeatureSchedulerDriver, self).register_observation(observation)
         else:
