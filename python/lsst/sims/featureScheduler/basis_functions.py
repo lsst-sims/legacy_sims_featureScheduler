@@ -786,12 +786,13 @@ class Slewtime_basis_function(Base_basis_function):
     def __call__(self, indx=None):
         # If we are in a different filter, the Filter_change_basis_function will take it
         if self.condition_features['Current_filter'].feature != self.filtername:
-            result = 1.
+            result = 0.
         else:
             # Need to make sure smaller slewtime is larger reward.
             if np.size(self.condition_features['slewtime'].feature) > 1:
                 result = np.zeros(np.size(self.condition_features['slewtime'].feature), dtype=float)
-                good = np.where(self.condition_features['slewtime'].feature != hp.UNSEEN)
+                good = np.where(np.bitwise_and(self.condition_features['slewtime'].feature != hp.UNSEEN,
+                                               self.condition_features['slewtime'].feature < self.maxtime))
                 result[good] = ((self.maxtime - self.condition_features['slewtime'].feature[good]) /
                                 self.maxtime)**self.order
             else:
