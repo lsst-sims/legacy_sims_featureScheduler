@@ -64,24 +64,30 @@ def az_w(x):
 
 
 patches = []
-
 for ha in np.arange(1., 2.0, 0.2):
-    patches.append({'ha_min': ha, 'ha_max': 24. - ha,
+    patches.append({'ha_min': ha, 'ha_max': 23.9,
                     'alt_max': 82., 'alt_min': 55.,
                     'dec_min': -30.2444 - 9., 'dec_max': -30.2444 + 9.,
                     'az_min': 0., 'az_max': 360.,
                     'weight': 2. - ha})
 
+
 ha_range = np.arange(0.1, 2.0, 0.2)
+ha_range = np.array([0.2, 0.5, 1.9])
+ha_weight = np.array([1.0,0.5,0.2])
 dec_min = np.zeros(len(ha_range)) - 90.
 dec_max = np.zeros(len(ha_range)) - 1.
-# dec_max[5:] = -10.
 for i, ha in enumerate(ha_range):
-    patches.append({'ha_min': ha, 'ha_max': 24. - ha,
+    patches.append({'ha_min': ha, 'ha_max': 23.9,
                     'alt_max': 82., 'alt_min': 55.,
                     'dec_min': dec_min[i], 'dec_max': dec_max[i],
                     'az_min': 0., 'az_max': 360.,
-                    'weight': 1.05 - ha / 2.0})
+                    'weight': ha_weight[i]})
+patches.append({'ha_min': 0., 'ha_max': 24. - ha_range[-1],
+                'alt_max': 82., 'alt_min': 55.,
+                'dec_min': dec_min[i], 'dec_max': dec_max[i],
+                'az_min': 0., 'az_max': 360.,
+                'weight': 1e-7})
 
 for az in np.arange(1, 15):
     patches.append({'alt_max': 82., 'alt_min': 20.,
@@ -107,7 +113,11 @@ for filtername in filters:
     bfs.append(fs.HADecAltAzPatchBasisFunction(nside=nside,
                                                patches=patches[::-1]))
     bfs.append(fs.Slewtime_basis_function(filtername=filtername, nside=nside, order=6.))
-    bfs.append(fs.Strict_filter_basis_function(filtername=filtername, time_lag_min=30., time_lag_max=60.))
+    bfs.append(fs.Strict_filter_basis_function(filtername=filtername,
+                                               time_lag_min=30.,
+                                               time_lag_max=60.,
+                                               time_lag_boost=120.,
+                                               unseen_before_lag=True))
     bfs.append(fs.Avoid_Fast_Revists(filtername=filtername, gap_min=240., nside=nside))
     bfs.append(fs.Bulk_cloud_basis_function(max_cloud_map=cloud_map,nside=nside))
     bfs.append(fs.Moon_avoidance_basis_function(nside=nside, moon_distance=33.))
