@@ -118,9 +118,9 @@ for filtername in filters:
                                                patches=patches[::-1]))
     bfs.append(fs.Slewtime_basis_function(filtername=filtername, nside=nside, order=6.))
     bfs.append(fs.Strict_filter_basis_function(filtername=filtername,
-                                               time_lag_min=30.,
-                                               time_lag_max=60.,
-                                               time_lag_boost=120.,
+                                               time_lag_min=90.,
+                                               time_lag_max=150.,
+                                               time_lag_boost=180.,
                                                unseen_before_lag=True))
     bfs.append(fs.Avoid_Fast_Revists(filtername=filtername, gap_min=240., nside=nside))
     bfs.append(fs.Bulk_cloud_basis_function(max_cloud_map=cloud_map,nside=nside))
