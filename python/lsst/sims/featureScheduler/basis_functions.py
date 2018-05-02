@@ -8,9 +8,11 @@ import healpy as hp
 from lsst.sims.utils import haversine, _hpid2RaDec, _angularSeparation
 from lsst.sims.skybrightness_pre import M5percentiles
 import matplotlib.pylab as plt
+import logging
 
 default_nside = None
 
+log = logging.getLogger(__name__)
 
 class Base_basis_function(object):
     """
@@ -619,6 +621,7 @@ class Strict_filter_basis_function(Base_basis_function):
 
     """
     def __init__(self, survey_features=None, condition_features=None, time_lag_min=10., time_lag_max=30.,
+                 time_lag_boost=60., boost_gain=2.0, unseen_before_lag=False,
                  filtername='r', twi_change=-18.):
         """
         Paramters
@@ -630,6 +633,9 @@ class Strict_filter_basis_function(Base_basis_function):
         """
         self.time_lag_min = time_lag_min/60./24.  # Convert to days
         self.time_lag_max = time_lag_max / 60. / 24.  # Convert to days
+        self.time_lag_boost = time_lag_boost / 60. / 24.
+        self.boost_gain = boost_gain
+        self.unseen_before_lag = unseen_before_lag
 
         self.twi_change = np.radians(twi_change)
         self.filtername = filtername
@@ -657,13 +663,13 @@ class Strict_filter_basis_function(Base_basis_function):
         bonus = a * time + b
         if hasattr(time, '__iter__'):
             before_lag = np.where(time <= lag_min)
-            bonus[before_lag] = 0.
+            bonus[before_lag] = -np.inf if self.unseen_before_lag else 0.
             after_lag = np.where(time >= lag_max)
-            bonus[after_lag] = 1.
+            bonus[after_lag] = 1. if time < self.time_lag_boost else self.boost_gain
         elif time <= lag_min:
-            return 0.
+            return -np.inf if self.unseen_before_lag else 0.
         elif time >= lag_max:
-            return 1.
+            return 1. if time < self.time_lag_boost else self.boost_gain
 
         return bonus
 
@@ -672,7 +678,8 @@ class Strict_filter_basis_function(Base_basis_function):
         moon_changed = self.condition_features['Sun_moon_alts'].feature['moonAlt'] * self.survey_features['Last_observation'].feature['moonAlt'] < 0
 
         # Are we already in the filter (or at start of night)?
-        in_filter = (self.condition_features['Current_filter'].feature == self.filtername) | (self.condition_features['Current_filter'].feature is None)
+        not_in_filter = (self.condition_features['Current_filter'].feature != self.filtername)
+                        # (self.condition_features['Current_filter'].feature is None)
 
         # Has enough time past?
         lag = self.condition_features['Current_mjd'].feature - self.survey_features['Last_observation'].feature['mjd']
@@ -687,8 +694,12 @@ class Strict_filter_basis_function(Base_basis_function):
         # Is the filter mounted?
         mounted = self.filtername in self.condition_features['Mounted_filter'].feature
 
-        if (moon_changed | in_filter | time_past | twi_changed | wasDD) & mounted:
+        if (moon_changed | time_past | twi_changed | wasDD) & mounted & not_in_filter:
             # if we are here and time has not passed, we might as well give it a full bonus... :/
+            if lag > self.time_lag_boost:
+                log.debug('Filter change boost active! %s[%s]: %f' % (self.filtername,
+                                                                      self.condition_features['Current_filter'].feature,
+                                                                      self.filter_change_bonus(lag)))
             result = self.filter_change_bonus(lag) if time_past else 1.
         else:
             result = 0.
