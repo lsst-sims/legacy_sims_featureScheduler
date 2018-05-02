@@ -134,6 +134,19 @@ class Last_observation(BaseSurveyFeature):
             self.feature = observation
 
 
+class LastSequence_observation(BaseSurveyFeature):
+    """When was the last observation
+    """
+    def __init__(self, sequence_ids=''):
+        self.sequence_ids = sequence_ids  # The ids of all sequence observations...
+        # Start out with an empty observation
+        self.feature = utils.empty_observation()
+
+    def add_observation(self, observation, indx=None):
+        if observation['survey_id'] in self.sequence_ids:
+            self.feature = observation
+
+
 class N_observations(BaseSurveyFeature):
     """
     Track the number of observations that have been made accross the sky.

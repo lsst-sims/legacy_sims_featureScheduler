@@ -924,6 +924,7 @@ class Deep_drilling_survey(BaseSurvey):
                  exptime=30.,
                  nexp=2, ignore_obs='dummy', survey_name='DD', fraction_limit=0.01,
                  ha_limits=([0., 1.5], [21.0, 24.]), reward_value=101., moon_up=True, readtime=2.,
+                 avoid_same_day=False,
                  day_space=2., max_clouds=0.7, moon_distance=30., nside=default_nside):
         """
         Parameters
@@ -975,6 +976,7 @@ class Deep_drilling_survey(BaseSurvey):
         self.max_clouds = max_clouds
         self.moon_distance = np.radians(moon_distance)
         self.sequence = True  # Specifies the survey gives sequence of observations
+        self.avoid_same_day = avoid_same_day
 
         if extra_features is None:
             self.extra_features = {}
@@ -986,7 +988,7 @@ class Deep_drilling_survey(BaseSurvey):
             self.extra_features['observatory'] = features.Observatory({'readtime': readtime,
                                                                        'filter_change_time': 120.}
                                                                       )  # FIXME:
-
+            self.extra_features['night'] = features.Current_night()
             # The total number of observations
             self.extra_features['N_obs'] = features.N_obs_count()
             # The number of observations for this survey
@@ -1004,6 +1006,9 @@ class Deep_drilling_survey(BaseSurvey):
 
             # last time this survey was observed (in case we want to force a cadence)
             self.extra_features['last_obs_self'] = features.Last_observation(survey_name=self.survey_name)
+            # last time a sequence observation
+            self.extra_features['last_seq_obs'] = features.LastSequence_observation(sequence_ids=[self.survey_id])
+
             # Current MJD
             self.extra_features['mjd'] = features.Current_mjd()
             # Observable time. This includes altitude and night limits
@@ -1065,6 +1070,10 @@ class Deep_drilling_survey(BaseSurvey):
         # Check that all filters are available
         result = self.filter_set.issubset(set(self.extra_features['mounted_filters'].feature))
         if not result:
+            return False
+
+        if (self.avoid_same_day and
+                (self.extra_features['last_seq_obs'].feature['night'] == self.extra_features['night'].feature)):
             return False
         # Check if the LMST is in range
         HA = self.extra_features['lmst'].feature - self.ra_hours

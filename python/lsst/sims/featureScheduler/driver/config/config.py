@@ -72,9 +72,8 @@ for ha in np.arange(1., 2.0, 0.2):
                     'weight': 2. - ha})
 
 
-ha_range = np.arange(0.1, 2.0, 0.2)
 ha_range = np.array([0.2, 0.5, 1.9])
-ha_weight = np.array([1.0,0.5,0.2])
+ha_weight = np.array([1.0, 0.8, 0.1])
 dec_min = np.zeros(len(ha_range)) - 90.
 dec_max = np.zeros(len(ha_range)) - 1.
 for i, ha in enumerate(ha_range):
@@ -83,11 +82,16 @@ for i, ha in enumerate(ha_range):
                     'dec_min': dec_min[i], 'dec_max': dec_max[i],
                     'az_min': 0., 'az_max': 360.,
                     'weight': ha_weight[i]})
-patches.append({'ha_min': 0., 'ha_max': 24. - ha_range[-1],
-                'alt_max': 82., 'alt_min': 55.,
+patches.append({'ha_min': 0., 'ha_max': 23.5,
+                'alt_max': 82., 'alt_min': 60.,
                 'dec_min': dec_min[i], 'dec_max': dec_max[i],
                 'az_min': 0., 'az_max': 360.,
-                'weight': 1e-7})
+                'weight': 1e-1})
+patches.append({'ha_min': 0., 'ha_max': 22.8,
+                'alt_max': 82., 'alt_min': 70.,
+                'dec_min': dec_min[i], 'dec_max': dec_max[i],
+                'az_min': 0., 'az_max': 360.,
+                'weight': 1e-5})
 
 for az in np.arange(1, 15):
     patches.append({'alt_max': 82., 'alt_min': 20.,
@@ -156,7 +160,8 @@ surveys.append(fs.Deep_drilling_survey(9.45, -44., sequence='rgizy',
                                        nvis=[20, 10, 20, 26, 20],
                                        survey_name='DD:ELAISS1', reward_value=100, moon_up=None,
                                        fraction_limit=0.148, ha_limits=([0., 0.5], [23.5, 24.]),
-                                       nside=nside))
+                                       nside=nside,
+                                       avoid_same_day=True))
 surveys.append(fs.Deep_drilling_survey(9.45, -44., sequence='u',
                                        nvis=[7],
                                        survey_name='DD:u,ELAISS1', reward_value=100, moon_up=False,
@@ -168,7 +173,8 @@ surveys.append(fs.Deep_drilling_survey(35.708333, -4 - 45 / 60., sequence='rgizy
                                        nvis=[20, 10, 20, 26, 20],
                                        survey_name='DD:XMM-LSS', reward_value=100, moon_up=None,
                                        fraction_limit=0.148, ha_limits=([0., 0.5], [23.5, 24.]),
-                                       nside=nside))
+                                       nside=nside,
+                                       avoid_same_day=True))
 surveys.append(fs.Deep_drilling_survey(35.708333, -4 - 45 / 60., sequence='u',
                                        nvis=[7],
                                        survey_name='DD:u,XMM-LSS', reward_value=100, moon_up=False,
@@ -181,7 +187,8 @@ surveys.append(fs.Deep_drilling_survey(53.125, -28. - 6 / 60., sequence='rgizy',
                                        nvis=[20, 10, 20, 26, 20],
                                        survey_name='DD:ECDFS', reward_value=100, moon_up=None,
                                        fraction_limit=0.148, ha_limits=[[0.5, 1.0], [23., 22.5]],
-                                       nside=nside))
+                                       nside=nside,
+                                       avoid_same_day=True))
 surveys.append(fs.Deep_drilling_survey(53.125, -28. - 6 / 60., sequence='u',
                                        nvis=[7],
                                        survey_name='DD:u,ECDFS', reward_value=100, moon_up=False,
@@ -192,7 +199,8 @@ surveys.append(fs.Deep_drilling_survey(150.1, 2. + 10. / 60. + 55 / 3600., seque
                                        nvis=[20, 10, 20, 26, 20],
                                        survey_name='DD:COSMOS', reward_value=100, moon_up=None,
                                        fraction_limit=0.148, ha_limits=([0., 0.5], [23.5, 24.]),
-                                       nside=nside))
+                                       nside=nside,
+                                       avoid_same_day=True))
 surveys.append(fs.Deep_drilling_survey(150.1, 2. + 10. / 60. + 55 / 3600., sequence='u',
                                        nvis=[7], ha_limits=([0., .5], [23.5, 24.]),
                                        survey_name='DD:u,COSMOS', reward_value=100, moon_up=False,
@@ -204,7 +212,8 @@ surveys.append(fs.Deep_drilling_survey(349.386443, -63.321004, sequence='rgizy',
                                        nvis=[20, 10, 20, 26, 20],
                                        survey_name='DD:290', reward_value=100, moon_up=None,
                                        fraction_limit=0.148, ha_limits=([0., 0.5], [23.5, 24.]),
-                                       nside=nside))
+                                       nside=nside,
+                                       avoid_same_day=True))
 surveys.append(fs.Deep_drilling_survey(349.386443, -63.321004, sequence='u',
                                        nvis=[7],
                                        survey_name='DD:u,290', reward_value=100, moon_up=False,
