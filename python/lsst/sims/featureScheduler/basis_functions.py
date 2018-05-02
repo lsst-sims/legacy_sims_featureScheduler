@@ -674,12 +674,14 @@ class Strict_filter_basis_function(Base_basis_function):
         return bonus
 
     def __call__(self, **kwargs):
+
+        if self.condition_features['Current_filter'].feature is None:
+            return 0.
         # Did the moon set or rise since last observation?
         moon_changed = self.condition_features['Sun_moon_alts'].feature['moonAlt'] * self.survey_features['Last_observation'].feature['moonAlt'] < 0
 
         # Are we already in the filter (or at start of night)?
         not_in_filter = (self.condition_features['Current_filter'].feature != self.filtername)
-                        # (self.condition_features['Current_filter'].feature is None)
 
         # Has enough time past?
         lag = self.condition_features['Current_mjd'].feature - self.survey_features['Last_observation'].feature['mjd']
@@ -695,12 +697,12 @@ class Strict_filter_basis_function(Base_basis_function):
         mounted = self.filtername in self.condition_features['Mounted_filter'].feature
 
         if (moon_changed | time_past | twi_changed | wasDD) & mounted & not_in_filter:
-            # if we are here and time has not passed, we might as well give it a full bonus... :/
+            # if we are here and time has not passed, give zero bonus (instead of -np.inf in case of unseen_before_lag)
             if lag > self.time_lag_boost:
                 log.debug('Filter change boost active! %s[%s]: %f' % (self.filtername,
                                                                       self.condition_features['Current_filter'].feature,
                                                                       self.filter_change_bonus(lag)))
-            result = self.filter_change_bonus(lag) if time_past else 1.
+            result = self.filter_change_bonus(lag) if time_past else 0.
         else:
             result = 0.
 
