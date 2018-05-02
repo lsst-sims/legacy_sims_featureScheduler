@@ -64,13 +64,12 @@ def az_w(x):
 
 
 patches = []
-for ha in np.arange(1., 2.0, 0.2):
-    patches.append({'ha_min': ha, 'ha_max': 23.9,
-                    'alt_max': 82., 'alt_min': 55.,
-                    'dec_min': -30.2444 - 9., 'dec_max': -30.2444 + 9.,
-                    'az_min': 0., 'az_max': 360.,
-                    'weight': 2. - ha})
 
+patches.append({'ha_min': 2.5, 'ha_max': 21.5,
+                'alt_max': 82., 'alt_min': 74.,
+                'dec_min': -30.2444 - 9., 'dec_max': -30.2444 + 9.,
+                'az_min': 0., 'az_max': 360.,
+                'weight': 1.0})
 
 ha_range = np.array([0.2, 0.5, 1.9])
 ha_weight = np.array([1.0, 0.8, 0.1])
