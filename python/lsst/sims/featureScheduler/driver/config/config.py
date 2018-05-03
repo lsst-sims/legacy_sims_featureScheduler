@@ -65,47 +65,23 @@ def az_w(x):
 
 patches = []
 
-patches.append({'ha_min': 2.5, 'ha_max': 21.5,
-                'alt_max': 82., 'alt_min': 74.,
-                'dec_min': -30.2444 - 9., 'dec_max': -30.2444 + 9.,
-                'az_min': 0., 'az_max': 360.,
-                'weight': 1.0})
+az = 15
+patches.append({'alt_max': 82., 'alt_min': 20.,
+                'dec_min': -90, 'dec_max': 90,
+                'az_min': 0., 'az_max': az,
+                'weight': 1.})
+patches.append({'alt_max': 82., 'alt_min': 20.,
+                'dec_min': -90, 'dec_max': 90,
+                'az_min': 360. - az, 'az_max': 360.,
+                'weight': 1.})
 
-ha_range = np.array([0.2, 0.5, 1.9])
-ha_weight = np.array([1.0, 0.8, 0.1])
-dec_min = np.zeros(len(ha_range)) - 90.
-dec_max = np.zeros(len(ha_range)) - 1.
-for i, ha in enumerate(ha_range):
-    patches.append({'ha_min': ha, 'ha_max': 23.9,
-                    'alt_max': 82., 'alt_min': 55.,
-                    'dec_min': dec_min[i], 'dec_max': dec_max[i],
-                    'az_min': 0., 'az_max': 360.,
-                    'weight': ha_weight[i]})
-patches.append({'ha_min': 0., 'ha_max': 23.5,
-                'alt_max': 82., 'alt_min': 60.,
-                'dec_min': dec_min[i], 'dec_max': dec_max[i],
-                'az_min': 0., 'az_max': 360.,
-                'weight': 1e-1})
-patches.append({'ha_min': 0., 'ha_max': 22.8,
-                'alt_max': 82., 'alt_min': 70.,
-                'dec_min': dec_min[i], 'dec_max': dec_max[i],
-                'az_min': 0., 'az_max': 360.,
-                'weight': 1e-5})
+patches.append({'alt_max': 82., 'alt_min': 20.,
+                'dec_min': -90, 'dec_max': 90,
+                'az_min': 180. - az, 'az_max': 180. + az,
+                'weight': 1.})
 
-for az in np.arange(1, 15):
-    patches.append({'alt_max': 82., 'alt_min': 20.,
-                    'dec_min': -90, 'dec_max': 90,
-                    'az_min': 0., 'az_max': az,
-                    'weight': az_w(az)})
-    patches.append({'alt_max': 82., 'alt_min': 20.,
-                    'dec_min': -90, 'dec_max': 90,
-                    'az_min': 360. - az, 'az_max': 360.,
-                    'weight': az_w(az)})
-
-    patches.append({'alt_max': 82., 'alt_min': 20.,
-                    'dec_min': -90, 'dec_max': 90,
-                    'az_min': 180. - az, 'az_max': 180. + az,
-                    'weight': az_w(az)})
+patches.append({'alt_max': 82., 'alt_min': 55.,
+                'weight': 1.})
 
 for filtername in filters:
     bfs = []
