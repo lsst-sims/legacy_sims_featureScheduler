@@ -807,7 +807,8 @@ class Slewtime_basis_function(Base_basis_function):
         else:
             # Need to make sure smaller slewtime is larger reward.
             if np.size(self.condition_features['slewtime'].feature) > 1:
-                result = np.zeros(np.size(self.condition_features['slewtime'].feature), dtype=float)
+                result = np.empty(np.size(self.condition_features['slewtime'].feature), dtype=float)
+                result.fill(hp.UNSEEN)
                 maxtime = self.maxtime if self.hard_max is not None else self.hard_max
                 good = np.where(np.bitwise_and(self.condition_features['slewtime'].feature != hp.UNSEEN,
                                       self.condition_features['slewtime'].feature < maxtime))
