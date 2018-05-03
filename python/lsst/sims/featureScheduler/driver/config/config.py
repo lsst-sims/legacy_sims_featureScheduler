@@ -91,7 +91,7 @@ for filtername in filters:
                                             out_of_bounds_val=hp.UNSEEN, nside=nside))
     bfs.append(fs.HADecAltAzPatchBasisFunction(nside=nside,
                                                patches=patches[::-1]))
-    bfs.append(fs.Slewtime_basis_function(filtername=filtername, nside=nside, order=6.))
+    bfs.append(fs.Slewtime_basis_function(filtername=filtername, nside=nside, order=6.,hard_max=20.))
     bfs.append(fs.Strict_filter_basis_function(filtername=filtername,
                                                time_lag_min=90.,
                                                time_lag_max=150.,
