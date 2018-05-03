@@ -676,7 +676,10 @@ class Strict_filter_basis_function(Base_basis_function):
     def __call__(self, **kwargs):
 
         if self.condition_features['Current_filter'].feature is None:
-            return 0.
+            return 0.  # no bonus if no filter is mounted
+        elif self.condition_features['Current_filter'].feature == self.filtername:
+            return 0.  # no bonus if on the filter already
+
         # Did the moon set or rise since last observation?
         moon_changed = self.condition_features['Sun_moon_alts'].feature['moonAlt'] * self.survey_features['Last_observation'].feature['moonAlt'] < 0
 
@@ -704,7 +707,7 @@ class Strict_filter_basis_function(Base_basis_function):
                                                                       self.filter_change_bonus(lag)))
             result = self.filter_change_bonus(lag) if time_past else 0.
         else:
-            result = 0.
+            result = -100. if self.unseen_before_lag else 0.
 
         return result
 
