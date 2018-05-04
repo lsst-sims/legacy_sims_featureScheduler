@@ -751,7 +751,10 @@ class Greedy_survey_fields(BaseSurvey):
         """
         if not self.reward_checked:
             self.reward = self.calc_reward_function()
-        np.save('bf_%s_%s_%i.npy' % (self.night, self.filtername, self.counter))
+        bfs = {}
+        for b in self.basis_functions:
+            bfs[b] = b()
+        np.save('bf_%s_%s_%i.npy' % (self.night, self.filtername, self.counter), bfs)
         self.counter += 1
         # Let's find the best N from the fields
         order = np.argsort(self.reward.data)[::-1]
