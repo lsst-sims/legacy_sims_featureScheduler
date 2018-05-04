@@ -810,8 +810,8 @@ class Slewtime_basis_function(Base_basis_function):
                 result = np.empty(np.size(self.condition_features['slewtime'].feature), dtype=float)
                 result.fill(hp.UNSEEN)
                 maxtime = self.maxtime if self.hard_max is None else self.hard_max
-                good = np.where(np.bitwise_and(self.condition_features['slewtime'].feature != hp.UNSEEN,
-                                      self.condition_features['slewtime'].feature < maxtime))
+                good = np.where(np.bitwise_and(self.condition_features['slewtime'].feature > 0.,
+                                               self.condition_features['slewtime'].feature < maxtime))
                 result[good] = ((self.maxtime - self.condition_features['slewtime'].feature[good]) /
                                 self.maxtime)**self.order
             else:
