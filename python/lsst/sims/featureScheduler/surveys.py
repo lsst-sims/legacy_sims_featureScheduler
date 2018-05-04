@@ -678,6 +678,7 @@ class Greedy_survey_fields(BaseSurvey):
         self.night = extra_features['night'].feature + 0
         self.tag_map = tag_map
         self.tag_fields = tag_fields
+        self.counter = 1
         # self.inside_tagged = np.zeros_like(self.hp2fields) == 0
 
         if tag_fields:
@@ -750,6 +751,8 @@ class Greedy_survey_fields(BaseSurvey):
         """
         if not self.reward_checked:
             self.reward = self.calc_reward_function()
+        np.save('bf_%s_%s_%i.npy' % (self.night, self.filtername, self.counter))
+        self.counter += 1
         # Let's find the best N from the fields
         order = np.argsort(self.reward.data)[::-1]
 
