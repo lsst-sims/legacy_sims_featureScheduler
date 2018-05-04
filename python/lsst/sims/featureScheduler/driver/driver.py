@@ -425,7 +425,7 @@ class FeatureSchedulerDriver(Driver):
                                          self.observatoryModel.dateprofile.lst_rad)
         current_filter = self.observatoryModel.current_state.filter
 
-        lax_dome = self.observatoryModel.params.domaz_free_range > 0.
+        lax_dome = False # self.observatoryModel.params.domaz_free_range > 0.
         telemetry_stream['slewtimes'] = copy.copy(self.observatoryModel.get_approximate_slew_delay(alt, az,
                                                                                                    current_filter,
                                                                                                    lax_dome=lax_dome))
