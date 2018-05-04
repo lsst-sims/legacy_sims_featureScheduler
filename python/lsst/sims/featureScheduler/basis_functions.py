@@ -488,7 +488,7 @@ class Avoid_Fast_Revists(Base_basis_function):
             indx = np.arange(result.size)
         diff = self.condition_features['Current_mjd'].feature - self.survey_features['Last_observed'].feature[indx]
         bad = np.where(diff < self.gap_min)[0]
-        result[indx[bad]] = hp.UNSEEN
+        result[indx[bad]] = -10.
         return result
 
 
@@ -809,11 +809,16 @@ class Slewtime_basis_function(Base_basis_function):
             if np.size(self.condition_features['slewtime'].feature) > 1:
                 result = np.empty(np.size(self.condition_features['slewtime'].feature), dtype=float)
                 result.fill(hp.UNSEEN)
-                maxtime = self.maxtime if self.hard_max is None else self.hard_max
+
                 good = np.where(np.bitwise_and(self.condition_features['slewtime'].feature > 0.,
-                                               self.condition_features['slewtime'].feature < maxtime))
+                                               self.condition_features['slewtime'].feature < self.maxtime))
                 result[good] = ((self.maxtime - self.condition_features['slewtime'].feature[good]) /
                                 self.maxtime)**self.order
+                if self.hard_max is None:
+                    not_so_good = np.where(np.bitwise_and(self.condition_features['slewtime'].feature > 0.,
+                                                          self.condition_features['slewtime'].feature < self.hard_max))
+                    result[not_so_good] -= 10.
+
             else:
                 result = (self.maxtime - self.condition_features['slewtime'].feature)/self.maxtime
         return result
