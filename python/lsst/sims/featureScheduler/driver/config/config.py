@@ -121,11 +121,11 @@ for filtername in filters:
                                                time_lag_max=150.,
                                                time_lag_boost=180.,
                                                unseen_before_lag=True))
-    # bfs.append(fs.Avoid_Fast_Revists(filtername=filtername, gap_min=240., nside=nside))
+    bfs.append(fs.Avoid_Fast_Revists(filtername=filtername, gap_min=2., nside=nside))
     bfs.append(fs.Bulk_cloud_basis_function(max_cloud_map=cloud_map,nside=nside))
     bfs.append(fs.Moon_avoidance_basis_function(nside=nside, moon_distance=33.))
 
-    weights = np.array([3.0, 0.5, 1., 3., 1.5, 3.0, 1.0])
+    weights = np.array([1.0, 0.5, 1., 3., 1.5, 1.0, 1.0, 1.0])
     surveys.append(fs.Greedy_survey_fields(bfs, weights, block_size=1,
                                            filtername=filtername, dither=True,
                                            nside=nside,

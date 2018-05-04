@@ -488,7 +488,7 @@ class Avoid_Fast_Revists(Base_basis_function):
             indx = np.arange(result.size)
         diff = self.condition_features['Current_mjd'].feature - self.survey_features['Last_observed'].feature[indx]
         bad = np.where(diff < self.gap_min)[0]
-        result[indx[bad]] = -10.
+        result[indx[bad]] = hp.UNSEEN
         return result
 
 
@@ -796,6 +796,7 @@ class Slewtime_basis_function(Base_basis_function):
         if condition_features is None:
             self.condition_features = {}
             self.condition_features['Current_filter'] = features.Current_filter()
+            self.condition_features['hp2fields'] = features.HP2Fields()
             self.condition_features['slewtime'] = features.SlewtimeFeature(nside=nside)
         super(Slewtime_basis_function, self).__init__(survey_features=survey_features,
                                                       condition_features=self.condition_features)
@@ -818,7 +819,10 @@ class Slewtime_basis_function(Base_basis_function):
                     not_so_good = np.where(np.bitwise_and(self.condition_features['slewtime'].feature > 0.,
                                                           self.condition_features['slewtime'].feature < self.hard_max))
                     result[not_so_good] -= 10.
-
+                fields = np.unique(self.condition_features['hp2fields'].feature[good])
+                for field in fields:
+                    hp_indx = np.where(self.condition_features['hp2fields'].feature == field)
+                    result[hp_indx] = np.max(result[hp_indx])
             else:
                 result = (self.maxtime - self.condition_features['slewtime'].feature)/self.maxtime
         return result
