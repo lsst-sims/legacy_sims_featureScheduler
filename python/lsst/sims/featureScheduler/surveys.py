@@ -753,7 +753,8 @@ class Greedy_survey_fields(BaseSurvey):
             self.reward = self.calc_reward_function()
         bfs = {}
         for b in self.basis_functions:
-            bfs[b] = b()
+            bfs[str(b)] = b()
+        bfs['reward'] = self.reward
         np.save('bf_%s_%s_%i.npy' % (self.night, self.filtername, self.counter), bfs)
         self.counter += 1
         # Let's find the best N from the fields
