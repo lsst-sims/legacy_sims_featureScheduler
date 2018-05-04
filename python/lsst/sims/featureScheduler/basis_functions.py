@@ -569,7 +569,7 @@ class M5_diff_basis_function(Base_basis_function):
 
     def __call__(self, indx=None):
         # No way to get the sign on this right the first time.
-        result = 10**(self.condition_features['M5Depth'].feature - self.dark_map)
+        result = self.condition_features['M5Depth'].feature - self.dark_map
         mask = np.where(self.condition_features['M5Depth'].feature.filled() == hp.UNSEEN)
         result[mask] = hp.UNSEEN
         return result
