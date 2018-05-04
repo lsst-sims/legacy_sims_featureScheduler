@@ -676,9 +676,13 @@ class Greedy_survey_fields(BaseSurvey):
         np.random.seed(seed)
         self.dither = dither
         self.night = extra_features['night'].feature + 0
+        for bf in self.basis_functions:
+            if 'hp2fields' in bf.condition_features:
+                bf.condition_features['hp2fields'].update_conditions({'hp2fields':self.hp2fields})
+
         self.tag_map = tag_map
         self.tag_fields = tag_fields
-        self.counter = 1
+        # self._update_conditions(conditions={'hp2fields': self.hp2fields,},)
         # self.inside_tagged = np.zeros_like(self.hp2fields) == 0
 
         if tag_fields:
@@ -720,13 +724,22 @@ class Greedy_survey_fields(BaseSurvey):
         # Rebuild the kdtree with the new positions
         # XXX-may be doing some ra,dec to conversions xyz more than needed.
         self._hp2fieldsetup(ra, dec)
+        for bf in self.basis_functions:
+            if 'hp2fields' in bf.condition_features:
+                bf.condition_features['hp2fields'].update_conditions({'hp2fields':self.hp2fields})
 
-    def update_conditions(self, conditions, **kwargs):
+        # self.update_conditions({'hp2fields': self.hp2fields})
+
+    def _update_conditions(self, conditions, **kwargs):
         for bf in self.basis_functions:
             bf.update_conditions(conditions, **kwargs)
+
         for feature in self.extra_features:
             if hasattr(self.extra_features[feature], 'update_conditions'):
                 self.extra_features[feature].update_conditions(conditions, **kwargs)
+
+    def update_conditions(self, conditions, **kwargs):
+        self._update_conditions(conditions=conditions, **kwargs)
         # If we are dithering and need to spin the fields
         if self.dither:
             if self.extra_features['night'].feature != self.night:
@@ -754,9 +767,6 @@ class Greedy_survey_fields(BaseSurvey):
         bfs = {}
         for b in self.basis_functions:
             bfs[str(b)] = b()
-        bfs['reward'] = self.reward
-        np.save('bf_%s_%s_%i.npy' % (self.night, self.filtername, self.counter), bfs)
-        self.counter += 1
         # Let's find the best N from the fields
         order = np.argsort(self.reward.data)[::-1]
 

@@ -376,6 +376,11 @@ class Current_filter(BaseConditionsFeature):
         self.feature = conditions['filter']
 
 
+class HP2Fields(BaseConditionsFeature):
+    def update_conditions(self, conditions):
+        if 'hp2fields' in conditions:
+            self.feature = conditions['hp2fields']
+
 class Mounted_filters(BaseConditionsFeature):
     def update_conditions(self, conditions):
         if 'mounted_filters' in conditions:
@@ -386,6 +391,7 @@ class Mounted_filters(BaseConditionsFeature):
 
 class Sun_moon_alts(BaseConditionsFeature):
     def update_conditions(self, conditions):
+        # if 'moonAlt' in conditions:
         self.feature = {'moonAlt': conditions['moonAlt'], 'sunAlt': conditions['sunAlt']}
 
 

@@ -404,9 +404,9 @@ class FeatureSchedulerDriver(Driver):
         telemetry_stream['mounted_filters'] = copy.copy(self.observatoryModel.current_state.mountedfilters)
         telemetry_stream['telRA'] = copy.copy(np.degrees(self.observatoryModel.current_state.ra_rad))
         telemetry_stream['telDec'] = copy.copy(np.degrees(self.observatoryModel.current_state.dec_rad))
-        telemetry_stream['telAlt'] = copy.copy(np.degrees(self.observatoryModel.current_state.alt_rad))
-        telemetry_stream['telAz'] = copy.copy(np.degrees(self.observatoryModel.current_state.az_rad))
-        telemetry_stream['telRot'] = copy.copy(np.degrees(self.observatoryModel.current_state.rot_rad))
+        telemetry_stream['telAlt'] = copy.copy(np.degrees(self.observatoryModel.current_state.telalt_rad))
+        telemetry_stream['telAz'] = copy.copy(np.degrees(self.observatoryModel.current_state.telaz_rad))
+        telemetry_stream['telRot'] = copy.copy(np.degrees(self.observatoryModel.current_state.telrot_rad))
 
         # What is the sky brightness over the sky (healpix map)
         telemetry_stream['skybrightness'] = copy.copy(
