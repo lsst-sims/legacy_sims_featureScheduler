@@ -57,6 +57,7 @@ height = np.zeros_like(width)+80.
 filters = ['u', 'g', 'r', 'i', 'z', 'y']
 surveys = []
 
+sb_limit_map = fs.utils.generate_sb_map(target_maps, filters)
 
 # Configure patches for HADecAltAzPatchBasisFunction
 def az_w(x):
@@ -71,24 +72,32 @@ patches.append({'ha_min': 2.5, 'ha_max': 21.5,
                 'az_min': 0., 'az_max': 360.,
                 'weight': 1.0})
 
-ha_range = np.array([0.2, 0.5, 1.9])
-ha_weight = np.array([1.0, 0.8, 0.1])
+ha_range = np.array([0.5, 1.9])
+ha_weight = np.array([1.0,0.5])
+
 dec_min = np.zeros(len(ha_range)) - 90.
 dec_max = np.zeros(len(ha_range)) - 1.
-for i, ha in enumerate(ha_range):
-    patches.append({'ha_min': ha, 'ha_max': 23.9,
-                    'alt_max': 82., 'alt_min': 55.,
-                    'dec_min': dec_min[i], 'dec_max': dec_max[i],
-                    'az_min': 0., 'az_max': 360.,
-                    'weight': ha_weight[i]})
+
+patches.append({'ha_min': 1.0, 'ha_max': 23.0,
+                'alt_max': 82., 'alt_min': 55.,
+                'dec_min': dec_min[0], 'dec_max': dec_max[0],
+                'az_min': 0., 'az_max': 360.,
+                'weight': ha_weight[0]})
+
+# patches.append({'ha_min': 1.9, 'ha_max': 23.9,
+#                 'alt_max': 82., 'alt_min': 55.,
+#                 'dec_min': dec_min[1], 'dec_max': dec_max[1],
+#                 'az_min': 0., 'az_max': 360.,
+#                 'weight': ha_weight[1]})
+
 patches.append({'ha_min': 0., 'ha_max': 23.5,
                 'alt_max': 82., 'alt_min': 60.,
-                'dec_min': dec_min[i], 'dec_max': dec_max[i],
+                'dec_min': dec_min[1], 'dec_max': dec_max[1],
                 'az_min': 0., 'az_max': 360.,
                 'weight': 1e-1})
 patches.append({'ha_min': 0., 'ha_max': 22.8,
                 'alt_max': 82., 'alt_min': 70.,
-                'dec_min': dec_min[i], 'dec_max': dec_max[i],
+                'dec_min': dec_min[1], 'dec_max': dec_max[1],
                 'az_min': 0., 'az_max': 360.,
                 'weight': 1e-5})
 
@@ -110,6 +119,10 @@ for az in np.arange(1, 15):
 for filtername in filters:
     bfs = []
     bfs.append(fs.M5_diff_basis_function(filtername=filtername, nside=nside))
+    # bfs.append(fs.Skybrightness_limit_basis_function(nside=nside,
+    #                                                  filtername=filtername,
+    #                                                  min=sb_limit_map[filtername]['min'],
+    #                                                  max=sb_limit_map[filtername]['max']))
     bfs.append(fs.Target_map_basis_function(filtername=filtername,
                                             target_map=target_maps[filtername][0],
                                             out_of_bounds_val=hp.UNSEEN, nside=nside))
@@ -124,8 +137,9 @@ for filtername in filters:
     bfs.append(fs.Avoid_Fast_Revists(filtername=filtername, gap_min=2., nside=nside))
     bfs.append(fs.Bulk_cloud_basis_function(max_cloud_map=cloud_map,nside=nside))
     bfs.append(fs.Moon_avoidance_basis_function(nside=nside, moon_distance=33.))
+    bfs.append(fs.NorthSouth_scan_basis_function(length=65.))
 
-    weights = np.array([1.0, 0.5, 1., 3., 1.5, 1.0, 1.0, 1.0])
+    weights = np.array([0.1, 0.5, 1., 3., 1.5, 1.0, 1.0, 1.0, 1.0])
     surveys.append(fs.Greedy_survey_fields(bfs, weights, block_size=1,
                                            filtername=filtername, dither=True,
                                            nside=nside,

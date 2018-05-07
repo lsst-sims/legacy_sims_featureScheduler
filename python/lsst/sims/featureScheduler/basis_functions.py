@@ -40,6 +40,9 @@ class Base_basis_function(object):
         for feature in self.condition_features:
             self.condition_features[feature].update_conditions(conditions)
 
+    def check_feasibility(self):
+        return True
+
     def __call__(self, **kwargs):
         """
         Return a reward healpix map or a reward scalar.
@@ -378,6 +381,77 @@ class MeridianStripeBasisFunction(Base_basis_function):
         return result
 
 
+class NorthSouth_scan_basis_function(Base_basis_function):
+    """
+    """
+    def __init__(self, nside=default_nside, condition_features=None, minAlt=20., maxAlt=82.,
+                 length=70., survey_features=None):
+        """
+        Parameters
+        ----------
+        minAlt : float (20.)
+            The minimum altitude to consider (degrees)
+        maxAlt : float (82.)
+            The maximum altitude to leave unmasked (degrees)
+        length: float (90.)
+            The lenght of the scanning region in N/S direction (degrees)
+        """
+        if nside is None:
+            nside = utils.set_default_nside()
+
+        self.length = np.radians(length)
+        self.current_direction = 0
+        self.directions = ['NS', 'SN']
+
+        if survey_features is None:
+            self.survey_features = {}
+        if condition_features is None:
+            self.condition_features = {}
+            self.condition_features['altaz'] = features.AltAzFeature()
+            self.condition_features['current_pointing'] = features.Current_pointing()
+        self.minAlt = np.radians(minAlt)
+        self.maxAlt = np.radians(maxAlt)
+        # Convert to half-width for convienence
+        self.nside = nside
+
+    def __call__(self, indx=None):
+
+        result = np.empty(hp.nside2npix(self.nside), dtype=float)
+        result.fill(hp.UNSEEN)
+
+        # How far north/south the telescope is pointing
+        tel_ns_axis = np.cos(self.condition_features['current_pointing'].feature['az']) * \
+                      (np.radians(90.)-self.condition_features['current_pointing'].feature['alt'])
+
+        alt = self.condition_features['altaz'].feature['alt']
+        az = self.condition_features['altaz'].feature['az']
+
+        ns_axis = np.cos(az)*(np.radians(90.)-alt)
+        # If reached limit, switch direction
+        if self.current_direction == 0 and tel_ns_axis > self.length:
+            self.current_direction = (self.current_direction + 1) % len(self.directions)
+        elif self.current_direction == 1 and tel_ns_axis < self.length:
+            self.current_direction = (self.current_direction + 1) % len(self.directions)
+
+        if self.current_direction == 0:
+            result[ns_axis > tel_ns_axis] = 0.
+            a = 1./(tel_ns_axis+self.length)
+            b = self.length*a
+            result[ns_axis <= tel_ns_axis] = (a*ns_axis[ns_axis <= tel_ns_axis] + b)
+        else:
+            result[ns_axis < tel_ns_axis] = 0.
+            a = 1./(tel_ns_axis-self.length)
+            b = -self.length*a
+            result[ns_axis >= tel_ns_axis] = (a*ns_axis[ns_axis >= tel_ns_axis] + b)
+
+        alt_limit = np.where((alt < self.minAlt) |
+                             (alt > self.maxAlt))
+
+        result[alt_limit] = hp.UNSEEN
+
+        return result
+
+
 class Target_map_basis_function(Base_basis_function):
     """Normalize the maps first to make things smoother
     """
@@ -673,6 +747,37 @@ class Strict_filter_basis_function(Base_basis_function):
 
         return bonus
 
+    def check_feasibility(self):
+        if self.condition_features['Current_filter'].feature is None or \
+                self.condition_features['Current_filter'].feature == self.filtername:
+            return True
+
+        # Did the moon set or rise since last observation?
+        moon_changed = self.condition_features['Sun_moon_alts'].feature['moonAlt'] * \
+                       self.survey_features['Last_observation'].feature['moonAlt'] < 0
+
+        # Are we already in the filter (or at start of night)?
+        not_in_filter = (self.condition_features['Current_filter'].feature != self.filtername)
+
+        # Has enough time past?
+        lag = self.condition_features['Current_mjd'].feature - self.survey_features['Last_observation'].feature['mjd']
+        time_past = lag > self.time_lag_min
+
+        # Did twilight start/end?
+        twi_changed = (self.condition_features['Sun_moon_alts'].feature['sunAlt'] - self.twi_change) * \
+                      (self.survey_features['Last_observation'].feature['sunAlt']- self.twi_change) < 0
+
+        # Did we just finish a DD sequence
+        wasDD = self.survey_features['Last_observation'].feature['note'] == 'DD'
+
+        # Is the filter mounted?
+        mounted = self.filtername in self.condition_features['Mounted_filter'].feature
+
+        if (moon_changed | time_past | twi_changed | wasDD) & mounted & not_in_filter:
+            return True
+        else:
+            return False
+
     def __call__(self, **kwargs):
 
         if self.condition_features['Current_filter'].feature is None:
@@ -928,5 +1033,39 @@ class Moon_avoidance_basis_function(Base_basis_function):
                                               self.condition_features['moon'].feature['moonAlt'])
 
         result[angular_distance < self.moon_distance] = hp.UNSEEN
+
+        return result
+
+
+class Skybrightness_limit_basis_function(Base_basis_function):
+    """Mark regions that are closer than a certain .
+
+    """
+    def __init__(self, nside=default_nside, condition_features=None, survey_features=None,
+                 filtername='r', min=20., max=30.):
+        """
+        Parameters
+        moon_distance: float (30.)
+            Minimum allowed moon distance. (degrees)
+        """
+        if nside is None:
+            nside = utils.set_default_nside()
+
+        self.min = min
+        self.max = max
+        self.nside = nside
+        if survey_features is None:
+            self.survey_features = {}
+        if condition_features is None:
+            self.condition_features = dict()
+            self.condition_features['skybrightness'] = features.SkyBrightness(filtername=filtername, nside=nside)
+
+    def __call__(self, indx=None):
+        result = np.empty(hp.nside2npix(self.nside), dtype=float)
+        result.fill(hp.UNSEEN)
+
+        good = np.where(np.bitwise_and(self.condition_features['skybrightness'].feature > self.min,
+                                       self.condition_features['skybrightness'].feature < self.max))
+        result[good] = 1.0
 
         return result
