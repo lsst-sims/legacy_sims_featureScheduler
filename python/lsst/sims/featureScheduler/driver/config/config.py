@@ -118,11 +118,11 @@ for az in np.arange(1, 15):
 
 for filtername in filters:
     bfs = []
-    bfs.append(fs.M5_diff_basis_function(filtername=filtername, nside=nside))
-    # bfs.append(fs.Skybrightness_limit_basis_function(nside=nside,
-    #                                                  filtername=filtername,
-    #                                                  min=sb_limit_map[filtername]['min'],
-    #                                                  max=sb_limit_map[filtername]['max']))
+    # bfs.append(fs.M5_diff_basis_function(filtername=filtername, nside=nside))
+    bfs.append(fs.Skybrightness_limit_basis_function(nside=nside,
+                                                     filtername=filtername,
+                                                     min=sb_limit_map[filtername]['min'],
+                                                     max=sb_limit_map[filtername]['max']))
     bfs.append(fs.Target_map_basis_function(filtername=filtername,
                                             target_map=target_maps[filtername][0],
                                             out_of_bounds_val=hp.UNSEEN, nside=nside))
