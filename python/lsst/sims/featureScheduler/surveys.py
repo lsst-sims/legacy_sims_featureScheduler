@@ -65,6 +65,7 @@ class BaseSurvey(object):
         self.basis_weights = basis_weights
         self.reward = None
         self.sequence = False  # Specifies the survey gives sequence of observations
+        self.survey_index = None
 
         if extra_features is None:
             self.extra_features = {}
@@ -144,7 +145,8 @@ class BaseSurvey(object):
                 if hasattr(self.reward, 'mask'):
                     indx = np.where(self.reward.mask == False)[0]
             self.reward[mask] = hp.UNSEEN
-            self.reward.mask = mask
+            self.reward = np.ma.masked_array(self.reward, mask=mask)
+            # self.reward.mask = mask
             self.reward.fill_value = hp.UNSEEN
             # inf reward means it trumps everything.
             if np.any(np.isinf(self.reward)):
@@ -153,6 +155,13 @@ class BaseSurvey(object):
         else:
             # If not feasable, negative infinity reward
             self.reward = -np.inf
+        # bfs = {}
+        # for b in self.basis_functions:
+        #     bfs[str(b)] = b()
+        # bfs['reward'] = self.reward
+        # log.debug('Saving bfs %s_%s_%i' % (self.night, self.filtername, self.counter))
+        # np.save('bf_%s_%s_%i.npy' % (self.night, self.filtername, self.counter), bfs)
+        # self.counter += 1
         if self.smoothing_kernel is not None:
             self.smooth_reward()
             return self.reward_smooth
@@ -695,11 +704,21 @@ class Greedy_survey_fields(BaseSurvey):
             for i in range(len(self.fields)):
                 self.fields['tag'][i] = 1
 
+        self.counter = 0
+
     def _check_feasability(self):
         """
         Check if the survey is feasible in the current conditions
         """
-        return self.filtername in self.extra_features['mounted_filters'].feature
+        feasibility = self.filtername in self.extra_features['mounted_filters'].feature
+        # return feasibility
+        for bf in self.basis_functions:
+            # log.debug('Check feasability: [%s] %s %s' % (str(bf), feasibility, bf.check_feasibility()))
+            feasibility = feasibility and bf.check_feasibility()
+            if not feasibility:
+                break
+
+        return feasibility
 
     def _spin_fields(self, lon=None, lat=None):
         """Spin the field tessellation
@@ -726,7 +745,7 @@ class Greedy_survey_fields(BaseSurvey):
         self._hp2fieldsetup(ra, dec)
         for bf in self.basis_functions:
             if 'hp2fields' in bf.condition_features:
-                bf.condition_features['hp2fields'].update_conditions({'hp2fields':self.hp2fields})
+                bf.condition_features['hp2fields'].update_conditions({'hp2fields': self.hp2fields})
 
         # self.update_conditions({'hp2fields': self.hp2fields})
 
@@ -764,9 +783,6 @@ class Greedy_survey_fields(BaseSurvey):
         """
         if not self.reward_checked:
             self.reward = self.calc_reward_function()
-        bfs = {}
-        for b in self.basis_functions:
-            bfs[str(b)] = b()
         # Let's find the best N from the fields
         order = np.argsort(self.reward.data)[::-1]
 

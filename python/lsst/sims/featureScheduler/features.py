@@ -371,6 +371,37 @@ class M5Depth(BaseConditionsFeature):
         self.feature = ma.masked_values(self.feature, hp.UNSEEN)
 
 
+class SkyBrightness(BaseConditionsFeature):
+    """
+    Given current conditions, return the 5-sigma limiting depth for a filter.
+    """
+    def __init__(self, filtername='r', nside=default_nside):
+        if nside is None:
+            nside = utils.set_default_nside()
+
+        self.filtername = filtername
+        self.feature = None
+        self.nside = nside
+
+    def update_conditions(self, conditions):
+        """
+        Parameters
+        ----------
+        conditions : dict
+            Keys should include airmass, sky_brightness, seeing.
+        """
+        sb = np.empty(conditions['skybrightness'][self.filtername].size)
+        sb.fill(hp.UNSEEN)
+        sb_mask = np.zeros(sb.size, dtype=bool)
+        sb_mask[np.where(conditions['skybrightness'][self.filtername] == hp.UNSEEN)] = True
+        good = np.where(conditions['skybrightness'][self.filtername] != hp.UNSEEN)
+        sb[good] = conditions['skybrightness'][self.filtername][good]
+        self.feature = sb
+        self.feature[sb_mask] = hp.UNSEEN
+        self.feature = hp.ud_grade(self.feature, nside_out=self.nside)
+        self.feature = ma.masked_values(self.feature, hp.UNSEEN)
+
+
 class Current_filter(BaseConditionsFeature):
     def update_conditions(self, conditions):
         self.feature = conditions['filter']
@@ -439,7 +470,8 @@ class CurrentNightBoundaries(BaseConditionsFeature):
 
 class Current_pointing(BaseConditionsFeature):
     def update_conditions(self, conditions):
-        self.feature = {'RA': conditions['telRA'], 'dec': conditions['telDec']}
+        self.feature = {'RA': conditions['telRA'], 'dec': conditions['telDec'],
+                        'alt': conditions['telAlt'], 'az': conditions['telAz']}
 
 
 class Time_to_set(BaseConditionsFeature):

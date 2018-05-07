@@ -38,6 +38,9 @@ class Core_scheduler(object):
         self.survey_index = None
 
         self.surveys = surveys
+        self.nsurveys = len(surveys)
+        for indx in range(self.nsurveys):
+            self.surveys[indx].survey_index = indx
         self.nside = nside
         hpid = np.arange(hp.nside2npix(nside))
         self.ra_grid_rad, self.dec_grid_rad = _hpid2RaDec(nside, hpid)
@@ -130,7 +133,7 @@ class Core_scheduler(object):
 
         for i, survey in enumerate(self.surveys):
             rewards[i] = np.max(survey.calc_reward_function())
-
+        # log.debug('scheduler._fill_queue[rewards]: %s' % rewards)
         # Take a min here, so the surveys will be executed in the order they are
         # entered if there is a tie.
         if np.all(np.bitwise_or(np.isnan(rewards), np.isneginf(rewards))):
@@ -138,14 +141,22 @@ class Core_scheduler(object):
             self._clean_queue()
         else:
             try:
+                to_fix = np.where(np.isnan(rewards))
+                rewards[to_fix] = -np.inf
+                # log.debug('scheduler._fill_queue[max.rewards]: %s' % np.max(rewards))
+                # log.debug('scheduler._fill_queue[where.max.rewards]: %s' % np.where(rewards == np.max(rewards)))
+                # log.debug('scheduler._fill_queue[min.where.max.rewards]: %s' %
+                #           np.min(np.where(rewards == np.max(rewards))))
                 good = np.min(np.where(rewards == np.max(rewards)))
-
+                # log.debug('scheduler._fill_queue[good]: %s' % good)
                 # Survey return list of observations
                 result = self.surveys[good]()
+                # log.debug('scheduler._fill_queue[result]: %s' % result)
                 self.queue = result
                 self.is_sequence = self.surveys[good].sequence
                 self.survey_index = good
-            except ValueError:
+            except ValueError as e:
+                log.exception(e)
                 self._clean_queue()
 
     def _clean_queue(self):
