@@ -557,6 +557,7 @@ class Target_map_basis_function(Base_basis_function):
         goal_N = self.target_map[indx] * self.survey_features['N_obs_count_all'].feature * self.norm_factor
 
         result[indx] = goal_N - self.survey_features['N_obs'].feature[indx]
+        result /= np.max(result)
         result[self.out_of_bounds_area] = self.out_of_bounds_val
 
         return result
