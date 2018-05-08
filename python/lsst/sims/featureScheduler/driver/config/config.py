@@ -102,9 +102,9 @@ for filtername in filters:
     bfs.append(fs.Avoid_Fast_Revists(filtername=filtername, gap_min=60., nside=nside))
     bfs.append(fs.Bulk_cloud_basis_function(max_cloud_map=cloud_map,nside=nside))
     bfs.append(fs.Moon_avoidance_basis_function(nside=nside, moon_distance=33.))
-    bfs.append(fs.NorthSouth_scan_basis_function(length=65.))
+    # bfs.append(fs.NorthSouth_scan_basis_function(length=70.))
 
-    weights = np.array([1.0, 0.1, 2e-4, 1., 3., 1.5, 1.0, 1.0, 1.0, 1.0])
+    weights = np.array([1.0, 0.1, 2e-4, 1., 3., 1.5, 1.0, 1.0, 1.0])
     surveys.append(fs.Greedy_survey_fields(bfs, weights, block_size=1,
                                            filtername=filtername, dither=True,
                                            nside=nside,
