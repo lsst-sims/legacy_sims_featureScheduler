@@ -1,8 +1,8 @@
 import numpy as np
 import healpy as hp
 from scipy.optimize import minimize
-from .utils import treexyz, hp_kd_tree, rad_length, set_default_nside, read_fields
-from lsst.sims.utils import _hpid2RaDec
+from .utils import hp_kd_tree, set_default_nside, read_fields
+from lsst.sims.utils import _hpid2RaDec, _xyz_angular_radius, _xyz_from_ra_dec
 
 default_nside = set_default_nside()
 
@@ -57,7 +57,7 @@ def rotate_ra_dec(ra, dec, ra_target, dec_target, init_rotate=0.):
     """
     # point (ra,dec) = (0,0) is at x,y,z = 1,0,0
 
-    x, y, z = treexyz(ra, dec)
+    x, y, z = _xyz_from_ra_dec(ra, dec)
 
     # Rotate around the x axis to start
     xp = x
@@ -101,7 +101,7 @@ class pointings2hp(object):
         # hmm, not sure what the leafsize should be? Kernel can crash if too low.
         self.tree = hp_kd_tree(nside=nside, leafsize=300)
         self.nside = nside
-        self.rad = rad_length(radius)
+        self.rad = _xyz_angular_radius(radius)
         self.bins = np.arange(hp.nside2npix(nside)+1)-.5
 
     def __call__(self, ra, dec, stack=True):
@@ -120,7 +120,7 @@ class pointings2hp(object):
         result : healpy map
             The number of times each healpxel is observed by the given pointings
         """
-        xs, ys, zs = treexyz(ra, dec)
+        xs, ys, zs = _xyz_from_ra_dec(ra, dec)
         coords = np.array((xs, ys, zs)).T
         indx = self.tree.query_ball_point(coords, self.rad)
         # Convert array of lists to single array
