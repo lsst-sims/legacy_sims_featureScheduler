@@ -97,8 +97,9 @@ for filtername in filters:
                                                time_lag_min=90.,
                                                time_lag_max=150.,
                                                time_lag_boost=180.,
+                                               boost_gain=1.0,
                                                unseen_before_lag=True))
-    bfs.append(fs.Avoid_Fast_Revists(filtername=filtername, gap_min=2., nside=nside))
+    bfs.append(fs.Avoid_Fast_Revists(filtername=filtername, gap_min=60., nside=nside))
     bfs.append(fs.Bulk_cloud_basis_function(max_cloud_map=cloud_map,nside=nside))
     bfs.append(fs.Moon_avoidance_basis_function(nside=nside, moon_distance=33.))
     bfs.append(fs.NorthSouth_scan_basis_function(length=65.))
