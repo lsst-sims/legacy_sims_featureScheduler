@@ -119,6 +119,7 @@ for az in np.arange(1, 15):
 for filtername in filters:
     bfs = []
     # bfs.append(fs.M5_diff_basis_function(filtername=filtername, nside=nside))
+    bfs.append(fs.HourAngle_bonus_basis_function(max_hourangle=3.))
     bfs.append(fs.Skybrightness_limit_basis_function(nside=nside,
                                                      filtername=filtername,
                                                      min=sb_limit_map[filtername]['min'],
@@ -139,7 +140,7 @@ for filtername in filters:
     bfs.append(fs.Moon_avoidance_basis_function(nside=nside, moon_distance=33.))
     bfs.append(fs.NorthSouth_scan_basis_function(length=65.))
 
-    weights = np.array([0.1, 0.5, 1., 3., 1.5, 1.0, 1.0, 1.0, 1.0])
+    weights = np.array([1., 0.1, 0.5, 1., 3., 1.5, 1.0, 1.0, 1.0, 1.0])
     surveys.append(fs.Greedy_survey_fields(bfs, weights, block_size=1,
                                            filtername=filtername, dither=True,
                                            nside=nside,
