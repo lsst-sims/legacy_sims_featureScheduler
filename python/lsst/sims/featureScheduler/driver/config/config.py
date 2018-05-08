@@ -81,8 +81,8 @@ patches.append({'alt_max': 82., 'alt_min': 20.,
 
 for filtername in filters:
     bfs = list()
-    # bfs.append(fs.M5_diff_basis_function(filtername=filtername, nside=nside))
-    bfs.append(fs.HourAngle_bonus_basis_function(max_hourangle=3.))
+    bfs.append(fs.M5_diff_basis_function(filtername=filtername, nside=nside))
+    # bfs.append(fs.HourAngle_bonus_basis_function(max_hourangle=3.))
     bfs.append(fs.Skybrightness_limit_basis_function(nside=nside,
                                                      filtername=filtername,
                                                      min=sb_limit_map[filtername]['min'],
@@ -99,12 +99,12 @@ for filtername in filters:
                                                time_lag_boost=180.,
                                                boost_gain=1.0,
                                                unseen_before_lag=True))
-    bfs.append(fs.Avoid_Fast_Revists(filtername=filtername, gap_min=60., nside=nside))
-    bfs.append(fs.Bulk_cloud_basis_function(max_cloud_map=cloud_map,nside=nside))
+    bfs.append(fs.Avoid_Fast_Revists(filtername=filtername, gap_min=240., nside=nside))
+    bfs.append(fs.Bulk_cloud_basis_function(max_cloud_map=cloud_map, nside=nside))
     bfs.append(fs.Moon_avoidance_basis_function(nside=nside, moon_distance=33.))
-    bfs.append(fs.NorthSouth_scan_basis_function(length=70.))
+    # bfs.append(fs.NorthSouth_scan_basis_function(length=70.))
 
-    weights = np.array([1e-3, 0.1, 2e-4, 1., 3., 1.5, 1.0, 1.0, 1.0, 1.0])
+    weights = np.array([1., 0.1, 2e-4, 1., 3., 1.5, 1.0, 1.0, 1.0])
     surveys.append(fs.Greedy_survey_fields(bfs, weights, block_size=1,
                                            filtername=filtername, dither=True,
                                            nside=nside,
