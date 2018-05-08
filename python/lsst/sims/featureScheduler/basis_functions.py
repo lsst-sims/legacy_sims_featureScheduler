@@ -537,6 +537,7 @@ class Target_map_basis_function(Base_basis_function):
             self.target_map = target_map
         self.out_of_bounds_area = np.where(self.target_map == 0)[0]
         self.out_of_bounds_val = out_of_bounds_val
+        self.inside_area = np.where(self.target_map != 0)
 
     def __call__(self, indx=None):
         """
@@ -557,8 +558,10 @@ class Target_map_basis_function(Base_basis_function):
         goal_N = self.target_map[indx] * self.survey_features['N_obs_count_all'].feature * self.norm_factor
 
         result[indx] = goal_N - self.survey_features['N_obs'].feature[indx]
-        result /= np.max(result)
+
         result[self.out_of_bounds_area] = self.out_of_bounds_val
+        norm_val = np.max(result[self.inside_area])
+        result[self.inside_area] /= norm_val if norm_val > 0. else 1.
 
         return result
 
