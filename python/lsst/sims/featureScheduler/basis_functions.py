@@ -381,6 +381,51 @@ class MeridianStripeBasisFunction(Base_basis_function):
         return result
 
 
+class HourAngle_bonus_basis_function(Base_basis_function):
+    """Hour angle bonus basis function
+
+    """
+    def __init__(self, nside=default_nside, condition_features=None, survey_features=None,
+                 max_hourangle=6., minAlt=20., maxAlt=82.):
+        """
+        Parameters
+        ----------
+        """
+        if nside is None:
+            nside = utils.set_default_nside()
+
+        self.nside = nside
+        if survey_features is None:
+            self.survey_features = {}
+        if condition_features is None:
+            self.condition_features = dict()
+            self.condition_features['lmst'] = features.Current_lmst()
+            self.condition_features['altaz'] = features.AltAzFeature(nside=nside)
+
+        ra, dec = utils.ra_dec_hp_map(self.nside)
+        self.ra_hours = ra*12./np.pi % 24.
+        self.max_hourangle = max_hourangle
+        self.minAlt = np.radians(minAlt)
+        self.maxAlt = np.radians(maxAlt)
+
+    def __call__(self, indx=None):
+        result = np.empty(hp.nside2npix(self.nside), dtype=float)
+        result.fill(hp.UNSEEN)
+
+        ha = (self.condition_features['lmst'].feature - self.ra_hours) % 24.
+
+        # Make hour angle go from -12 to 12 instead of 0 to 24
+        mask = np.where(ha > 12.)
+        ha[mask] -= 24.
+
+        alt = self.condition_features['altaz'].feature['alt']
+
+        mask = np.where((np.abs(ha) < self.max_hourangle) & (alt < self.maxAlt) & (alt > self.minAlt))
+        result[mask] = (1 - np.abs(ha[mask]) / self.max_hourangle)
+
+        return result
+
+
 class NorthSouth_scan_basis_function(Base_basis_function):
     """
     """
