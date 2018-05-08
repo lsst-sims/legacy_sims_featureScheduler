@@ -59,65 +59,28 @@ surveys = []
 
 sb_limit_map = fs.utils.generate_sb_map(target_maps, filters)
 
-# Configure patches for HADecAltAzPatchBasisFunction
-def az_w(x):
-    return -x/14. + 15./14.
+patches = list()
 
-
-patches = []
-
-patches.append({'ha_min': 2.5, 'ha_max': 21.5,
-                'alt_max': 82., 'alt_min': 74.,
-                'dec_min': -30.2444 - 9., 'dec_max': -30.2444 + 9.,
-                'az_min': 0., 'az_max': 360.,
+patches.append({'alt_max': 82., 'alt_min': 90.-30.2444,
                 'weight': 1.0})
 
-ha_range = np.array([0.5, 1.9])
-ha_weight = np.array([1.0,0.5])
+az = 15.
+patches.append({'alt_max': 82., 'alt_min': 20.,
+                'dec_min': -90, 'dec_max': 90,
+                'az_min': 0., 'az_max': az,
+                'weight': 1.})
+patches.append({'alt_max': 82., 'alt_min': 20.,
+                'dec_min': -90, 'dec_max': 90,
+                'az_min': 360. - az, 'az_max': 360.,
+                'weight': 1.0})
 
-dec_min = np.zeros(len(ha_range)) - 90.
-dec_max = np.zeros(len(ha_range)) - 1.
-
-patches.append({'ha_min': 1.0, 'ha_max': 23.0,
-                'alt_max': 82., 'alt_min': 55.,
-                'dec_min': dec_min[0], 'dec_max': dec_max[0],
-                'az_min': 0., 'az_max': 360.,
-                'weight': ha_weight[0]})
-
-# patches.append({'ha_min': 1.9, 'ha_max': 23.9,
-#                 'alt_max': 82., 'alt_min': 55.,
-#                 'dec_min': dec_min[1], 'dec_max': dec_max[1],
-#                 'az_min': 0., 'az_max': 360.,
-#                 'weight': ha_weight[1]})
-
-patches.append({'ha_min': 0., 'ha_max': 23.5,
-                'alt_max': 82., 'alt_min': 60.,
-                'dec_min': dec_min[1], 'dec_max': dec_max[1],
-                'az_min': 0., 'az_max': 360.,
-                'weight': 1e-1})
-patches.append({'ha_min': 0., 'ha_max': 22.8,
-                'alt_max': 82., 'alt_min': 70.,
-                'dec_min': dec_min[1], 'dec_max': dec_max[1],
-                'az_min': 0., 'az_max': 360.,
-                'weight': 1e-5})
-
-for az in np.arange(1, 15):
-    patches.append({'alt_max': 82., 'alt_min': 20.,
-                    'dec_min': -90, 'dec_max': 90,
-                    'az_min': 0., 'az_max': az,
-                    'weight': az_w(az)})
-    patches.append({'alt_max': 82., 'alt_min': 20.,
-                    'dec_min': -90, 'dec_max': 90,
-                    'az_min': 360. - az, 'az_max': 360.,
-                    'weight': az_w(az)})
-
-    patches.append({'alt_max': 82., 'alt_min': 20.,
-                    'dec_min': -90, 'dec_max': 90,
-                    'az_min': 180. - az, 'az_max': 180. + az,
-                    'weight': az_w(az)})
+patches.append({'alt_max': 82., 'alt_min': 20.,
+                'dec_min': -90, 'dec_max': 90,
+                'az_min': 180. - az, 'az_max': 180. + az,
+                'weight': 1.0})
 
 for filtername in filters:
-    bfs = []
+    bfs = list()
     # bfs.append(fs.M5_diff_basis_function(filtername=filtername, nside=nside))
     bfs.append(fs.HourAngle_bonus_basis_function(max_hourangle=3.))
     bfs.append(fs.Skybrightness_limit_basis_function(nside=nside,

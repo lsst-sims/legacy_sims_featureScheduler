@@ -810,7 +810,7 @@ class Strict_filter_basis_function(Base_basis_function):
 
         # Did twilight start/end?
         twi_changed = (self.condition_features['Sun_moon_alts'].feature['sunAlt'] - self.twi_change) * \
-                      (self.survey_features['Last_observation'].feature['sunAlt']- self.twi_change) < 0
+                      (self.survey_features['Last_observation'].feature['sunAlt'] - self.twi_change) < 0
 
         # Did we just finish a DD sequence
         wasDD = self.survey_features['Last_observation'].feature['note'] == 'DD'
