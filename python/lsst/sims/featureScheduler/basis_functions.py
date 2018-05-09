@@ -561,7 +561,7 @@ class Target_map_basis_function(Base_basis_function):
 
         result[self.out_of_bounds_area] = self.out_of_bounds_val
         norm_val = np.max(result[self.inside_area])
-        result[self.inside_area] /= norm_val if norm_val > 0. else 1.
+        result[self.inside_area] -= (norm_val-1.)
 
         return result
 
