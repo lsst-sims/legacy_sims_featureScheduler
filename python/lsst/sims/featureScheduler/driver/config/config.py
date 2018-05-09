@@ -81,8 +81,8 @@ patches.append({'alt_max': 82., 'alt_min': 20.,
 
 for filtername in filters:
     bfs = list()
-    bfs.append(fs.M5_diff_basis_function(filtername=filtername, nside=nside))
-    # bfs.append(fs.HourAngle_bonus_basis_function(max_hourangle=3.))
+    # bfs.append(fs.M5_diff_basis_function(filtername=filtername, nside=nside))
+    bfs.append(fs.HourAngle_bonus_basis_function(max_hourangle=3.))
     bfs.append(fs.Skybrightness_limit_basis_function(nside=nside,
                                                      filtername=filtername,
                                                      min=sb_limit_map[filtername]['min'],
