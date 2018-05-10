@@ -133,7 +133,7 @@ pairs_bfs.append(fs.Target_map_basis_function(filtername='',
 pairs_bfs.append(fs.MeridianStripeBasisFunction(nside=nside, zenith_pad=(45.,), width=(35.,)))
 pairs_bfs.append(fs.Moon_avoidance_basis_function(nside=nside, moon_distance=30.))
 
-surveys.append(fs.Pairs_survey_scripted(pairs_bfs, [1., 1., 1.], ignore_obs='DD', min_alt=20., dt=30.))
+surveys.append(fs.Pairs_survey_scripted(pairs_bfs, [1., 1., 1.], ignore_obs='DD', min_alt=20.))
 # surveys.append(fs.Pairs_survey_scripted([], [], ignore_obs='DD'))
 
 # Set up the DD
