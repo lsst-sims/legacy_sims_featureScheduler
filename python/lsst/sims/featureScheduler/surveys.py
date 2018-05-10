@@ -1350,21 +1350,41 @@ class Pairs_survey_scripted(Scripted_survey):
         self._purge_queue()
         result = -np.inf
         self.reward = result
-        if len(self.observing_queue) > 0:
-            # Check if the time is good and we are in a good filter.
-            in_window = np.abs(self.observing_queue[0]['mjd']-self.extra_features['current_mjd'].feature) < self.ttol
-            # FIXME: Make sure there's a better way to determine if the observatory was closed.
-            # If the observatory was closed, current filter is None
-            if self.extra_features['current_filter'].feature is None:
-                infilt = True
-            else:
-                infilt = self.extra_features['current_filter'].feature in self.filt_to_pair
+        for indx in range(len(self.observing_queue)):
 
-            if in_window & infilt:
+            check = self._check_observation(self.observing_queue[indx])
+
+            if check[0]:
                 result = self.reward_val
                 self.reward = self.reward_val
+            elif not check[1]:
+                break
+
         self.reward_checked = True
         return result
+
+    def _check_observation(self, observation):
+
+        delta_t = observation['mjd'] - self.extra_features['current_mjd'].feature
+        obs_hp = _raDec2Hpid(self.nside, observation['RA'], observation['dec'])
+        slewtime = self.extra_features['slewtime'].feature[obs_hp[0]]
+        in_slew_window = slewtime <= self.max_slew_to_pair or delta_t < 0.
+        in_time_window = np.abs(delta_t) < self.ttol
+
+        if self.extra_features['current_filter'].feature is None:
+            infilt = True
+        else:
+            infilt = self.extra_features['current_filter'].feature in self.filt_to_pair
+
+        is_observable = self._check_mask(observation)
+        log.debug('Pair - observation: %s ' % observation)
+        log.debug('Pair - check      : in_time_window[%s] infilt[%s] in_slew_window[%s] is_observable[%s]' %
+                  (in_time_window, infilt, in_slew_window, is_observable))
+        return (in_time_window & infilt & in_slew_window & is_observable,
+                in_time_window,
+                infilt,
+                in_slew_window,
+                is_observable)
 
     def __call__(self):
         # Toss anything in the queue that is too old to pair up:
@@ -1374,22 +1394,9 @@ class Pairs_survey_scripted(Scripted_survey):
         # if len(self.observing_queue) > 0:
         for indx in range(len(self.observing_queue)):
 
-            delta_t = self.observing_queue[indx]['mjd']-self.extra_features['current_mjd'].feature
-            obs_hp = _raDec2Hpid(self.nside, self.observing_queue[indx]['RA'], self.observing_queue[indx]['dec'])
-            slewtime = self.extra_features['slewtime'].feature[obs_hp[0]]
-            in_slew_window = slewtime <= self.max_slew_to_pair or delta_t < 0.
-            in_time_window = np.abs(delta_t) < self.ttol
+            check = self._check_observation(self.observing_queue[indx])
 
-            if self.extra_features['current_filter'].feature is None:
-                infilt = True
-            else:
-                infilt = self.extra_features['current_filter'].feature in self.filt_to_pair
-
-            is_observable = self._check_mask(self.observing_queue[indx])
-            log.debug('Pair[%03i] - observation: %s ' % (indx, self.observing_queue[indx]))
-            log.debug('Pair[%03i] - check      : in_time_window[%s] infilt[%s] in_slew_window[%s] is_observable[%s]' %
-                      (indx, in_time_window, infilt, in_slew_window, is_observable))
-            if in_time_window & infilt & in_slew_window & is_observable:
+            if check[0]:
                 result = self.observing_queue.pop(indx)
                 result['note'] = 'pair(%s)' % self.note
                 # Make sure we don't change filter if we don't have to.
@@ -1399,7 +1406,7 @@ class Pairs_survey_scripted(Scripted_survey):
                 # if self._check_mask(result):
                 result = [result]
                 break
-            elif not in_time_window:
+            elif not check[1]:
                 # If this is not in time window and queue is chronological, none will be...
                 break
 
