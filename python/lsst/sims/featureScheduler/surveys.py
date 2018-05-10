@@ -1373,6 +1373,7 @@ class Pairs_survey_scripted(Scripted_survey):
         result = []
         # if len(self.observing_queue) > 0:
         for indx in range(len(self.observing_queue)):
+
             delta_t = self.observing_queue[indx]['mjd']-self.extra_features['current_mjd'].feature
             obs_hp = _raDec2Hpid(self.nside, self.observing_queue[indx]['RA'], self.observing_queue[indx]['dec'])
             slewtime = self.extra_features['slewtime'].feature[obs_hp[0]]
@@ -1385,7 +1386,9 @@ class Pairs_survey_scripted(Scripted_survey):
                 infilt = self.extra_features['current_filter'].feature in self.filt_to_pair
 
             is_observable = self._check_mask(self.observing_queue[indx])
-
+            log.debug('Pair[%03i] - observation: %s ' % (indx, self.observing_queue[indx]))
+            log.debug('Pair[%03i] - check      : in_time_window[%s] infilt[%s] in_slew_window[%s] is_observable[%s]' %
+                      (indx, in_time_window, infilt, in_slew_window, is_observable))
             if in_time_window & infilt & in_slew_window & is_observable:
                 result = self.observing_queue.pop(indx)
                 result['note'] = 'pair(%s)' % self.note
@@ -1397,7 +1400,7 @@ class Pairs_survey_scripted(Scripted_survey):
                 result = [result]
                 break
             elif not in_time_window:
-                # If this is not in time window and queue is chronological, none will be... 
+                # If this is not in time window and queue is chronological, none will be...
                 break
 
         return result
