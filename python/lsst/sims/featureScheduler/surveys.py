@@ -1375,6 +1375,7 @@ class Pairs_survey_scripted(Scripted_survey):
         for indx in range(len(self.observing_queue)):
             delta_t = self.observing_queue[indx]['mjd']-self.extra_features['current_mjd'].feature
             obs_hp = _raDec2Hpid(self.nside, self.observing_queue[indx]['RA'], self.observing_queue[indx]['dec'])
+            log.info('%s' % obs_hp)
             slewtime = self.extra_features['slewtime'][obs_hp]
             in_slew_window = slewtime <= self.max_slew_to_pair or delta_t < 0.
             in_window = np.abs(delta_t) < self.ttol
