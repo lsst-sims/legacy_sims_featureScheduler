@@ -1217,7 +1217,8 @@ class Pairs_survey_scripted(Scripted_survey):
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, filt_to_pair='griz',
                  dt=40., ttol=10., reward_val=101., note='scripted', ignore_obs='ack',
-                 min_alt=30., max_alt=85., lat=-30.2444, moon_distance=30., nside=default_nside):
+                 min_alt=30., max_alt=85., lat=-30.2444, moon_distance=30., max_slew_to_pair=15.,
+                 nside=default_nside):
         """
         Parameters
         ----------
@@ -1235,6 +1236,7 @@ class Pairs_survey_scripted(Scripted_survey):
         self.note = note
         self.ttol = ttol/60./24.
         self.dt = dt/60./24.  # To days
+        self.max_slew_to_pair = max_slew_to_pair  # in seconds
         self._moon_distance = np.radians(moon_distance)
         if extra_features is None:
             self.extra_features = {}
@@ -1245,6 +1247,7 @@ class Pairs_survey_scripted(Scripted_survey):
             self.extra_features['current_lmst'] = features.Current_lmst()
             self.extra_features['m5_depth'] = features.M5Depth(filtername='r', nside=nside)
             self.extra_features['Moon'] = features.Moon()
+            self.extra_features['slewtime'] = features.SlewtimeFeature(nside=nside)
 
         super(Pairs_survey_scripted, self).__init__(basis_functions=basis_functions,
                                                     basis_weights=basis_weights,
@@ -1368,15 +1371,21 @@ class Pairs_survey_scripted(Scripted_survey):
         self._purge_queue()
         # Check for something I want a pair of
         result = []
-        if len(self.observing_queue) > 0:
-            in_window = np.abs(self.observing_queue[0]['mjd']-self.extra_features['current_mjd'].feature) < self.ttol
+        # if len(self.observing_queue) > 0:
+        for indx in range(len(self.observing_queue)):
+            delta_t = self.observing_queue[indx]['mjd']-self.extra_features['current_mjd'].feature
+            obs_hp = _raDec2Hpid(self.nside, self.observing_queue[indx]['RA'], self.observing_queue[indx]['dec'])
+            slewtime = self.extra_features['slewtime'][obs_hp]
+            in_slew_window = slewtime <= self.max_slew_to_pair or delta_t < 0.
+            in_window = np.abs(delta_t) < self.ttol
+
             if self.extra_features['current_filter'].feature is None:
                 infilt = True
             else:
                 infilt = self.extra_features['current_filter'].feature in self.filt_to_pair
 
-            if in_window & infilt:
-                result = self.observing_queue.pop(0)
+            if in_window & infilt & in_slew_window:
+                result = self.observing_queue.pop(indx)
                 result['note'] = 'pair(%s)' % self.note
                 # Make sure we don't change filter if we don't have to.
                 if self.extra_features['current_filter'].feature is not None:
@@ -1384,6 +1393,9 @@ class Pairs_survey_scripted(Scripted_survey):
                 # Make sure it is observable!
                 if self._check_mask(result):
                     result = [result]
+            elif not in_window:
+                break
+
         return result
 
 
