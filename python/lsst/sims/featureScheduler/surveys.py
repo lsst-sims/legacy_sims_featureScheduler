@@ -1377,24 +1377,27 @@ class Pairs_survey_scripted(Scripted_survey):
             obs_hp = _raDec2Hpid(self.nside, self.observing_queue[indx]['RA'], self.observing_queue[indx]['dec'])
             slewtime = self.extra_features['slewtime'].feature[obs_hp[0]]
             in_slew_window = slewtime <= self.max_slew_to_pair or delta_t < 0.
-            in_window = np.abs(delta_t) < self.ttol
+            in_time_window = np.abs(delta_t) < self.ttol
 
             if self.extra_features['current_filter'].feature is None:
                 infilt = True
             else:
                 infilt = self.extra_features['current_filter'].feature in self.filt_to_pair
 
-            if in_window & infilt & in_slew_window:
+            is_observable = self._check_mask(self.observing_queue[indx])
+
+            if in_time_window & infilt & in_slew_window & is_observable:
                 result = self.observing_queue.pop(indx)
                 result['note'] = 'pair(%s)' % self.note
                 # Make sure we don't change filter if we don't have to.
                 if self.extra_features['current_filter'].feature is not None:
                     result['filter'] = self.extra_features['current_filter'].feature
                 # Make sure it is observable!
-                if self._check_mask(result):
-                    result = [result]
-                    break
-            elif not in_window:
+                # if self._check_mask(result):
+                result = [result]
+                break
+            elif not in_time_window:
+                # If this is not in time window and queue is chronological, none will be... 
                 break
 
         return result
