@@ -1393,6 +1393,7 @@ class Pairs_survey_scripted(Scripted_survey):
                 # Make sure it is observable!
                 if self._check_mask(result):
                     result = [result]
+                    break
             elif not in_window:
                 break
 
