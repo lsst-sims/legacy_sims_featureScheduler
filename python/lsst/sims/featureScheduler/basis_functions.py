@@ -497,6 +497,68 @@ class NorthSouth_scan_basis_function(Base_basis_function):
         return result
 
 
+class CableWrap_unwrap_basis_function(Base_basis_function):
+    """
+    """
+    def __init__(self, nside=default_nside, condition_features=None, minAz=-270., maxAz=270.,
+                 unwrap_until=70., survey_features=None):
+        """
+        Parameters
+        ----------
+        minAz : float (20.)
+            The minimum azimuth to activite bf (degrees)
+        maxAz : float (82.)
+            The maximum azimuth to activate bf (degrees)
+        unwrap_until: float (90.)
+            The window in which the bf is activated (degrees)
+        """
+        if nside is None:
+            nside = utils.set_default_nside()
+
+        self.unwrap_until = np.radians(unwrap_until)
+
+        if survey_features is None:
+            self.survey_features = {}
+        if condition_features is None:
+            self.condition_features = {}
+            self.condition_features['altaz'] = features.AltAzFeature()
+            self.condition_features['current_pointing'] = features.Current_pointing()
+        self.minAz = np.radians(minAz)
+        self.maxAz = np.radians(maxAz)
+        # Convert to half-width for convienence
+        self.nside = nside
+        self.active = False
+
+    def __call__(self, indx=None):
+
+        result = np.ones(hp.nside2npix(self.nside), dtype=float)
+
+        if (self.minAz < self.condition_features['current_pointing'].feature['az'] < self.maxAz) and not self.active:
+            return result
+        elif (self.minAz-self.unwrap_until < self.condition_features['current_pointing'].feature['az'] <
+              self.maxAz+self.unwrap_until) and self.active:
+            self.active = False
+            return result
+
+        self.active = True
+
+        az = self.condition_features['altaz'].feature['az']
+
+        deltaAz = az - self.condition_features['current_pointing'].feature['az']
+        deltaAz = np.abs(deltaAz)
+        deltaAz = np.minimum(deltaAz, np.abs(deltaAz - 2 * np.pi))
+
+        finalAz = self.condition_features['current_pointing'].feature['az'] + deltaAz
+
+        mask = np.where(finalAz < self.minAz | finalAz > self.maxAz)
+        # az[mask] = hp.UNSEEN
+        scale = (np.abs(self.minAz)+np.abs(self.maxAz))/2.
+        result = np.abs(finalAz) / scale
+        result[mask] = hp.UNSEEN
+
+        return result
+
+
 class Target_map_basis_function(Base_basis_function):
     """Normalize the maps first to make things smoother
     """
