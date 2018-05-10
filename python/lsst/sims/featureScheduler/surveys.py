@@ -1357,6 +1357,7 @@ class Pairs_survey_scripted(Scripted_survey):
             if check[0]:
                 result = self.reward_val
                 self.reward = self.reward_val
+                break
             elif not check[1]:
                 break
 
