@@ -49,40 +49,25 @@ cloud_map = fs.utils.generate_cloud_map(target_maps,filtername='r',
                                         gp_cloud_max=0.7,
                                         nes_cloud_max=0.7)
 
-width = np.array([20.])  # np.arange(4.,20.,1)
-z_pad = width+8.
-weight = np.array([1.])  # (4./width)**2
-height = np.zeros_like(width)+80.
+x1 = 30.
+x0 = 2.
+B = x1 / (x1 - x0)
+A = -B / x1
+width = np.arange(x0, x1, 0.5)
+z_pad = width + 8.
+weight = (A * width + B) ** 2.
+height = np.zeros_like(width) + 80.
 
 filters = ['u', 'g', 'r', 'i', 'z', 'y']
 surveys = []
 
 sb_limit_map = fs.utils.generate_sb_map(target_maps, filters)
 
-patches = list()
-
-patches.append({'alt_max': 82., 'alt_min': 90.-30.2444,
-                'weight': 1.0})
-
-az = 15.
-patches.append({'alt_max': 82., 'alt_min': 20.,
-                'dec_min': -90, 'dec_max': 90,
-                'az_min': 0., 'az_max': az,
-                'weight': 1.})
-patches.append({'alt_max': 82., 'alt_min': 20.,
-                'dec_min': -90, 'dec_max': 90,
-                'az_min': 360. - az, 'az_max': 360.,
-                'weight': 1.0})
-
-patches.append({'alt_max': 82., 'alt_min': 20.,
-                'dec_min': -90, 'dec_max': 90,
-                'az_min': 180. - az, 'az_max': 180. + az,
-                'weight': 1.0})
 
 for filtername in filters:
     bfs = list()
     # bfs.append(fs.M5_diff_basis_function(filtername=filtername, nside=nside))
-    bfs.append(fs.HourAngle_bonus_basis_function(max_hourangle=3.))
+    # bfs.append(fs.HourAngle_bonus_basis_function(max_hourangle=3.))
     bfs.append(fs.Skybrightness_limit_basis_function(nside=nside,
                                                      filtername=filtername,
                                                      min=sb_limit_map[filtername]['min'],
@@ -106,9 +91,10 @@ for filtername in filters:
     bfs.append(fs.Avoid_Fast_Revists(filtername=filtername, gap_min=60., nside=nside))
     bfs.append(fs.Bulk_cloud_basis_function(max_cloud_map=cloud_map, nside=nside))
     bfs.append(fs.Moon_avoidance_basis_function(nside=nside, moon_distance=33.))
+    bfs.append(fs.CableWrap_unwrap_basis_function(nside=nside))
     # bfs.append(fs.NorthSouth_scan_basis_function(length=70.))
 
-    weights = np.array([2., 0.1, .1, 1., 3., 1.5, 1.0, 1.0, 1.0])
+    weights = np.array([0.1, .1, 2., 3., 1.5, 1.0, 1.0, 1.0, 1.0])
     surveys.append(fs.Greedy_survey_fields(bfs, weights, block_size=1,
                                            filtername=filtername, dither=True,
                                            nside=nside,
