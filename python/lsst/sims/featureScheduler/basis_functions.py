@@ -500,8 +500,8 @@ class NorthSouth_scan_basis_function(Base_basis_function):
 class CableWrap_unwrap_basis_function(Base_basis_function):
     """
     """
-    def __init__(self, nside=default_nside, condition_features=None, minAz=-270., maxAz=270.,
-                 unwrap_until=70., survey_features=None):
+    def __init__(self, nside=default_nside, condition_features=None, minAz=-270., maxAz=270., minAlt=20., maxAlt=82.,
+                 activate_tol=20., delta_unwrap=1.2, unwrap_until=70., survey_features=None):
         """
         Parameters
         ----------
@@ -515,46 +515,103 @@ class CableWrap_unwrap_basis_function(Base_basis_function):
         if nside is None:
             nside = utils.set_default_nside()
 
-        self.unwrap_until = np.radians(unwrap_until)
-
         if survey_features is None:
             self.survey_features = {}
         if condition_features is None:
             self.condition_features = {}
             self.condition_features['altaz'] = features.AltAzFeature()
             self.condition_features['current_pointing'] = features.Current_pointing()
+
         self.minAz = np.radians(minAz)
         self.maxAz = np.radians(maxAz)
+
+        self.activate_tol = np.radians(activate_tol)
+        self.delta_unwrap = np.radians(delta_unwrap)
+        self.unwrap_until = np.radians(unwrap_until)
+
+        self.minAlt = np.radians(minAlt)
+        self.maxAlt = np.radians(maxAlt)
         # Convert to half-width for convienence
         self.nside = nside
         self.active = False
+        self.unwrap_direction = 0.  # either -1., 0., 1.
 
     def __call__(self, indx=None):
 
-        result = np.ones(hp.nside2npix(self.nside), dtype=float)
+        result = np.zeros(hp.nside2npix(self.nside), dtype=float)
+        alt = self.condition_features['altaz'].feature['alt']
+        az_rad = self.condition_features['altaz'].feature['az']
+        current_abs_rad = self.condition_features['current_pointing'].feature['az']
+        unseen = np.where(np.bitwise_or(alt < self.minAlt,
+                                        alt > self.maxAlt))
 
-        if (self.minAz < self.condition_features['current_pointing'].feature['az'] < self.maxAz) and not self.active:
+        TWOPI = 2. * np.pi
+        min_abs_rad = self.minAz
+
+        # Compute distance and accumulated az.
+        norm_az_rad = np.divmod(az_rad - min_abs_rad, TWOPI)[1] + min_abs_rad
+        distance_rad = divmod(norm_az_rad - current_abs_rad, TWOPI)[1]
+        get_shorter = np.where(distance_rad > np.pi)
+        distance_rad[get_shorter] -= TWOPI
+        distance_rad = np.abs(distance_rad)
+        check = np.where(distance_rad < self.activate_tol)
+        result[check] = -1.
+        result[unseen] = hp.UNSEEN
+
+        if (self.minAz + self.activate_tol < self.condition_features['current_pointing'].feature['az'] <
+            self.maxAz - self.activate_tol) and not self.active:
             return result
-        elif (self.minAz-self.unwrap_until < self.condition_features['current_pointing'].feature['az'] <
-              self.maxAz+self.unwrap_until) and self.active:
+        elif (self.minAz+self.unwrap_until < self.condition_features['current_pointing'].feature['az'] <
+              self.maxAz-self.unwrap_until) and self.active:
             self.active = False
+            self.unwrap_direction = 0.
             return result
 
         self.active = True
+        if current_abs_rad < 0.:
+            self.unwrap_direction = 1.  # clock-wise unwrap
+        else:
+            self.unwrap_direction = -1.  # counter-clock-wise unwrap
 
-        az = self.condition_features['altaz'].feature['az']
+        max_abs_rad = self.maxAz
+        min_abs_rad = self.minAz
 
-        deltaAz = az - self.condition_features['current_pointing'].feature['az']
-        deltaAz = np.abs(deltaAz)
-        deltaAz = np.minimum(deltaAz, np.abs(deltaAz - 2 * np.pi))
+        TWOPI = 2.*np.pi
 
-        finalAz = self.condition_features['current_pointing'].feature['az'] + deltaAz
+        # Compute distance and accumulated az.
+        norm_az_rad = np.divmod(az_rad - min_abs_rad, TWOPI)[1] + min_abs_rad
+        distance_rad = divmod(norm_az_rad - current_abs_rad, TWOPI)[1]
+        get_shorter = np.where(distance_rad > np.pi)
+        distance_rad[get_shorter] -= TWOPI
+        accum_abs_rad = current_abs_rad + distance_rad
 
-        mask = np.where(finalAz < self.minAz | finalAz > self.maxAz)
-        # az[mask] = hp.UNSEEN
-        scale = (np.abs(self.minAz)+np.abs(self.maxAz))/2.
-        result = np.abs(finalAz) / scale
-        result[mask] = hp.UNSEEN
+        # Compute wrap regions and fix distances
+        mask_max = np.where(accum_abs_rad > max_abs_rad)
+        distance_rad[mask_max] -= TWOPI
+        mask_min = np.where(accum_abs_rad < min_abs_rad)
+        distance_rad[mask_min] += TWOPI
+
+        # Step-2: Repeat but now with compute reward to unwrap using specified delta_unwrap
+        unwrap_current_abs_rad = current_abs_rad - (self.delta_unwrap if current_abs_rad > 0 else -self.delta_unwrap)
+        unwrap_distance_rad = divmod(norm_az_rad - unwrap_current_abs_rad, TWOPI)[1]
+        unwrap_get_shorter = np.where(unwrap_distance_rad > np.pi)
+        unwrap_distance_rad[unwrap_get_shorter] -= TWOPI
+        unwrap_distance_rad = np.abs(unwrap_distance_rad)
+        # unwrap_accum_abs_rad = unwrap_current_abs_rad + unwrap_distance_rad
+
+        # # Compute wrap regions and fix distances
+        # mask_max = np.where(unwrap_accum_abs_rad > max_abs_rad)
+        # distance_rad[mask_max] -= TWOPI
+        # mask_min = np.where(accum_abs_rad < min_abs_rad)
+        # distance_rad[mask_min] += TWOPI
+
+
+        # Finally build reward map
+
+        result = 1. - unwrap_distance_rad/np.max(unwrap_distance_rad)
+        result[mask_max] = 0.
+        result[mask_min] = 0.
+        result[unseen] = hp.UNSEEN
 
         return result
 
