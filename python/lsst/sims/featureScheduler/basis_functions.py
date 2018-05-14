@@ -540,7 +540,7 @@ class CableWrap_unwrap_basis_function(Base_basis_function):
 
         result = np.zeros(hp.nside2npix(self.nside), dtype=float)
         alt = self.condition_features['altaz'].feature['alt']
-        current_abs_rad = self.condition_features['current_pointing'].feature['az']
+        current_abs_rad = np.radians(self.condition_features['current_pointing'].feature['az'])
         unseen = np.where(np.bitwise_or(alt < self.minAlt,
                                         alt > self.maxAlt))
 
