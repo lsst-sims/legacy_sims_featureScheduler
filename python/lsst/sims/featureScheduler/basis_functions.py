@@ -543,8 +543,6 @@ class CableWrap_unwrap_basis_function(Base_basis_function):
         unseen = np.where(np.bitwise_or(alt < self.minAlt,
                                         alt > self.maxAlt))
 
-        result[unseen] = hp.UNSEEN
-
         if (self.minAz + self.activate_tol < self.condition_features['current_pointing'].feature['az'] <
             self.maxAz - self.activate_tol) and not self.active:
             return result
@@ -554,10 +552,10 @@ class CableWrap_unwrap_basis_function(Base_basis_function):
             self.unwrap_direction = 0.
             return result
 
-        self.active = True
         az_rad = self.condition_features['altaz'].feature['az']
         current_abs_rad = self.condition_features['current_pointing'].feature['az']
 
+        self.active = True
         if current_abs_rad < 0.:
             self.unwrap_direction = 1.  # clock-wise unwrap
         else:
@@ -587,20 +585,15 @@ class CableWrap_unwrap_basis_function(Base_basis_function):
         unwrap_get_shorter = np.where(unwrap_distance_rad > np.pi)
         unwrap_distance_rad[unwrap_get_shorter] -= TWOPI
         unwrap_distance_rad = np.abs(unwrap_distance_rad)
-        # unwrap_accum_abs_rad = unwrap_current_abs_rad + unwrap_distance_rad
 
-        # # Compute wrap regions and fix distances
-        # mask_max = np.where(unwrap_accum_abs_rad > max_abs_rad)
-        # distance_rad[mask_max] -= TWOPI
-        # mask_min = np.where(accum_abs_rad < min_abs_rad)
-        # distance_rad[mask_min] += TWOPI
-
+        if current_abs_rad > 0.:
+            mask = np.where(accum_abs_rad > unwrap_current_abs_rad)
+        else:
+            mask = np.where(accum_abs_rad < unwrap_current_abs_rad)
 
         # Finally build reward map
-
-        result = 1. - unwrap_distance_rad/np.max(unwrap_distance_rad)
-        result[mask_max] = 0.
-        result[mask_min] = 0.
+        result = (1. - unwrap_distance_rad/np.max(unwrap_distance_rad))**2.
+        result[mask] = 0.
         result[unseen] = hp.UNSEEN
 
         return result
