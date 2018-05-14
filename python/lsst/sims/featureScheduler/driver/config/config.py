@@ -49,14 +49,19 @@ cloud_map = fs.utils.generate_cloud_map(target_maps,filtername='r',
                                         gp_cloud_max=0.7,
                                         nes_cloud_max=0.7)
 
-x1 = 30.
-x0 = 2.
-B = x1 / (x1 - x0)
-A = -B / x1
-width = np.arange(x0, x1, 0.5)
-z_pad = width + 8.
-weight = (A * width + B)
-height = np.zeros_like(width) + 80.
+# x1 = 30.
+# x0 = 2.
+# B = x1 / (x1 - x0)
+# A = -B / x1
+# width = np.arange(x0, x1, 0.5)
+# z_pad = width + 8.
+# weight = (A * width + B)
+# height = np.zeros_like(width) + 80.
+
+width = (30.,)
+z_pad = (38.,)
+weight = (1.,)
+height = (80.,)
 
 filters = ['u', 'g', 'r', 'i', 'z', 'y']
 surveys = []
@@ -67,7 +72,7 @@ sb_limit_map = fs.utils.generate_sb_map(target_maps, filters)
 for filtername in filters:
     bfs = list()
     # bfs.append(fs.M5_diff_basis_function(filtername=filtername, nside=nside))
-    # bfs.append(fs.HourAngle_bonus_basis_function(max_hourangle=3.))
+    bfs.append(fs.HourAngle_bonus_basis_function(max_hourangle=3.))
     bfs.append(fs.Skybrightness_limit_basis_function(nside=nside,
                                                      filtername=filtername,
                                                      min=sb_limit_map[filtername]['min'],
@@ -94,7 +99,7 @@ for filtername in filters:
     bfs.append(fs.CableWrap_unwrap_basis_function(nside=nside))
     # bfs.append(fs.NorthSouth_scan_basis_function(length=70.))
 
-    weights = np.array([0.1, .5, 2., 3., 1.5, 1.0, 1.0, 1.0, 1.0])
+    weights = np.array([1.0, 1.0, .5, 1., 3., 1.5, 1.0, 1.0, 1.0, 1.0])
     surveys.append(fs.Greedy_survey_fields(bfs, weights, block_size=1,
                                            filtername=filtername, dither=True,
                                            nside=nside,
