@@ -540,20 +540,24 @@ class CableWrap_unwrap_basis_function(Base_basis_function):
 
         result = np.zeros(hp.nside2npix(self.nside), dtype=float)
         alt = self.condition_features['altaz'].feature['alt']
+        current_abs_rad = self.condition_features['current_pointing'].feature['az']
         unseen = np.where(np.bitwise_or(alt < self.minAlt,
                                         alt > self.maxAlt))
 
-        if (self.minAz + self.activate_tol < self.condition_features['current_pointing'].feature['az'] <
-            self.maxAz - self.activate_tol) and not self.active:
+        if (self.minAz + self.activate_tol < current_abs_rad < self.maxAz - self.activate_tol) and not self.active:
             return result
-        elif (self.minAz+self.unwrap_until < self.condition_features['current_pointing'].feature['az'] <
-              self.maxAz-self.unwrap_until) and self.active:
+        elif (self.minAz+self.unwrap_until < current_abs_rad < self.maxAz-self.unwrap_until) and self.active:
             self.active = False
             self.unwrap_direction = 0.
             return result
 
+        log.debug('CableWrap[Active]: telaz=%7.2f [activate@ %7.2f/%7.2f] [deactivate@ %7.2f/%7.2f]' % (
+            float(np.degrees(current_abs_rad)),
+            float(np.degrees(self.minAz + self.activate_tol)), float(np.degrees(self.maxAz - self.activate_tol)),
+            float(np.degrees(self.minAz + self.unwrap_until)), float(np.degrees(self.maxAz - self.unwrap_until))))
+
         az_rad = self.condition_features['altaz'].feature['az']
-        current_abs_rad = self.condition_features['current_pointing'].feature['az']
+
 
         self.active = True
         if current_abs_rad < 0.:
