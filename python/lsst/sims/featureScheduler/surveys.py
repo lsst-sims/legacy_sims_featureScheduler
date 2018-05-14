@@ -155,13 +155,13 @@ class BaseSurvey(object):
         else:
             # If not feasable, negative infinity reward
             self.reward = -np.inf
-        # bfs = {}
-        # for b in self.basis_functions:
-        #     bfs[str(b)] = b()
-        # bfs['reward'] = self.reward
-        # log.debug('Saving bfs %s_%s_%i' % (self.night, self.filtername, self.counter))
-        # np.save('bf_%s_%s_%i.npy' % (self.night, self.filtername, self.counter), bfs)
-        # self.counter += 1
+        bfs = {}
+        for b in self.basis_functions:
+            bfs[str(b)] = b()
+        bfs['reward'] = self.reward
+        log.debug('Saving bfs %s_%s_%i' % (self.night, self.filtername, self.counter))
+        np.save('bf_%s_%s_%i.npy' % (self.night, self.filtername, self.counter), bfs)
+        self.counter += 1
         if self.smoothing_kernel is not None:
             self.smooth_reward()
             return self.reward_smooth
