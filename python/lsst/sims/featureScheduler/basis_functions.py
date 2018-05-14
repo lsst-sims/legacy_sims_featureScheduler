@@ -540,9 +540,22 @@ class CableWrap_unwrap_basis_function(Base_basis_function):
 
         result = np.zeros(hp.nside2npix(self.nside), dtype=float)
         alt = self.condition_features['altaz'].feature['alt']
+        az_rad = self.condition_features['altaz'].feature['az']
+        current_abs_rad = self.condition_features['current_pointing'].feature['az']
         unseen = np.where(np.bitwise_or(alt < self.minAlt,
                                         alt > self.maxAlt))
 
+        TWOPI = 2. * np.pi
+        min_abs_rad = self.minAz
+
+        # Compute distance and accumulated az.
+        norm_az_rad = np.divmod(az_rad - min_abs_rad, TWOPI)[1] + min_abs_rad
+        distance_rad = divmod(norm_az_rad - current_abs_rad, TWOPI)[1]
+        get_shorter = np.where(distance_rad > np.pi)
+        distance_rad[get_shorter] -= TWOPI
+        distance_rad = np.abs(distance_rad)
+        check = np.where(distance_rad < self.activate_tol)
+        result[check] = -1.
         result[unseen] = hp.UNSEEN
 
         if (self.minAz + self.activate_tol < self.condition_features['current_pointing'].feature['az'] <
@@ -555,9 +568,6 @@ class CableWrap_unwrap_basis_function(Base_basis_function):
             return result
 
         self.active = True
-        az_rad = self.condition_features['altaz'].feature['az']
-        current_abs_rad = self.condition_features['current_pointing'].feature['az']
-
         if current_abs_rad < 0.:
             self.unwrap_direction = 1.  # clock-wise unwrap
         else:
@@ -589,18 +599,21 @@ class CableWrap_unwrap_basis_function(Base_basis_function):
         unwrap_distance_rad = np.abs(unwrap_distance_rad)
         # unwrap_accum_abs_rad = unwrap_current_abs_rad + unwrap_distance_rad
 
+        if current_abs_rad > 0.:
+            mask = np.where(accum_abs_rad > unwrap_current_abs_rad)
+        else:
+            mask = np.where(accum_abs_rad < unwrap_current_abs_rad)
         # # Compute wrap regions and fix distances
-        # mask_max = np.where(unwrap_accum_abs_rad > max_abs_rad)
+        # mask_max = np.where(unwrap_accum_abs_rad > unwrap_current_abs_rad)
         # distance_rad[mask_max] -= TWOPI
-        # mask_min = np.where(accum_abs_rad < min_abs_rad)
+
         # distance_rad[mask_min] += TWOPI
 
 
         # Finally build reward map
 
-        result = 1. - unwrap_distance_rad/np.max(unwrap_distance_rad)
-        result[mask_max] = 0.
-        result[mask_min] = 0.
+        result = (1. - unwrap_distance_rad/np.max(unwrap_distance_rad))**2.
+        result[mask] = 0.
         result[unseen] = hp.UNSEEN
 
         return result
