@@ -1082,7 +1082,7 @@ class Slewtime_basis_function(Base_basis_function):
                 fields = np.unique(self.condition_features['hp2fields'].feature[good])
                 for field in fields:
                     hp_indx = np.where(self.condition_features['hp2fields'].feature == field)
-                    result[hp_indx] = np.max(result[hp_indx])
+                    result[hp_indx] = np.min(result[hp_indx])
             else:
                 result = (self.maxtime - self.condition_features['slewtime'].feature)/self.maxtime
         return result
