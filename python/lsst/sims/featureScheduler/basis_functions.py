@@ -730,8 +730,8 @@ class AreaTarget_map_basis_function(Base_basis_function):
             indx = np.arange(result.size)
 
         nobs_map = self.survey_features['N_obs'].feature
-        obs_distrib = (nobs_map+1)/(np.sum(nobs_map)+1)
-        reward = self.target_map / obs_distrib
+        obs_distrib = nobs_map/np.sum(nobs_map) if np.sum(nobs_map) > 0. else 1.
+        reward = self.target_map - obs_distrib
         reward[self.out_of_bounds_area] = self.out_of_bounds_val
         return reward
         # Find out how many observations we want now at those points
