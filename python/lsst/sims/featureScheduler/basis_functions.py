@@ -731,7 +731,7 @@ class AreaTarget_map_basis_function(Base_basis_function):
 
         nobs_map = self.survey_features['N_obs'].feature
         ww = self.target_map
-        reward = ww + np.mean(nobs_map / ww) - (nobs_map / ww)
+        reward = ww + np.mean(nobs_map[self.inside_area] / ww) - (nobs_map / ww)
         reward[self.out_of_bounds_area] = self.out_of_bounds_val
         return reward
         # Find out how many observations we want now at those points
