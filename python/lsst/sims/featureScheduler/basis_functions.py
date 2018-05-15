@@ -672,6 +672,86 @@ class Target_map_basis_function(Base_basis_function):
         return result
 
 
+class AreaTarget_map_basis_function(Base_basis_function):
+    """Normalize the maps first to make things smoother
+    """
+    def __init__(self, filtername='r', nside=default_nside, target_map=None,
+                 survey_features=None, condition_features=None, mean_visits_per_night=800,
+                 out_of_bounds_val=-10.):
+        """
+        Parameters
+        ----------
+        filtername: (string 'r')
+            The name of the filter for this target map.
+        nside: int (default_nside)
+            The healpix resolution.
+        target_map : numpy array (None)
+            A healpix map showing the ratio of observations desired for all points on the sky
+        norm_factor : float (800./2.5e6)
+            for converting target map to number of observations. This is a convience scaling,
+            It should be degenerate with the weight of the basis function.
+        out_of_bounds_val : float (10.)
+            Point value to give regions where there are no observations requested
+        """
+        if nside is None:
+            nside = utils.set_default_nside()
+
+        self.mean_visits_per_night = mean_visits_per_night
+        if survey_features is None:
+            self.survey_features = {}
+            # Map of the number of observations in filter
+            self.survey_features['N_obs'] = features.N_observations(filtername=filtername)
+            # Count of all the observations
+            self.survey_features['N_obs_count_all'] = features.N_obs_count(filtername=None)
+        super(AreaTarget_map_basis_function, self).__init__(survey_features=self.survey_features,
+                                                            condition_features=condition_features)
+        self.nside = nside
+        if target_map is None:
+            self.target_map = utils.generate_goal_map(filtername=filtername)
+        else:
+            self.target_map = target_map
+        self.out_of_bounds_area = np.where(self.target_map == 0)[0]
+        self.out_of_bounds_val = out_of_bounds_val
+        self.inside_area = np.where(self.target_map != 0)
+
+    def __call__(self, indx=None):
+        """
+        Parameters
+        ----------
+        indx : list (None)
+            Index values to compute, if None, full map is computed
+        Returns
+        -------
+        Healpix reward map
+        """
+        # Should probably update this to be as masked array.
+        result = np.zeros(hp.nside2npix(self.nside), dtype=float)
+        if indx is None:
+            indx = np.arange(result.size)
+
+        obs_frac = np.sum(self.survey_features['N_obs'].feature) / \
+                   self.survey_features['N_obs_count_all'].feature \
+            if self.survey_features['N_obs_count_all'].feature > 0 else 1.
+
+        global_reward = self.target_map[indx]*(1. - np.arctan(obs_frac/self.mean_visits_per_night/2.)/np.pi*2.)
+        local_reward = self.survey_features['N_obs'].feature - np.mean(self.survey_features['N_obs'].feature)
+
+        local_reward = 1.-np.arctan(local_reward)/np.pi*2.
+        reward = local_reward*global_reward
+        reward[self.out_of_bounds_area] = self.out_of_bounds_val
+        return reward
+        # Find out how many observations we want now at those points
+        # goal_N = self.target_map[indx] * self.survey_features['N_obs_count_all'].feature * self.norm_factor
+        #
+        # result[indx] = goal_N - self.survey_features['N_obs'].feature[indx]
+        #
+        # result[self.out_of_bounds_area] = self.out_of_bounds_val
+        # norm_val = np.max(result[self.inside_area])
+        # result[self.inside_area] -= (norm_val-1.)
+        #
+        # return result
+
+
 class Avoid_Fast_Revists(Base_basis_function):
     """Marks targets as unseen if they are in a specified time window in order to avoid fast revisits.
     """
