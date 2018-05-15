@@ -729,15 +729,9 @@ class AreaTarget_map_basis_function(Base_basis_function):
         if indx is None:
             indx = np.arange(result.size)
 
-        obs_frac = np.sum(self.survey_features['N_obs'].feature) / \
-                   self.survey_features['N_obs_count_all'].feature \
-            if self.survey_features['N_obs_count_all'].feature > 0 else 1.
-
-        global_reward = self.target_map[indx]*(1. - np.arctan(obs_frac/self.mean_visits_per_night/2.)/np.pi*2.)
-        local_reward = self.survey_features['N_obs'].feature - np.mean(self.survey_features['N_obs'].feature)
-
-        local_reward = 1.-np.arctan(local_reward)/np.pi*2.
-        reward = local_reward*global_reward
+        nobs_map = self.survey_features['N_obs'].feature
+        obs_distrib = (nobs_map+1)/(np.sum(nobs_map)+1)
+        reward = self.target_map / obs_distrib
         reward[self.out_of_bounds_area] = self.out_of_bounds_val
         return reward
         # Find out how many observations we want now at those points
