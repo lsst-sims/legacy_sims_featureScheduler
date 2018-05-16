@@ -737,7 +737,7 @@ class AreaTarget_map_basis_function(Base_basis_function):
         # s_obs_all = np.sum(nobs_map)
         ww = self.target_map
         # reward = ww + np.mean(nobs_map[self.inside_area] / ww[self.inside_area]) - (nobs_map / ww)
-        reward = ww*np.median(nobs_map[self.inside_area]/ww)/(nobs_map/ww)
+        reward = ww*np.median(nobs_map[self.inside_area]/ww[self.inside_area])/(nobs_map/ww)
         # result[self.inside_area] = (n_obs_all - nobs_map[self.inside_area]) / (n_obs_all + nobs_map[self.inside_area])
         # result[self.inside_area] *= ww[self.inside_area]
         # reward[self.out_of_bounds_area] = self.out_of_bounds_val
