@@ -3,8 +3,8 @@ from builtins import zip
 from builtins import object
 import numpy as np
 from .utils import (empty_observation, set_default_nside, hp_in_lsst_fov, read_fields, stupidFast_altAz2RaDec,
-                    raster_sort, stupidFast_RaDec2AltAz, gnomonic_project_toxy, treexyz)
-from lsst.sims.utils import _hpid2RaDec, _raDec2Hpid, Site, _angularSeparation, _altAzPaFromRaDec
+                    raster_sort, stupidFast_RaDec2AltAz, gnomonic_project_toxy)
+from lsst.sims.utils import _hpid2RaDec, _raDec2Hpid, Site, _angularSeparation, _altAzPaFromRaDec, _xyz_from_ra_dec
 import healpy as hp
 from . import features
 from . import dithering
@@ -382,7 +382,7 @@ class Marching_army_survey(BaseSurvey):
         self.fields['alt'] = tmp['dec']
         self.fields['az'] = tmp['RA']
 
-        x, y, z = treexyz(self.fields['az'], self.fields['alt'])
+        x, y, z = _xyz_from_ra_dec(self.fields['az'], self.fields['alt'])
         self.field_tree = kdtree(list(zip(x, y, z)), leafsize=leafsize,
                                  balanced_tree=False, compact_nodes=False)
         hpids = np.arange(hp.nside2npix(self.nside))
@@ -399,7 +399,7 @@ class Marching_army_survey(BaseSurvey):
                                                        self.reward_dec[unmasked],
                                                        self.lat_rad, self.lon_rad,
                                                        self.extra_features['mjd'].feature)
-        x, y, z = treexyz(reward_az, reward_alt)
+        x, y, z = _xyz_from_ra_dec(reward_az, reward_alt)
 
         # map the healpixels to field pointings
         dist, indx = self.field_tree.query(np.vstack((x, y, z)).T)

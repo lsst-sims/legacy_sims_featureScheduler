@@ -6,8 +6,7 @@ import healpy as hp
 import pandas as pd
 import matplotlib.path as mplPath
 import logging
-from scipy.spatial import cKDTree as kdtree
-from lsst.sims.utils import _hpid2RaDec, calcLmstLast, _raDec2Hpid
+from lsst.sims.utils import _hpid2RaDec, calcLmstLast, _raDec2Hpid, xyz_angular_radius, _buildTree, _xyz_from_ra_dec
 from astropy.coordinates import SkyCoord
 from astropy import units as u
 import os
@@ -231,37 +230,6 @@ def read_fields_from_tscheduler():
     return fields
 
 
-def treexyz(ra, dec):
-    """
-    Utility to convert RA,dec postions in x,y,z space, useful for constructing KD-trees.
-
-    Parameters
-    ----------
-    ra : float or array
-        RA in radians
-    dec : float or array
-        Dec in radians
-
-    Returns
-    -------
-    x,y,z : floats or arrays
-        The position of the given points on the unit sphere.
-    """
-    # Note ra/dec can be arrays.
-    x = np.cos(dec) * np.cos(ra)
-    y = np.cos(dec) * np.sin(ra)
-    z = np.sin(dec)
-    return x, y, z
-
-
-def xyz2radec(x, y, z):
-    """
-    Convert x, y, z coords back to ra and dec in radians (dec=theta, ra=phi)
-    """
-    r = (x*2 + y**2 + z**2)**0.5
-    ra = np.arctan2(y, x)
-    dec = np.arccos(z/r)
-    return ra, dec
 
 
 def hp_kd_tree(nside=None, leafsize=100):
@@ -281,27 +249,13 @@ def hp_kd_tree(nside=None, leafsize=100):
     """
     if nside is None:
         nside = set_default_nside()
+    
 
     hpid = np.arange(hp.nside2npix(nside))
     ra, dec = _hpid2RaDec(nside, hpid)
-    x, y, z = treexyz(ra, dec)
-    tree = kdtree(list(zip(x, y, z)), leafsize=leafsize, balanced_tree=False, compact_nodes=False)
-    return tree
+    return _buildTree(ra,dec,leafsize)
+   
 
-
-def rad_length(radius=1.75):
-    """
-    Convert an angular radius into a physical radius for a kdtree search.
-
-    Parameters
-    ----------
-    radius : float
-        Radius in degrees.
-    """
-    x0, y0, z0 = (1, 0, 0)
-    x1, y1, z1 = treexyz(np.radians(radius), 0)
-    result = np.sqrt((x1-x0)**2+(y1-y0)**2+(z1-z0)**2)
-    return result
 
 
 class hp_in_lsst_fov(object):
@@ -320,7 +274,7 @@ class hp_in_lsst_fov(object):
             nside = set_default_nside()
 
         self.tree = hp_kd_tree(nside=nside)
-        self.radius = rad_length(fov_radius)
+        self.radius = xyz_angular_radius(fov_radius)
 
     def __call__(self, ra, dec, *args):
         """
@@ -336,7 +290,7 @@ class hp_in_lsst_fov(object):
         indx : numpy array
             The healpixels that are within the FoV
         """
-        x, y, z = treexyz(np.max(ra), np.max(dec))
+        x, y, z = _xyz_from_ra_dec(np.max(ra), np.max(dec))
         indices = self.tree.query_ball_point((x, y, z), self.radius)
         return np.array(indices)
 
@@ -358,8 +312,8 @@ class hp_in_comcam_fov(object):
         self.nside = nside
         self.tree = hp_kd_tree(nside=nside)
         self.side_length = np.radians(side_length)
-        self.inner_radius = rad_length(side_length/2.)
-        self.outter_radius = rad_length(side_length/2.*np.sqrt(2.))
+        self.inner_radius = xyz_angular_radius(side_length/2.)
+        self.outter_radius = xyz_angular_radius(side_length/2.*np.sqrt(2.))
         # The positions of the raft corners, unrotated
         self.corners_x = np.array([-self.side_length/2., -self.side_length/2., self.side_length/2.,
                                   self.side_length/2.])
@@ -381,7 +335,7 @@ class hp_in_comcam_fov(object):
         indx : numpy array
             The healpixels that are within the FoV
         """
-        x, y, z = treexyz(np.max(ra), np.max(dec))
+        x, y, z = _xyz_from_ra_dec(np.max(ra), np.max(dec))
         # Healpixels within the inner circle
         indices = self.tree.query_ball_point((x, y, z), self.inner_radius)
         # Healpixels withing the outer circle
