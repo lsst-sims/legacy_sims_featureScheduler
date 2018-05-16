@@ -6,40 +6,39 @@ import lsst.sims.featureScheduler as fs
 target_maps = {}
 nside = fs.set_default_nside(nside=32)  # Required
 
-
 target_maps['u'] = fs.generate_goal_map(NES_fraction=0.,
-                                        WFD_fraction=0.9, SCP_fraction=0.05,
-                                        GP_fraction=0.05,
+                                        WFD_fraction=0.31, SCP_fraction=0.15,
+                                        GP_fraction=0.15,
                                         WFD_upper_edge_fraction=0.0,
                                         nside=nside,
                                         generate_id_map=True)
-target_maps['g'] = fs.generate_goal_map(NES_fraction=0.05,
-                                        WFD_fraction=0.85, SCP_fraction=0.05,
-                                        GP_fraction=0.05,
+target_maps['g'] = fs.generate_goal_map(NES_fraction=0.2,
+                                        WFD_fraction=0.44, SCP_fraction=0.15,
+                                        GP_fraction=0.15,
                                         WFD_upper_edge_fraction=0.0,
                                         nside=nside,
                                         generate_id_map=True)
-target_maps['r'] = fs.generate_goal_map(NES_fraction=0.05,
-                                        WFD_fraction=0.85, SCP_fraction=0.05,
+target_maps['r'] = fs.generate_goal_map(NES_fraction=0.46,
+                                        WFD_fraction=1.0, SCP_fraction=0.15,
                                         WFD_upper_edge_fraction=0.0,
-                                        GP_fraction=0.05,
+                                        GP_fraction=0.15,
                                         nside=nside,
                                         generate_id_map=True)
-target_maps['i'] = fs.generate_goal_map(NES_fraction=0.05,
-                                        WFD_fraction=0.85, SCP_fraction=0.05,
-                                        GP_fraction=0.05,
+target_maps['i'] = fs.generate_goal_map(NES_fraction=0.46,
+                                        WFD_fraction=1.0, SCP_fraction=0.15,
+                                        GP_fraction=0.15,
                                         WFD_upper_edge_fraction=0.0,
                                         nside=nside,
                                         generate_id_map=True)
-target_maps['z'] = fs.generate_goal_map(NES_fraction=0.05,
-                                        WFD_fraction=0.85, SCP_fraction=0.05,
-                                        GP_fraction=0.05,
+target_maps['z'] = fs.generate_goal_map(NES_fraction=0.4,
+                                        WFD_fraction=0.9, SCP_fraction=0.15,
+                                        GP_fraction=0.15,
                                         WFD_upper_edge_fraction=0.0,
                                         nside=nside,
                                         generate_id_map=True)
 target_maps['y'] = fs.generate_goal_map(NES_fraction=0.,
-                                        WFD_fraction=0.9, SCP_fraction=0.05,
-                                        GP_fraction=0.05,
+                                        WFD_fraction=0.9, SCP_fraction=0.15,
+                                        GP_fraction=0.15,
                                         WFD_upper_edge_fraction=0.0,
                                         nside=nside,
                                         generate_id_map=True)
@@ -84,9 +83,9 @@ for filtername in filters:
                                                      filtername=filtername,
                                                      min=sb_limit_map[filtername]['min'],
                                                      max=sb_limit_map[filtername]['max']))
-    bfs.append(fs.AreaTarget_map_basis_function(filtername=filtername,
-                                                target_map=target_maps[filtername][0],
-                                                out_of_bounds_val=hp.UNSEEN, nside=nside))
+    bfs.append(fs.Target_map_basis_function(filtername=filtername,
+                                            target_map=target_maps[filtername][0],
+                                            out_of_bounds_val=hp.UNSEEN, nside=nside))
     bfs.append(fs.MeridianStripeBasisFunction(nside=nside,width=width,
                                               weight=weight,
                                               height=height,
@@ -107,7 +106,7 @@ for filtername in filters:
     bfs.append(fs.CableWrap_unwrap_basis_function(nside=nside))
     # bfs.append(fs.NorthSouth_scan_basis_function(length=70.))
 
-    weights = np.array([1.0, 1.0, .5, 1., 1., 1.5, 1.0, 1.0, 1.0])
+    weights = np.array([1.0, 1.0, .1, 1., 1., 1.5, 1.0, 1.0, 1.0])
     surveys.append(fs.Greedy_survey_fields(bfs, weights, block_size=1,
                                            filtername=filtername, dither=True,
                                            nside=nside,
