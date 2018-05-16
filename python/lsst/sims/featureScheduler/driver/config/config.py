@@ -68,6 +68,12 @@ surveys = []
 
 sb_limit_map = fs.utils.generate_sb_map(target_maps, filters)
 
+filter_prop = {'u': 0.069,
+               'g': 0.097,
+               'r': 0.222,
+               'i': 0.222,
+               'z': 0.194,
+               'y': 0.194}
 
 for filtername in filters:
     bfs = list()
@@ -92,7 +98,8 @@ for filtername in filters:
                                                time_lag_max=150.,
                                                time_lag_boost=180.,
                                                boost_gain=1.0,
-                                               unseen_before_lag=True))
+                                               unseen_before_lag=True,
+                                               proportion=filter_prop[filtername]))
     # bfs.append(fs.Avoid_Fast_Revists(filtername=filtername, gap_min=70., nside=nside))
     bfs.append(fs.Bulk_cloud_basis_function(max_cloud_map=cloud_map, nside=nside))
     bfs.append(fs.Moon_avoidance_basis_function(nside=nside, moon_distance=40.))
