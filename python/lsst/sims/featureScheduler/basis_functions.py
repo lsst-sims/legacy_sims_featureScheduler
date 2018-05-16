@@ -742,7 +742,7 @@ class AreaTarget_map_basis_function(Base_basis_function):
         # else:
         #     result[self.inside_area] = ww*np.median(nobs_map/ww)/(nobs_map/ww)
         result[self.inside_area] = (nobs_max - nobs_map) / (nobs_max + nobs_map)
-        result[self.inside_area] *= ww[self.inside_area]
+        result[self.inside_area] *= ww
         result[self.out_of_bounds_area] = self.out_of_bounds_val
         return result[indx]
         # Find out how many observations we want now at those points
