@@ -731,7 +731,9 @@ class AreaTarget_map_basis_function(Base_basis_function):
             indx = np.arange(result.size)
 
         nobs_map = self.survey_features['N_obs'].feature
-        n_obs_all = self.survey_features['N_obs_count_all'].feature
+        n_obs_all = self.survey_features['N_obs_count_all'].feature \
+            if self.survey_features['N_obs_count_all'].feature > 0 else 1
+
         # s_obs_all = np.sum(nobs_map)
         ww = self.target_map
         # reward = ww + np.mean(nobs_map[self.inside_area] / ww[self.inside_area]) - (nobs_map / ww)
