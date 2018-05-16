@@ -540,24 +540,26 @@ class CableWrap_unwrap_basis_function(Base_basis_function):
 
         result = np.zeros(hp.nside2npix(self.nside), dtype=float)
         alt = self.condition_features['altaz'].feature['alt']
+        current_abs_rad = np.radians(self.condition_features['current_pointing'].feature['az'])
         unseen = np.where(np.bitwise_or(alt < self.minAlt,
                                         alt > self.maxAlt))
 
-        result[unseen] = hp.UNSEEN
-
-        if (self.minAz + self.activate_tol < self.condition_features['current_pointing'].feature['az'] <
-            self.maxAz - self.activate_tol) and not self.active:
+        if (self.minAz + self.activate_tol < current_abs_rad < self.maxAz - self.activate_tol) and not self.active:
             return result
-        elif (self.minAz+self.unwrap_until < self.condition_features['current_pointing'].feature['az'] <
-              self.maxAz-self.unwrap_until) and self.active:
+        elif (self.minAz+self.unwrap_until < current_abs_rad < self.maxAz-self.unwrap_until) and self.active:
             self.active = False
             self.unwrap_direction = 0.
             return result
 
-        self.active = True
-        az_rad = self.condition_features['altaz'].feature['az']
-        current_abs_rad = self.condition_features['current_pointing'].feature['az']
+        log.debug('CableWrap[Active]: telaz=%7.2f [activate@ %7.2f/%7.2f] [deactivate@ %7.2f/%7.2f]' % (
+            float(np.degrees(current_abs_rad)),
+            float(np.degrees(self.minAz + self.activate_tol)), float(np.degrees(self.maxAz - self.activate_tol)),
+            float(np.degrees(self.minAz + self.unwrap_until)), float(np.degrees(self.maxAz - self.unwrap_until))))
 
+        az_rad = self.condition_features['altaz'].feature['az']
+
+
+        self.active = True
         if current_abs_rad < 0.:
             self.unwrap_direction = 1.  # clock-wise unwrap
         else:
@@ -587,20 +589,15 @@ class CableWrap_unwrap_basis_function(Base_basis_function):
         unwrap_get_shorter = np.where(unwrap_distance_rad > np.pi)
         unwrap_distance_rad[unwrap_get_shorter] -= TWOPI
         unwrap_distance_rad = np.abs(unwrap_distance_rad)
-        # unwrap_accum_abs_rad = unwrap_current_abs_rad + unwrap_distance_rad
 
-        # # Compute wrap regions and fix distances
-        # mask_max = np.where(unwrap_accum_abs_rad > max_abs_rad)
-        # distance_rad[mask_max] -= TWOPI
-        # mask_min = np.where(accum_abs_rad < min_abs_rad)
-        # distance_rad[mask_min] += TWOPI
-
+        if current_abs_rad > 0.:
+            mask = np.where(accum_abs_rad > unwrap_current_abs_rad)
+        else:
+            mask = np.where(accum_abs_rad < unwrap_current_abs_rad)
 
         # Finally build reward map
-
-        result = 1. - unwrap_distance_rad/np.max(unwrap_distance_rad)
-        result[mask_max] = 0.
-        result[mask_min] = 0.
+        result = (1. - unwrap_distance_rad/np.max(unwrap_distance_rad))**2.
+        result[mask] = 0.
         result[unseen] = hp.UNSEEN
 
         return result
