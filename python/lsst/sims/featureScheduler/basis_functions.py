@@ -730,19 +730,16 @@ class AreaTarget_map_basis_function(Base_basis_function):
         if indx is None:
             indx = np.arange(result.size)
 
-        nobs_map = self.survey_features['N_obs'].feature[self.inside_area]
-        nobs_max = np.max(self.survey_features['N_obs'].feature[self.inside_area])
-        nobs_max = nobs_max if nobs_max > 0 else 1
+        nobs_map = self.survey_features['N_obs'].feature[self.inside_area]+1
+        # nobs_max = np.max(self.survey_features['N_obs'].feature[self.inside_area])
+        # nobs_max = nobs_max if nobs_max > 0 else 1
 
         # s_obs_all = np.sum(nobs_map)
         ww = self.target_map[self.inside_area]
         # # reward = ww + np.mean(nobs_map[self.inside_area] / ww[self.inside_area]) - (nobs_map / ww)
-        # if np.all(nobs_map == 0):
-        #     result[self.inside_area] = ww
-        # else:
-        #     result[self.inside_area] = ww*np.median(nobs_map/ww)/(nobs_map/ww)
-        result[self.inside_area] = (nobs_max - nobs_map) / (nobs_max + nobs_map)
-        result[self.inside_area] *= ww
+        result[self.inside_area] = ww*ww/(nobs_map*ww)*np.median(nobs_map/ww)
+        # result[self.inside_area] = (nobs_max - nobs_map) / (nobs_max + nobs_map)
+        # result[self.inside_area] *= ww
         result[self.out_of_bounds_area] = self.out_of_bounds_val
         return result[indx]
         # Find out how many observations we want now at those points
