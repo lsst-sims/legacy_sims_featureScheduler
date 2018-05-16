@@ -100,7 +100,7 @@ for filtername in filters:
                                                boost_gain=1.0,
                                                unseen_before_lag=True,
                                                proportion=filter_prop[filtername]))
-    # bfs.append(fs.Avoid_Fast_Revists(filtername=filtername, gap_min=70., nside=nside))
+    bfs.append(fs.Avoid_Fast_Revists(filtername=filtername, gap_min=70., nside=nside))
     bfs.append(fs.Bulk_cloud_basis_function(max_cloud_map=cloud_map, nside=nside))
     bfs.append(fs.Moon_avoidance_basis_function(nside=nside, moon_distance=40.))
     bfs.append(fs.CableWrap_unwrap_basis_function(nside=nside))
@@ -116,22 +116,22 @@ for filtername in filters:
                                            ignore_obs='DD'))
 
 # Set up pairs
-# pairs_bfs = []
-#
-# pair_map = np.zeros(len(target_maps['z'][0]))
-# pair_map.fill(hp.UNSEEN)
-# wfd = np.where(target_maps['z'][1] == 3)
-# nes = np.where(target_maps['z'][1] == 1)
-# pair_map[wfd] = 1.
-# pair_map[nes] = 1.
-#
-# pairs_bfs.append(fs.Target_map_basis_function(filtername='',
-#                                               target_map=pair_map,
-#                                               out_of_bounds_val=hp.UNSEEN, nside=nside))
-# pairs_bfs.append(fs.MeridianStripeBasisFunction(nside=nside, zenith_pad=(45.,), width=(35.,)))
-# pairs_bfs.append(fs.Moon_avoidance_basis_function(nside=nside, moon_distance=30.))
-#
-# surveys.append(fs.Pairs_survey_scripted(pairs_bfs, [1., 1., 1.], ignore_obs='DD', min_alt=20.))
+pairs_bfs = []
+
+pair_map = np.zeros(len(target_maps['z'][0]))
+pair_map.fill(hp.UNSEEN)
+wfd = np.where(target_maps['z'][1] == 3)
+nes = np.where(target_maps['z'][1] == 1)
+pair_map[wfd] = 1.
+pair_map[nes] = 1.
+
+pairs_bfs.append(fs.Target_map_basis_function(filtername='',
+                                              target_map=pair_map,
+                                              out_of_bounds_val=hp.UNSEEN, nside=nside))
+pairs_bfs.append(fs.MeridianStripeBasisFunction(nside=nside, zenith_pad=(45.,), width=(35.,)))
+pairs_bfs.append(fs.Moon_avoidance_basis_function(nside=nside, moon_distance=30.))
+
+surveys.append(fs.Pairs_survey_scripted(pairs_bfs, [1., 1., 1.], ignore_obs='DD', min_alt=20.))
 # surveys.append(fs.Pairs_survey_scripted([], [], ignore_obs='DD'))
 
 # Set up the DD
