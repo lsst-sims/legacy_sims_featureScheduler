@@ -725,22 +725,23 @@ class AreaTarget_map_basis_function(Base_basis_function):
         Healpix reward map
         """
         # Should probably update this to be as masked array.
-        result = np.empty(hp.nside2npix(self.nside), dtype=float)
-        result.fill(self.out_of_bounds_val)
+        result = np.zeros(hp.nside2npix(self.nside), dtype=float)
+        # result.fill(self.out_of_bounds_val)
         if indx is None:
             indx = np.arange(result.size)
 
         nobs_map = self.survey_features['N_obs'].feature
-        n_obs_all = self.survey_features['N_obs_count_all'].feature \
-            if self.survey_features['N_obs_count_all'].feature > 0 else 1
+        # n_obs_all = self.survey_features['N_obs_count_all'].feature \
+        #     if self.survey_features['N_obs_count_all'].feature > 0 else 1
 
         # s_obs_all = np.sum(nobs_map)
         ww = self.target_map
         # reward = ww + np.mean(nobs_map[self.inside_area] / ww[self.inside_area]) - (nobs_map / ww)
-        result[self.inside_area] = (n_obs_all - nobs_map[self.inside_area]) / (n_obs_all + nobs_map[self.inside_area])
-        result[self.inside_area] *= ww[self.inside_area]
+        reward = ww*np.median(nobs_map[self.inside_area]/ww)/(nobs_map/ww)
+        # result[self.inside_area] = (n_obs_all - nobs_map[self.inside_area]) / (n_obs_all + nobs_map[self.inside_area])
+        # result[self.inside_area] *= ww[self.inside_area]
         # reward[self.out_of_bounds_area] = self.out_of_bounds_val
-        return result[indx]
+        return reward[indx]
         # Find out how many observations we want now at those points
         # goal_N = self.target_map[indx] * self.survey_features['N_obs_count_all'].feature * self.norm_factor
         #
