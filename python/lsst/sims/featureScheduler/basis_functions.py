@@ -854,7 +854,7 @@ class Strict_filter_basis_function(Base_basis_function):
     """
     def __init__(self, survey_features=None, condition_features=None, time_lag_min=10., time_lag_max=30.,
                  time_lag_boost=60., boost_gain=2.0, unseen_before_lag=False,
-                 filtername='r', twi_change=-18.):
+                 filtername='r', twi_change=-18., proportion=1.0):
         """
         Paramters
         ---------
@@ -871,6 +871,7 @@ class Strict_filter_basis_function(Base_basis_function):
 
         self.twi_change = np.radians(twi_change)
         self.filtername = filtername
+        self.proportion = proportion
         if condition_features is None:
             self.condition_features = {}
             self.condition_features['Current_filter'] = features.Current_filter()
@@ -880,6 +881,8 @@ class Strict_filter_basis_function(Base_basis_function):
         if survey_features is None:
             self.survey_features = {}
             self.survey_features['Last_observation'] = features.Last_observation()
+            self.survey_features['N_obs_all'] = features.N_obs_count(filtername=None)
+            self.survey_features['N_obs'] = features.N_obs_count(filtername=filtername)
 
         super(Strict_filter_basis_function, self).__init__(survey_features=self.survey_features,
                                                            condition_features=self.condition_features)
@@ -893,6 +896,10 @@ class Strict_filter_basis_function(Base_basis_function):
         b = -a * lag_min
 
         bonus = a * time + b
+        # How far behind we are with respect to proportion?
+        nobs = self.survey_features['N_obs'].feature
+        nobs_all = self.survey_features['N_obs_all'].feature
+        need = self.proportion*(nobs_all-nobs)/(nobs_all+nobs) if nobs_all > 0 else self.proportion
         if hasattr(time, '__iter__'):
             before_lag = np.where(time <= lag_min)
             bonus[before_lag] = -np.inf if self.unseen_before_lag else 0.
@@ -903,7 +910,7 @@ class Strict_filter_basis_function(Base_basis_function):
         elif time >= lag_max:
             return 1. if time < self.time_lag_boost else self.boost_gain
 
-        return bonus
+        return bonus*need
 
     def check_feasibility(self):
         if self.condition_features['Current_filter'].feature is None or \
@@ -1085,7 +1092,7 @@ class Slewtime_basis_function(Base_basis_function):
                 fields = np.unique(self.condition_features['hp2fields'].feature[good])
                 for field in fields:
                     hp_indx = np.where(self.condition_features['hp2fields'].feature == field)
-                    result[hp_indx] = np.max(result[hp_indx])
+                    result[hp_indx] = np.min(result[hp_indx])
             else:
                 result = (self.maxtime - self.condition_features['slewtime'].feature)/self.maxtime
         return result
