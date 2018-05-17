@@ -1085,8 +1085,7 @@ class Slewtime_basis_function(Base_basis_function):
                 result[good] = ((self.maxtime - self.condition_features['slewtime'].feature[good]) /
                                 self.maxtime)**self.order
                 if self.hard_max is not None:
-                    not_so_good = np.where(np.bitwise_and(self.condition_features['slewtime'].feature > 0.,
-                                                          self.condition_features['slewtime'].feature < self.hard_max))
+                    not_so_good = np.where(self.condition_features['slewtime'].feature > self.hard_max)
                     result[not_so_good] -= 10.
                 fields = np.unique(self.condition_features['hp2fields'].feature[good])
                 for field in fields:
