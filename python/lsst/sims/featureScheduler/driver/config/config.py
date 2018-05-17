@@ -99,7 +99,8 @@ for filtername in filters:
                                                time_lag_boost=180.,
                                                boost_gain=1.0,
                                                unseen_before_lag=True,
-                                               proportion=filter_prop[filtername]))
+                                               proportion=filter_prop[filtername],
+                                               aways_available=filtername in 'zy'))
     bfs.append(fs.Avoid_Fast_Revists(filtername=filtername, gap_min=70., nside=nside))
     bfs.append(fs.Bulk_cloud_basis_function(max_cloud_map=cloud_map, nside=nside))
     bfs.append(fs.Moon_avoidance_basis_function(nside=nside, moon_distance=40.))

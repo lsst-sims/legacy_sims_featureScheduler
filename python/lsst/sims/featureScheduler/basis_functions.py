@@ -879,7 +879,7 @@ class Strict_filter_basis_function(Base_basis_function):
     """
     def __init__(self, survey_features=None, condition_features=None, time_lag_min=10., time_lag_max=30.,
                  time_lag_boost=60., boost_gain=2.0, unseen_before_lag=False,
-                 filtername='r', twi_change=-18., proportion=1.0):
+                 filtername='r', twi_change=-18., proportion=1.0, aways_available=False):
         """
         Paramters
         ---------
@@ -897,6 +897,8 @@ class Strict_filter_basis_function(Base_basis_function):
         self.twi_change = np.radians(twi_change)
         self.filtername = filtername
         self.proportion = proportion
+        self.aways_available = aways_available
+
         if condition_features is None:
             self.condition_features = {}
             self.condition_features['Current_filter'] = features.Current_filter()
@@ -941,7 +943,7 @@ class Strict_filter_basis_function(Base_basis_function):
 
     def check_feasibility(self):
         if self.condition_features['Current_filter'].feature is None or \
-                self.condition_features['Current_filter'].feature == self.filtername:
+                self.condition_features['Current_filter'].feature == self.filtername or self.aways_available:
             return True
 
         # Did the moon set or rise since last observation?
