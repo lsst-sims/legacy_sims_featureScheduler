@@ -1230,12 +1230,12 @@ class Deep_drilling_survey(BaseSurvey):
         filter_goal = np.array([self.filter_goals[fname] for fname in self.filter_list])
         filter_goal = (1.-filter_goal)/(1.+filter_goal)
 
-        if self.extra_features['Nobs'].feature > 0:
+        if self.extra_features['N_obs'].feature > 0:
             for i, filtername in enumerate(self.filter_list):
-                filter_need[i] = ((self.extra_features['Nobs'].feature -
-                                   self.extra_features['Nobs_%s' % filtername].feature) /
-                                  (self.extra_features['Nobs'].feature +
-                                   self.extra_features['Nobs_%s' % filtername].feature)) / filter_goal[i]
+                filter_need[i] = ((self.extra_features['N_obs'].feature -
+                                   self.extra_features['N_obs_%s' % filtername].feature) /
+                                  (self.extra_features['N_obs'].feature +
+                                   self.extra_features['N_obs_%s' % filtername].feature)) / filter_goal[i]
         else:
             filter_need = 1./filter_goal
 
