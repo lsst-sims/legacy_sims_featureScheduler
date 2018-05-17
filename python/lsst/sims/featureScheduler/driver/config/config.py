@@ -103,7 +103,7 @@ for filtername in filters:
     bfs.append(fs.Avoid_Fast_Revists(filtername=filtername, gap_min=70., nside=nside))
     bfs.append(fs.Bulk_cloud_basis_function(max_cloud_map=cloud_map, nside=nside))
     bfs.append(fs.Moon_avoidance_basis_function(nside=nside, moon_distance=40.))
-    bfs.append(fs.CableWrap_unwrap_basis_function(nside=nside, unwrap_until=95))
+    bfs.append(fs.CableWrap_unwrap_basis_function(nside=nside, activate_tol=70., unwrap_until=315))
     # bfs.append(fs.NorthSouth_scan_basis_function(length=70.))
 
     weights = np.array([2., 0.1, .1, 1., 3., 1.5, 1.0, 1.0, 1.0, 1.0])
