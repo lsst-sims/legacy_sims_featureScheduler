@@ -546,7 +546,8 @@ class CableWrap_unwrap_basis_function(Base_basis_function):
 
         if (self.minAz + self.activate_tol < current_abs_rad < self.maxAz - self.activate_tol) and not self.active:
             return result
-        elif (self.minAz+self.unwrap_until < current_abs_rad < self.maxAz-self.unwrap_until) and self.active:
+        elif (self.minAz+self.unwrap_until > current_abs_rad or current_abs_rad < self.maxAz-self.unwrap_until) \
+                and self.active:
             self.active = False
             self.unwrap_direction = 0.
             return result
