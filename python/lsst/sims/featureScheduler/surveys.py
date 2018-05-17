@@ -958,7 +958,7 @@ class Deep_drilling_survey(BaseSurvey):
                  nexp=2, ignore_obs='dummy', survey_name='DD', fraction_limit=0.01,
                  ha_limits=([0., 1.5], [21.0, 24.]), reward_value=101., moon_up=True, readtime=2.,
                  avoid_same_day=False,
-                 day_space=2., max_clouds=0.7, moon_distance=30., nside=default_nside):
+                 day_space=2., max_clouds=0.7, moon_distance=30., filter_goals=None, nside=default_nside):
         """
         Parameters
         ----------
@@ -1010,6 +1010,7 @@ class Deep_drilling_survey(BaseSurvey):
         self.moon_distance = np.radians(moon_distance)
         self.sequence = True  # Specifies the survey gives sequence of observations
         self.avoid_same_day = avoid_same_day
+        self.filter_goals = np.array(filter_goals) if filter_goals is not None else None
 
         if extra_features is None:
             self.extra_features = {}
@@ -1075,9 +1076,13 @@ class Deep_drilling_survey(BaseSurvey):
             self.fields = [field]
 
             self.sequence = []
+            self.sequence_dict = dict()
             filter_list = []
             for num, filtername in zip(nvis, sequence):
                 filter_list.append(filtername)
+                if filtername not in self.sequence_dict:
+                    self.sequence_dict[filtername] = []
+
                 for j in range(num):
                     obs = empty_observation()
                     obs['filter'] = filtername
@@ -1089,10 +1094,16 @@ class Deep_drilling_survey(BaseSurvey):
                     obs['field_id'] = hp2fields[hpid]
                     obs['survey_id'] = self.survey_id
 
-                    self.sequence.append(obs)
+                    # self.sequence.append(obs)
+                    self.sequence_dict[filtername].append(obs)
             self.filter_list = np.unique(np.array(filter_list))
         else:
+            self.sequence_dict = None
             self.sequence = sequence
+
+        # add extra features to map filter goals
+        for filtername in self.filter_list:
+            self.extra_features['N_obs_%s' % filtername] = features.N_obs_count(filtername=filtername)
 
         self.approx_time = np.sum([(o['exptime']+readtime)*o['nexp'] for o in obs])
 
@@ -1197,6 +1208,50 @@ class Deep_drilling_survey(BaseSurvey):
         # If we made it this far, good to go
         return True
 
+    def get_sequence(self):
+        '''
+        Build and return sequence of observations
+        :return:
+        '''
+
+        if self.sequence_dict is None:
+            return self.sequence
+        elif len(self.filter_list) == 1:
+            return self.sequence_dict[self.filter_list[0]]
+        elif self.filter_goals is None:
+            self.sequence = []
+            for filtername in self.filter_list:
+                self.sequence.append(self.sequence_dict[filtername])
+            return self.sequence
+
+        # If arrived here, then need to construct sequence. Will but the current filter first and the one that
+        # requires more observations last
+        filter_need = np.zeros(len(self.filter_list))
+        filter_goal = (1.-self.filter_goals)/(1.+self.filter_goals)
+
+        if self.extra_features['Nobs'].feature > 0:
+            for i, filtername in enumerate(self.filter_list):
+                filter_need[i] = ((self.extra_features['Nobs'].feature -
+                                   self.extra_features['Nobs_%s' % filtername].feature) /
+                                  (self.extra_features['Nobs'].feature +
+                                   self.extra_features['Nobs_%s' % filtername].feature)) / filter_goal[i]
+        else:
+            filter_need = 1./filter_goal
+
+        filter_order = np.array(self.filter_list[np.argsort(filter_need)[::-1]])
+        current_filter_index = np.where(filter_order == self.extra_features['current_filter'].feature)[0]
+        if current_filter_index != 0 and current_filter_index != len(self.filter_list)-1:
+            first_filter = filter_order[0]
+            filter_order[0] = self.extra_features['current_filter'].feature
+            filter_order[current_filter_index] = first_filter
+        elif current_filter_index == len(self.filter_list)-1:
+            filter_order = [filter_order[-1]] + filter_order[:-1]
+
+        self.sequence = []
+        for filtername in filter_order:
+            self.sequence.append(self.sequence_dict[filtername])
+        return self.sequence
+
 
     def calc_reward_function(self):
         result = -np.inf
@@ -1207,7 +1262,7 @@ class Deep_drilling_survey(BaseSurvey):
     def __call__(self):
         result = []
         if self._check_feasability():
-            result = copy.deepcopy(self.sequence)
+            result = copy.deepcopy(self.get_sequence())
             # Note, could check here what the current filter is and re-order the result
         return result
 
