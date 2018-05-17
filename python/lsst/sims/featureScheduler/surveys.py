@@ -1250,7 +1250,7 @@ class Deep_drilling_survey(BaseSurvey):
 
         log.debug('DeepDrilling[filter_order]: %s was %s[need: %s] ' % (filter_order,
                                                                         self.filter_list,
-                                                                        self.filter_need))
+                                                                        filter_need))
         self.sequence = []
         for filtername in filter_order:
             for observation in self.sequence_dict[filtername]:
