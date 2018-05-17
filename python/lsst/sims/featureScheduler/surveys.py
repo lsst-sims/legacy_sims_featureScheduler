@@ -1010,7 +1010,7 @@ class Deep_drilling_survey(BaseSurvey):
         self.moon_distance = np.radians(moon_distance)
         self.sequence = True  # Specifies the survey gives sequence of observations
         self.avoid_same_day = avoid_same_day
-        self.filter_goals = np.array(filter_goals) if filter_goals is not None else None
+        self.filter_goals = filter_goals
 
         if extra_features is None:
             self.extra_features = {}
