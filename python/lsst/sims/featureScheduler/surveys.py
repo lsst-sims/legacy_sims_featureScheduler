@@ -1410,6 +1410,7 @@ class Pairs_survey_scripted(Scripted_survey):
         self._purge_queue()
         result = -np.inf
         self.reward = result
+        log.debug('Pair - calc_reward_func')
         for indx in range(len(self.observing_queue)):
 
             check = self._check_observation(self.observing_queue[indx])
@@ -1438,10 +1439,11 @@ class Pairs_survey_scripted(Scripted_survey):
             infilt = self.extra_features['current_filter'].feature in self.filt_to_pair
 
         is_observable = self._check_mask(observation)
+        valid = in_time_window & infilt & in_slew_window & is_observable
         log.debug('Pair - observation: %s ' % observation)
-        log.debug('Pair - check      : in_time_window[%s] infilt[%s] in_slew_window[%s] is_observable[%s]' %
-                  (in_time_window, infilt, in_slew_window, is_observable))
-        return (in_time_window & infilt & in_slew_window & is_observable,
+        log.debug('Pair - check[%s]: in_time_window[%s] infilt[%s] in_slew_window[%s] is_observable[%s]' %
+                  (valid, in_time_window, infilt, in_slew_window, is_observable))
+        return (valid,
                 in_time_window,
                 infilt,
                 in_slew_window,
@@ -1453,6 +1455,7 @@ class Pairs_survey_scripted(Scripted_survey):
         # Check for something I want a pair of
         result = []
         # if len(self.observing_queue) > 0:
+        log.debug('Pair - call')
         for indx in range(len(self.observing_queue)):
 
             check = self._check_observation(self.observing_queue[indx])
