@@ -1084,7 +1084,7 @@ class Slewtime_basis_function(Base_basis_function):
                                                self.condition_features['slewtime'].feature < self.maxtime))
                 result[good] = ((self.maxtime - self.condition_features['slewtime'].feature[good]) /
                                 self.maxtime)**self.order
-                if self.hard_max is None:
+                if self.hard_max is not None:
                     not_so_good = np.where(np.bitwise_and(self.condition_features['slewtime'].feature > 0.,
                                                           self.condition_features['slewtime'].feature < self.hard_max))
                     result[not_so_good] -= 10.
