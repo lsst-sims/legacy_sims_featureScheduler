@@ -1227,7 +1227,8 @@ class Deep_drilling_survey(BaseSurvey):
         # If arrived here, then need to construct sequence. Will but the current filter first and the one that
         # requires more observations last
         filter_need = np.zeros(len(self.filter_list))
-        filter_goal = (1.-self.filter_goals)/(1.+self.filter_goals)
+        filter_goal = np.array([self.filter_goals[fname] for fname in self.filter_list])
+        filter_goal = (1.-filter_goal)/(1.+filter_goal)
 
         if self.extra_features['Nobs'].feature > 0:
             for i, filtername in enumerate(self.filter_list):
