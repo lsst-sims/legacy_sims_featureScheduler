@@ -546,8 +546,13 @@ class CableWrap_unwrap_basis_function(Base_basis_function):
         current_abs_rad = np.radians(self.condition_features['current_pointing'].feature['az'])
         unseen = np.where(np.bitwise_or(alt < self.minAlt,
                                         alt > self.maxAlt))
+        result[unseen] = hp.UNSEEN
 
         if (self.minAz + self.activate_tol < current_abs_rad < self.maxAz - self.activate_tol) and not self.active:
+            log.debug('CableWrap[Inact]telaz=%7.2f [activate@ %7.2f/%7.2f] [deactivate@ %7.2f/%7.2f]' % (
+                float(np.degrees(current_abs_rad)),
+                float(np.degrees(self.minAz + self.activate_tol)), float(np.degrees(self.maxAz - self.activate_tol)),
+                float(np.degrees(self.minAz + self.unwrap_until)), float(np.degrees(self.maxAz - self.unwrap_until))))
             return result
         elif self.active and self.unwrap_direction == 1 and current_abs_rad > self.minAz+self.unwrap_until:
             log.debug('CableWrap[Deact:clock-wise]: telaz=%7.2f [activate@ %7.2f] [deactivate@ %7.2f]' % (
@@ -586,12 +591,12 @@ class CableWrap_unwrap_basis_function(Base_basis_function):
 
         if not self.active:
             self.activation_time = self.condition_features['mjd'].feature
+            if current_abs_rad < 0.:
+                self.unwrap_direction = 1  # clock-wise unwrap
+            else:
+                self.unwrap_direction = -1  # counter-clock-wise unwrap
 
         self.active = True
-        if current_abs_rad < 0.:
-            self.unwrap_direction = 1  # clock-wise unwrap
-        else:
-            self.unwrap_direction = -1  # counter-clock-wise unwrap
 
         max_abs_rad = self.maxAz
         min_abs_rad = self.minAz
@@ -612,13 +617,14 @@ class CableWrap_unwrap_basis_function(Base_basis_function):
         distance_rad[mask_min] += TWOPI
 
         # Step-2: Repeat but now with compute reward to unwrap using specified delta_unwrap
-        unwrap_current_abs_rad = current_abs_rad - (self.delta_unwrap if current_abs_rad > 0 else -self.delta_unwrap)
+        unwrap_current_abs_rad = current_abs_rad - (np.abs(self.delta_unwrap) if self.unwrap_direction > 0
+            else -np.abs(self.delta_unwrap))
         unwrap_distance_rad = divmod(norm_az_rad - unwrap_current_abs_rad, TWOPI)[1]
         unwrap_get_shorter = np.where(unwrap_distance_rad > np.pi)
         unwrap_distance_rad[unwrap_get_shorter] -= TWOPI
         unwrap_distance_rad = np.abs(unwrap_distance_rad)
 
-        if current_abs_rad > 0.:
+        if self.unwrap_direction < 0:
             mask = np.where(accum_abs_rad > unwrap_current_abs_rad)
         else:
             mask = np.where(accum_abs_rad < unwrap_current_abs_rad)
