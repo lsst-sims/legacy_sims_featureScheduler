@@ -1248,10 +1248,13 @@ class Deep_drilling_survey(BaseSurvey):
         elif current_filter_index == len(self.filter_list)-1:
             filter_order = np.append(filter_order[-1], filter_order[:-1])
 
-        log.debug('DeepDrilling[filter_order]: %s was %s' % (filter_order, self.filter_list))
+        log.debug('DeepDrilling[filter_order]: %s was %s[need: %s] ' % (filter_order,
+                                                                        self.filter_list,
+                                                                        self.filter_need))
         self.sequence = []
         for filtername in filter_order:
-            self.sequence.append(self.sequence_dict[filtername])
+            for observation in self.sequence_dict[filtername]:
+                self.sequence.append(observation)
         return self.sequence
 
 
