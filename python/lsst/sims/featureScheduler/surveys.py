@@ -1108,7 +1108,7 @@ class Deep_drilling_survey(BaseSurvey):
         self.approx_time = np.sum([(o['exptime']+readtime)*o['nexp'] for o in obs])
 
         # Construct list of all the filters that need to be loaded to execute sequence
-        self.filter_set = set([observation['filter'][0] for observation in self.sequence])
+        self.filter_set = set(self.filter_list)
 
     def _check_feasability(self):
         # Check that all filters are available
