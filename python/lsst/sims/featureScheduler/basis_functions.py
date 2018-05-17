@@ -501,7 +501,7 @@ class CableWrap_unwrap_basis_function(Base_basis_function):
     """
     """
     def __init__(self, nside=default_nside, condition_features=None, minAz=-270., maxAz=270., minAlt=20., maxAlt=82.,
-                 activate_tol=20., delta_unwrap=1.2, unwrap_until=70., survey_features=None):
+                 activate_tol=20., delta_unwrap=1.2, unwrap_until=70., max_duration=30., survey_features=None):
         """
         Parameters
         ----------
@@ -521,6 +521,7 @@ class CableWrap_unwrap_basis_function(Base_basis_function):
             self.condition_features = {}
             self.condition_features['altaz'] = features.AltAzFeature()
             self.condition_features['current_pointing'] = features.Current_pointing()
+            self.condition_features['mjd'] = features.Current_mjd()
 
         self.minAz = np.radians(minAz)
         self.maxAz = np.radians(maxAz)
@@ -535,6 +536,8 @@ class CableWrap_unwrap_basis_function(Base_basis_function):
         self.nside = nside
         self.active = False
         self.unwrap_direction = 0.  # either -1., 0., 1.
+        self.max_duration = max_duration/60./24.  # Convert to days
+        self.activation_time = None
 
     def __call__(self, indx=None):
 
@@ -546,14 +549,32 @@ class CableWrap_unwrap_basis_function(Base_basis_function):
 
         if (self.minAz + self.activate_tol < current_abs_rad < self.maxAz - self.activate_tol) and not self.active:
             return result
-        elif (self.minAz+self.unwrap_until > current_abs_rad or current_abs_rad < self.maxAz-self.unwrap_until) \
-                and self.active:
-            log.debug('CableWrap[Deactivating]: telaz=%7.2f [activate@ %7.2f/%7.2f] [deactivate@ %7.2f/%7.2f]' % (
+        elif self.active and self.unwrap_direction == 1 and current_abs_rad > self.minAz+self.unwrap_until:
+            log.debug('CableWrap[Deact:clock-wise]: telaz=%7.2f [activate@ %7.2f] [deactivate@ %7.2f]' % (
                 float(np.degrees(current_abs_rad)),
-                float(np.degrees(self.minAz + self.activate_tol)), float(np.degrees(self.maxAz - self.activate_tol)),
-                float(np.degrees(self.minAz + self.unwrap_until)), float(np.degrees(self.maxAz - self.unwrap_until))))
+                float(np.degrees(self.minAz + self.activate_tol)),
+                float(np.degrees(self.minAz + self.unwrap_until))))
             self.active = False
             self.unwrap_direction = 0.
+            self.activation_time = None
+            return result
+        elif self.active and self.unwrap_direction == -1 and current_abs_rad < self.maxAz-self.unwrap_until:
+            log.debug('CableWrap[Deact:counter-clock-wise]: telaz=%7.2f [activate@ %7.2f] [deactivate@ %7.2f]' % (
+                float(np.degrees(current_abs_rad)),
+                float(np.degrees(self.maxAz - self.activate_tol)),
+                float(np.degrees(self.maxAz - self.unwrap_until))))
+            self.active = False
+            self.unwrap_direction = 0.
+            self.activation_time = None
+            return result
+        elif (self.activation_time is not None and
+              self.condition_features['mjd'].feature - self.activation_time > self.max_duration):
+            log.debug('CableWrap[Deact:timeout]: active for %5.1f min. [max %5.1f]' % (
+                (self.condition_features['mjd'].feature - self.activation_time)*24.*60.,
+                self.max_duration*24.*60.))
+            self.active = False
+            self.unwrap_direction = 0.
+            self.activation_time = None
             return result
 
         log.debug('CableWrap[Active]: telaz=%7.2f [activate@ %7.2f/%7.2f] [deactivate@ %7.2f/%7.2f]' % (
@@ -563,12 +584,14 @@ class CableWrap_unwrap_basis_function(Base_basis_function):
 
         az_rad = self.condition_features['altaz'].feature['az']
 
+        if not self.active:
+            self.activation_time = self.condition_features['mjd'].feature
 
         self.active = True
         if current_abs_rad < 0.:
-            self.unwrap_direction = 1.  # clock-wise unwrap
+            self.unwrap_direction = 1  # clock-wise unwrap
         else:
-            self.unwrap_direction = -1.  # counter-clock-wise unwrap
+            self.unwrap_direction = -1  # counter-clock-wise unwrap
 
         max_abs_rad = self.maxAz
         min_abs_rad = self.minAz
