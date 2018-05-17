@@ -548,6 +548,10 @@ class CableWrap_unwrap_basis_function(Base_basis_function):
             return result
         elif (self.minAz+self.unwrap_until > current_abs_rad or current_abs_rad < self.maxAz-self.unwrap_until) \
                 and self.active:
+            log.debug('CableWrap[Deactivating]: telaz=%7.2f [activate@ %7.2f/%7.2f] [deactivate@ %7.2f/%7.2f]' % (
+                float(np.degrees(current_abs_rad)),
+                float(np.degrees(self.minAz + self.activate_tol)), float(np.degrees(self.maxAz - self.activate_tol)),
+                float(np.degrees(self.minAz + self.unwrap_until)), float(np.degrees(self.maxAz - self.unwrap_until))))
             self.active = False
             self.unwrap_direction = 0.
             return result
