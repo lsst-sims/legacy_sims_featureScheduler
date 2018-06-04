@@ -3,6 +3,8 @@ import copy
 import numpy as np
 from importlib import import_module
 from numpy.lib.recfunctions import append_fields
+import pickle
+from lsst.sims.featureScheduler.utils import obs_to_fbsobs
 
 from lsst.sims.ocs.configuration import Environment
 from lsst.sims.ocs.configuration.instrument import Filters
@@ -274,12 +276,37 @@ class FeatureSchedulerDriver(Driver):
         return self.last_winner_target
 
     def register_observation(self, observation):
-        if observation.targetid > 0:
-            self.scheduler.add_observation(self.scheduler_winner_target)
+        #if len(self.obsList) == 1000:
+        #    print(self.fflist)
+        #    f = open("first100", "wb")
+        #    pickle.dump(self.obsList,f)
+        #    f.close()
 
+        #self.obsList.append(observation)
+        if observation.targetid > 0:
+            fbsobs = obs_to_fbsobs(observation)
+            self.scheduler.add_observation(fbsobs)
             return super(FeatureSchedulerDriver, self).register_observation(observation)
         else:
             return []
+
+    def cold_start(self, obslist=None):
+
+        """Rebuilds the state of the scheduler from a list of observations"""
+        print("Running coldstart (fbs)")
+        f = open("first100","rb")
+        obs_from_file = pickle.load(f)
+        
+        #replay observations
+        for obs in obs_from_file:
+            if obs.targetid > 0:
+                fbsobs = obs_to_fbsobs(obs)
+                self.scheduler.add_observation(fbsobs)
+            else: print("what happened")
+        
+
+
+        print("Coldstart finished")
 
     def update_time(self, timestamp, night):
 
@@ -329,6 +356,7 @@ class FeatureSchedulerDriver(Driver):
         target.progress = 0.0
         target.groupid = 1
         target.groupix = 0
+        target.num_proposals = 1
         target.propid_list = [propid]
         target.need_list = [target.need]
         target.bonus_list = [target.bonus]
