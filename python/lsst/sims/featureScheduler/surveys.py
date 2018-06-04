@@ -4,7 +4,7 @@ from builtins import object
 import numpy as np
 from .utils import (empty_observation, set_default_nside, hp_in_lsst_fov, read_fields, stupidFast_altAz2RaDec,
                     raster_sort, stupidFast_RaDec2AltAz, gnomonic_project_toxy)
-from lsst.sims.utils import _hpid2RaDec, _raDec2Hpid, Site, _angularSeparation, _altAzPaFromRaDec, _xyz_from_ra_dec
+from lsst.sims.utils import _hpid2RaDec, _raDec2Hpid, Site, _angularSeparation, _altAzPaFromRaDec, _xyz_from_ra_dec, _healbin
 import healpy as hp
 from . import features
 from . import dithering
@@ -20,6 +20,7 @@ import logging
 default_nside = None
 
 log = logging.getLogger(__name__)
+
 
 class BaseSurvey(object):
     def __init__(self, basis_functions, basis_weights, extra_features=None, smoothing_kernel=None,
@@ -783,6 +784,144 @@ class Greedy_survey_fields(BaseSurvey):
                 break
 
         return observations
+
+
+def sum_reject(inarr, reject_val=hp.UNSEEN):
+    """
+    compute the sum of an array but retrun -inf if reject_val present
+    """
+    if reject_val in inarr:
+        return -np.inf
+
+    else:
+        return np.sum(inarr)
+
+
+class Block_survey(Greedy_survey_fields):
+    """Select observations in blocks. For now, let's do 1 filter, and then we'll subclass
+    to make one that comsiders multiple filters.
+    """
+    def __init__(self, basis_functions, basis_weights, extra_features=None, filtername='r',
+                 slew_approx=4.5, read_approx=2., exptime=30., nexp=2,
+                 pair_time = 20., alt_az_blockmaps=None,
+                 smoothing_kernel=None, nside=default_nside,
+                 dither=True, seed=42, ignore_obs='ack',
+                 tag_fields=False, tag_map=None, tag_names=None):
+        """
+        Parameters
+        ----------
+        slew_approx : float (4.5)
+            The approximate slew time to go to a nearby pointing. (seconds)
+        read_approx : float (2.)
+            The apporximate readtime of the camera (seconds)
+        exptime : float (30.)
+            The total exposure time of a visit (seconds)
+        nexp : int (2)
+            The number of exposures a visit is broken into
+        pair_time : float (20.)
+            The ideal gap between taking pairs (minutes)
+        """
+
+        if nside is None:
+            nside = set_default_nside()
+
+        if extra_features is None:
+            extra_features = {}
+            extra_features['night'] = features.Current_night()
+            extra_features['mounted_filters'] = features.Mounted_filters()
+            # Upsample this to get better interpolation later
+            extra_features['altaz'] = features.AltAzFeature(nside=nside*2)
+
+        super(Block_survey, self).__init__(basis_functions=basis_functions,
+                                           basis_weights=basis_weights,
+                                           extra_features=extra_features,
+                                           filtername=filtername,
+                                           block_size=0, smoothing_kernel=smoothing_kernel,
+                                           dither=dither, seed=seed, ignore_obs=ignore_obs,
+                                           nside=nside)
+        # Calculate how many observations we should do before going back an getting paris
+        self.nvisit_block = np.floor(pair_time*60. / (slew_approx + exptime + read_approx*(nexp - 1)))
+        self.nexp = nexp
+        self.exptime = exptime
+        self.hpids = np.arange(hp.nside2npix(self.nside))
+        self.alt_az_blockmaps = alt_az_blockmaps
+
+    def _check_feasability(self):
+        # Check if filters are loaded and
+        # there is enough time to execute a block.
+        
+
+    def __call__(self):
+        """
+        Find a good block of observations.
+        """
+        if not self.reward_checked:
+            self.reward = self.calc_reward_function()
+
+        # XXX-I might want to move this to the calc_reward_function, set the best_blob reward as the returned reward
+        # Now to check each alt_az window to see which one has the highest reward for nvisit_block
+        potential_rewards = []
+        potential_pointings = []
+        # There might be a faster way to do this transform
+        # Note the alt, az here are set to a higher nside
+        # Might want to make this a general tool to rotate and reproject healpix maps (faster and dirtier than goign to higher side).
+
+        # no no no, this is bad. I think I just need to rotate each alt az map to ra dec. That just makes more sense.
+        reward_in_altaz = _healbin(self.extra_features['altaz'].feature['az'],
+                                   self.extra_features['altaz'].feature['alt'],
+                                   hp.ud_grade(self.reward, self.nside*2), self.nside)
+        # Downgrade back to expected nside
+        reward_in_altaz = hp.ud_grade(reward_in_altaz, self.nside)
+
+        for alt_az_map in self.alt_az_blockmaps:
+            good = np.where(alt_az_map == 1)
+            # All the potential pointings in the alt,az block
+            fields = self.hp2fields[self.hpids[good]]
+            # Can only observe the top nvisit_block
+            rewards = self.reward[good]
+            # now to bin up the reward for each field pointing
+            ufields = np.unique(fields)
+            bins = np.vstack((ufields-0.5, ufields+0.5)).T.ravel()
+            reward_by_field, bin_edges, bin_number = binned_statistic(fields, rewards,
+                                                                      bins=bins, statistic=sum_reject)
+            # Sort to take the top N field pointings
+            import pdb ; pdb.set_trace()
+            field_order = np.argsort(reward_by_field)[::-1][0:self.nvisit_block]
+            potential_pointings.append(fields[field_order])
+            potential_rewards.append(np.sum(reward_by_field[field_order]))
+        # Pick the best pointing blob
+        best_blob = np.min(np.where(potential_rewards == np.max(potential_rewards))[0])
+        best_fields = potential_pointings[best_blob]
+        # Need to sort these pointings so they get covered in a way that minimizes slew time
+        # I suppose I could find the shortest slewtime and make that the starting point.
+
+
+        observations = []
+        for field in best_fields:
+            if self.tag_fields:
+                tag = np.unique(self.tag_map[np.where(self.hp2fields == field)])[0]
+            else:
+                tag = 1
+            if tag == 0:
+                continue
+            obs = empty_observation()
+            obs['RA'] = self.fields['RA'][field]
+            obs['dec'] = self.fields['dec'][field]
+            obs['rotSkyPos'] = 0.
+            obs['filter'] = self.filtername
+            obs['nexp'] = self.nexp
+            obs['exptime'] = self.exptime
+            obs['field_id'] = -1
+            if self.tag_fields:
+                obs['survey_id'] = np.unique(self.tag_map[np.where(self.hp2fields == field)])[0]
+            else:
+                obs['survey_id'] = 1
+            observations.append(obs)
+        # Now to just double the list to get a pair.
+        observations = observations*2
+
+        return observations
+
 
 
 def bearing(ra1, dec1, ra2, dec2):
