@@ -362,12 +362,14 @@ class Current_filter(BaseConditionsFeature):
     def update_conditions(self, conditions):
         self.feature = conditions['filter']
 
+
 class Mounted_filters(BaseConditionsFeature):
     def update_conditions(self, conditions):
         if 'mounted_filters' in conditions:
             self.feature = conditions['mounted_filters']
         else:
             self.feature = ['u', 'g', 'r', 'i', 'z', 'y']
+
 
 class Sun_moon_alts(BaseConditionsFeature):
     def update_conditions(self, conditions):
@@ -399,13 +401,17 @@ class Current_night(BaseConditionsFeature):
     def update_conditions(self, conditions):
         self.feature = conditions['night']
 
+
 class CurrentNightBoundaries(BaseConditionsFeature):
     def __init__(self):
         self.feature = -1
 
     def update_conditions(self, conditions):
-        self.feature = {'last_twilight_end':  conditions['last_twilight_end'],
+        # XXX TODO: This needs documentation here on units and definition
+        # of "twilight". Is it -19 degrees twilight?
+        self.feature = {'last_twilight_end': conditions['last_twilight_end'],
                         'next_twilight_start': conditions['next_twilight_start']}
+
 
 class Current_pointing(BaseConditionsFeature):
     def update_conditions(self, conditions):
@@ -596,7 +602,8 @@ class Time_observable_in_night(BaseConditionsFeature):
         self.feature[np.where(self.feature < 0)] = 0.
 
         # Set the polar region to be the time to twilight
-        self.feature[np.where(self.dec < np.radians(self.polar_limit))] = time_to_twilight - time_left_twilight
+        self.feature[np.where(self.dec <
+                              np.radians(self.polar_limit))] = time_to_twilight - time_left_twilight
 
 
 class Rotator_angle(BaseSurveyFeature):
@@ -620,6 +627,7 @@ class Rotator_angle(BaseSurveyFeature):
         if observation['filter'][0] == self.filtername:
             # I think this is how to broadcast things properly.
             self.feature[indx, :] += np.histogram(observation.rotSkyPos, bins=self.bins)[0]
+
 
 class SurveyProposals(BaseSurveyFeature):
     """

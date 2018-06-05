@@ -5,7 +5,7 @@ import numpy.ma as ma
 from . import features
 from . import utils
 import healpy as hp
-from lsst.sims.utils import haversine, _hpid2RaDec
+from lsst.sims.utils import _hpid2RaDec, Site
 from lsst.sims.skybrightness_pre import M5percentiles
 import matplotlib.pylab as plt
 
@@ -14,7 +14,7 @@ default_nside = None
 
 class Base_basis_function(object):
     """
-    Class that takes features and computes a reward fucntion when called.
+    Class that takes features and computes a reward function when called.
     """
 
     def __init__(self, survey_features=None, condition_features=None, **kwargs):
@@ -45,6 +45,13 @@ class Base_basis_function(object):
         pass
 
 
+class Constant_basis_function(Base_basis_function):
+    """Just add a constant
+    """
+    def __call__(self, **kwargs):
+        return 1
+
+
 class Zenith_mask_basis_function(Base_basis_function):
     """Just remove the area near zenith
     """
@@ -72,6 +79,60 @@ class Zenith_mask_basis_function(Base_basis_function):
         alt_limit = np.where((alt > self.min_alt) &
                              (alt < self.max_alt))[0]
         result[alt_limit] = 1
+        return result
+
+
+class Zenith_shadow_mask_basis_function(Base_basis_function):
+    """Mask the zenith, and things that will soon pass near zenith
+    """
+    def __init__(self, nside=default_nside, condition_features=None,
+                 survey_features=None, min_alt=20., max_alt=82.,
+                 shadow_minutes=40., penalty=hp.UNSEEN, site='LSST'):
+        """
+        Parameters
+        ----------
+        min_alt : float (20.)
+            The minimum alititude to alow. Everything lower is masked. (degrees)
+        max_alt : float (82.)
+            The maximum altitude to alow. Everything higher is masked. (degrees)
+        shadow_minutes : float (40.)
+            Mask anything that will pass through the max alt in the next shadow_minutes time. (minutes)
+        """
+        if nside is None:
+            nside = utils.set_default_nside()
+        self.penalty = penalty
+        self.nside = nside
+        if survey_features is None:
+            self.survey_features = {}
+        if condition_features is None:
+            self.condition_features = {}
+            self.condition_features['altaz'] = features.AltAzFeature(nside=nside)
+            self.condition_features['lmst'] = features.Current_lmst()
+        self.min_alt = np.radians(min_alt)
+        self.max_alt = np.radians(max_alt)
+        self.ra, self.dec = _hpid2RaDec(nside, np.arange(hp.nside2npix(nside)))
+        self.shadow_minutes = np.radians(shadow_minutes/60. * 360./24.)
+        # Compute the declination band where things could drift into zenith
+        self.decband = np.zeros(self.dec.size, dtype=float)
+        self.zenith_radius = np.radians(90.-max_alt)/2.
+        site = Site(name=site)
+        self.lat_rad = site.latitude_rad
+        self.lon_rad = site.longitude_rad
+        self.decband[np.where((self.dec < (self.lat_rad+self.zenith_radius)) &
+                              (self.dec > (self.lat_rad-self.zenith_radius)))] = 1
+
+    def __call__(self, indx=None):
+
+        result = np.empty(hp.nside2npix(self.nside), dtype=float)
+        result.fill(self.penalty)
+        alt = self.condition_features['altaz'].feature['alt']
+        alt_limit = np.where((alt > self.min_alt) &
+                             (alt < self.max_alt))[0]
+        result[alt_limit] = 1
+        HA = np.radians(self.condition_features['lmst'].feature*360./24.) - self.ra
+        HA[np.where(HA < 0)] += 2.*np.pi
+        to_mask = np.where((HA > (2.*np.pi-self.shadow_minutes-self.zenith_radius)) & (self.decband == 1))
+        result[to_mask] = hp.UNSEEN
         return result
 
 
@@ -379,7 +440,7 @@ class Target_map_basis_function(Base_basis_function):
     """Normalize the maps first to make things smoother
     """
     def __init__(self, filtername='r', nside=default_nside, target_map=None,
-                 survey_features=None, condition_features=None, norm_factor=240./2.5e6,
+                 survey_features=None, condition_features=None, norm_factor=0.00010519,
                  out_of_bounds_val=-10.):
         """
         Parameters
@@ -390,10 +451,11 @@ class Target_map_basis_function(Base_basis_function):
             The healpix resolution.
         target_map : numpy array (None)
             A healpix map showing the ratio of observations desired for all points on the sky
-        norm_factor : float (800./2.5e6)
-            for converting target map to number of observations. This is a convience scaling,
-            It should be degenerate with the weight of the basis function.
-        out_of_bounds_val : float (10.)
+        norm_factor : float (0.00010519)
+            for converting target map to number of observations. Should be the area of the camera
+            divided by the area of a healpixel divided by the sum of all your goal maps. Default
+            value assumes LSST foV has 1.75 degree radius and the standard goal maps.
+        out_of_bounds_val : float (-10.)
             Point value to give regions where there are no observations requested
         """
         if nside is None:

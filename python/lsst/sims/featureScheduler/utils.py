@@ -27,6 +27,7 @@ except ImportError as err:
 it will fallback to loading fields from the local "fieldID.lis" file.''')
     _load_local_fieldlist = True
 
+
 def set_default_nside(nside=None):
     """
     Utility function to set a default nside value across the scheduler.
@@ -67,7 +68,9 @@ def gnomonic_project_tosky(x, y, RAcen, Deccen):
 
 
 def raster_sort(x0, order=['x', 'y'], xbin=1.):
-    """Do a sort to scan a grid up and down. Simple starting guess to traveling salesman.
+    """XXXX--depriciated, use tsp instead.
+
+    Do a sort to scan a grid up and down. Simple starting guess to traveling salesman.
 
     Parameters
     ----------
@@ -156,10 +159,10 @@ def empty_observation():
     """
     names = ['RA', 'dec', 'mjd', 'exptime', 'filter', 'rotSkyPos', 'nexp',
              'airmass', 'FWHMeff', 'FWHM_geometric', 'skybrightness', 'night', 'slewtime', 'fivesigmadepth',
-             'alt', 'az', 'clouds', 'moonAlt', 'sunAlt', 'note', 'field_id', 'survey_id']
+             'alt', 'az', 'clouds', 'moonAlt', 'sunAlt', 'note', 'field_id', 'survey_id', 'block_id']
     # units of rad, rad,   days,  seconds,   string, radians (E of N?)
     types = [float, float, float, float, '|U1', float, int, float, float, float, float, int, float, float,
-             float, float, float, float, float, '|U40', int, int]
+             float, float, float, float, float, '|U40', int, int, int]
     result = np.zeros(1, dtype=list(zip(names, types)))
     return result
 
@@ -230,8 +233,6 @@ def read_fields_from_tscheduler():
     return fields
 
 
-
-
 def hp_kd_tree(nside=None, leafsize=100):
     """
     Generate a KD-tree of healpixel locations
@@ -249,13 +250,10 @@ def hp_kd_tree(nside=None, leafsize=100):
     """
     if nside is None:
         nside = set_default_nside()
-    
 
     hpid = np.arange(hp.nside2npix(nside))
     ra, dec = _hpid2RaDec(nside, hpid)
-    return _buildTree(ra,dec,leafsize)
-   
-
+    return _buildTree(ra, dec, leafsize)
 
 
 class hp_in_lsst_fov(object):
@@ -390,6 +388,7 @@ def WFD_healpixels(nside=None, dec_min=-60., dec_max=0.):
     result[good] += 1
     return result
 
+
 def WFD_upper_edge_healpixels(nside=None, dec_min=2.8, dec_max=None):
     """
     Define a strip at the northern edge of the WFD area.
@@ -500,10 +499,10 @@ def galactic_plane_healpixels(nside=None, center_width=10., end_width=4.,
 
 def generate_goal_map(nside=None, NES_fraction = .3, WFD_fraction = 1., SCP_fraction=0.4,
                       GP_fraction = 0.2, WFD_upper_edge_fraction = 0.25,
-                      NES_min_EB = -30., NES_max_EB = 10, NES_dec_min = 2.8,
+                      NES_min_EB = -30., NES_max_EB = 10, NES_dec_min = 3.6,
                       SCP_dec_max=-62.5, gp_center_width=10.,
                       gp_end_width=4., gp_long1=70., gp_long2=290.,
-                      wfd_dec_min=-62.5, wfd_dec_max=2.8,
+                      wfd_dec_min=-62.5, wfd_dec_max=3.6,
                       generate_id_map=False):
     """
     Handy function that will put together a target map in the proper order.
@@ -524,7 +523,6 @@ def generate_goal_map(nside=None, NES_fraction = .3, WFD_fraction = 1., SCP_frac
         id_map[np.where(wfd_upper_edge != 0)] = 3
         pid += 1
         prop_name_dict[3] = 'WideFastDeep'
-
 
     if NES_fraction > 0.:
         nes = NES_healpixels(nside=nside, min_EB = NES_min_EB, max_EB = NES_max_EB,
@@ -551,7 +549,6 @@ def generate_goal_map(nside=None, NES_fraction = .3, WFD_fraction = 1., SCP_frac
         pid += 1
         prop_name_dict[2] = 'SouthCelestialPole'
 
-
     if GP_fraction > 0.:
         gp = galactic_plane_healpixels(nside=nside, center_width=gp_center_width,
                                        end_width=gp_end_width, gal_long1=gp_long1,
@@ -566,6 +563,7 @@ def generate_goal_map(nside=None, NES_fraction = .3, WFD_fraction = 1., SCP_frac
         return result, id_map, prop_name_dict
     else:
         return result
+
 
 def generate_cloud_map(target_maps=None, filtername='r', wfd_cloud_max=0.7,
                        scp_cloud_max=0.7, gp_cloud_max=0.7, nes_cloud_max=0.7):
@@ -601,10 +599,11 @@ def generate_cloud_map(target_maps=None, filtername='r', wfd_cloud_max=0.7,
 
     cloud_map[wfd_cloud] = wfd_cloud_max
     cloud_map[scp_cloud] = scp_cloud_max
-    cloud_map[gp_cloud]  = gp_cloud_max
+    cloud_map[gp_cloud] = gp_cloud_max
     cloud_map[nes_cloud] = nes_cloud_max
 
     return cloud_map
+
 
 def standard_goals(nside=None):
     """
@@ -617,24 +616,46 @@ def standard_goals(nside=None):
     result = {}
     result['u'] = generate_goal_map(nside=nside, NES_fraction=0.,
                                     WFD_fraction=0.31, SCP_fraction=0.15,
-                                    GP_fraction=0.15)
+                                    GP_fraction=0.15, WFD_upper_edge_fraction=0.)
     result['g'] = generate_goal_map(nside=nside, NES_fraction=0.2,
                                     WFD_fraction=0.44, SCP_fraction=0.15,
-                                    GP_fraction=0.15)
+                                    GP_fraction=0.15, WFD_upper_edge_fraction=0.)
     result['r'] = generate_goal_map(nside=nside, NES_fraction=0.46,
                                     WFD_fraction=1.0, SCP_fraction=0.15,
-                                    GP_fraction=0.15)
+                                    GP_fraction=0.15, WFD_upper_edge_fraction=0.)
     result['i'] = generate_goal_map(nside=nside, NES_fraction=0.46,
                                     WFD_fraction=1.0, SCP_fraction=0.15,
-                                    GP_fraction=0.15)
+                                    GP_fraction=0.15, WFD_upper_edge_fraction=0.)
     result['z'] = generate_goal_map(nside=nside, NES_fraction=0.4,
                                     WFD_fraction=0.9, SCP_fraction=0.15,
-                                    GP_fraction=0.15)
+                                    GP_fraction=0.15, WFD_upper_edge_fraction=0.)
     result['y'] = generate_goal_map(nside=nside, NES_fraction=0.,
                                     WFD_fraction=0.9, SCP_fraction=0.15,
-                                    GP_fraction=0.15)
+                                    GP_fraction=0.15, WFD_upper_edge_fraction=0.)
 
     return result
+
+
+def calc_norm_factor(goal_dict, radius=1.75):
+    """Calculate how to normalize a Target_map_basis_function
+    Paramteters
+    -----------
+    goal_dict : dict of healpy maps
+        The target goal map(s) being used
+    radius : float (1.75)
+        Radius of the FoV (degrees)
+    Returns
+    -------
+    Value to use as Target_map_basis_function norm_factor kwarg
+    """
+    all_maps_sum = 0
+    for key in goal_dict:
+        good = np.where(goal_dict[key] > 0)
+        all_maps_sum += goal_dict[key][good].sum()
+    nside = hp.npix2nside(goal_dict[key].size)
+    hp_area = hp.nside2pixarea(nside, degrees=True)
+    norm_val = radius**2*np.pi/hp_area/all_maps_sum
+    return norm_val
 
 
 def filter_count_ratios(target_maps):
@@ -672,7 +693,8 @@ def run_info_table(observatory):
     return result
 
 
-def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3., filename=None, delete_past=True):
+def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3.,
+               filename=None, delete_past=True, n_visit_limit=None):
     """
     run a simulation
     """
@@ -720,8 +742,11 @@ def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3., filenam
             sys.stdout.write(text)
             sys.stdout.flush()
             mjd_track = mjd+0
+        if n_visit_limit is not None:
+            if len(observations) == n_visit_limit:
+                break
         # XXX--handy place to interupt and debug
-        #if len(observations) > 3:
+        # if len(observations) > 3:
         #    import pdb ; pdb.set_trace()
 
     print('Skipped %i observations' % nskip)
@@ -836,7 +861,7 @@ def warm_start(scheduler, observations, mjd_key='mjd'):
     return scheduler
 
 
-def stupidFast_altAz2RaDec(alt, az, lat, lon, mjd):
+def stupidFast_altAz2RaDec(alt, az, lat, lon, mjd, lmst=None):
     """
     Convert alt, az to RA, Dec without taking into account abberation, precesion, diffraction, ect.
 
@@ -852,6 +877,8 @@ def stupidFast_altAz2RaDec(alt, az, lat, lon, mjd):
         Longitude of the observatory in radians.
     mjd : float
         Modified Julian Date.
+    lmst : float (None)
+        The local mean sidereal time (computed if not given). (hours)
 
     Returns
     -------
@@ -860,7 +887,8 @@ def stupidFast_altAz2RaDec(alt, az, lat, lon, mjd):
     dec : array_like
         Dec, in radians.
     """
-    lmst, last = calcLmstLast(mjd, lon)
+    if lmst is None:
+        lmst, last = calcLmstLast(mjd, lon)
     lmst = lmst/12.*np.pi  # convert to rad
     sindec = np.sin(lat)*np.sin(alt) + np.cos(lat)*np.cos(alt)*np.cos(az)
     sindec = inrange(sindec)
@@ -893,6 +921,8 @@ def stupidFast_RaDec2AltAz(ra, dec, lat, lon, mjd, lmst=None):
         Longitude of the observatory in radians.
     mjd : float
         Modified Julian Date.
+    lmst : float (None)
+        The local mean sidereal time (computed if not given). (hours)
 
     Returns
     -------
@@ -903,7 +933,7 @@ def stupidFast_RaDec2AltAz(ra, dec, lat, lon, mjd, lmst=None):
     """
     if lmst is None:
         lmst, last = calcLmstLast(mjd, lon)
-        lmst = lmst/12.*np.pi  # convert to rad
+    lmst = lmst/12.*np.pi  # convert to rad
     ha = lmst-ra
     sindec = np.sin(dec)
     sinlat = np.sin(lat)
