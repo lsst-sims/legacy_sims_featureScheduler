@@ -191,7 +191,7 @@ def obs_to_fbsobs(obs):
     fbsobs['sunAlt'] = obs.sun_alt
     fbsobs['note'] = ""    
     fbsobs['field_id'] =obs.fieldid
-    fbsobs['survey_id'] = -1
+    fbsobs['survey_id'] = obs.propid_list[0]
 
     return fbsobs
 

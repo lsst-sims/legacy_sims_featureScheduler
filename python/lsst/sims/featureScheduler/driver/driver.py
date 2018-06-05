@@ -57,6 +57,7 @@ class FeatureSchedulerDriver(Driver):
         self.time_distribution = False
 
         self.initialized = False
+        self.obsList = []
 
     # def start_survey(self, timestamp, night):
     #
@@ -276,12 +277,10 @@ class FeatureSchedulerDriver(Driver):
         return self.last_winner_target
 
     def register_observation(self, observation):
-        #if len(self.obsList) == 1000:
-        #    print(self.fflist)
+        #if len(self.obsList) == 100:
         #    f = open("first100", "wb")
         #    pickle.dump(self.obsList,f)
         #    f.close()
-
         #self.obsList.append(observation)
         if observation.targetid > 0:
             fbsobs = obs_to_fbsobs(observation)
@@ -294,18 +293,13 @@ class FeatureSchedulerDriver(Driver):
 
         """Rebuilds the state of the scheduler from a list of observations"""
         print("Running coldstart (fbs)")
-        f = open("first100","rb")
+        f = open("first100fbs","rb")
         obs_from_file = pickle.load(f)
         
         #replay observations
         for obs in obs_from_file:
-            if obs.targetid > 0:
-                fbsobs = obs_to_fbsobs(obs)
-                self.scheduler.add_observation(fbsobs)
-            else: print("what happened")
+            self.register_observation(obs)
         
-
-
         print("Coldstart finished")
 
     def update_time(self, timestamp, night):
@@ -356,7 +350,7 @@ class FeatureSchedulerDriver(Driver):
         target.progress = 0.0
         target.groupid = 1
         target.groupix = 0
-        target.num_proposals = 1
+        target.num_props = 1
         target.propid_list = [propid]
         target.need_list = [target.need]
         target.bonus_list = [target.bonus]
