@@ -77,12 +77,12 @@ filter_prop = {'u': 0.069,
 
 for filtername in filters:
     bfs = list()
-    # bfs.append(fs.M5_diff_basis_function(filtername=filtername, nside=nside))
-    bfs.append(fs.HourAngle_bonus_basis_function(max_hourangle=3.))
-    bfs.append(fs.Skybrightness_limit_basis_function(nside=nside,
-                                                     filtername=filtername,
-                                                     min=sb_limit_map[filtername]['min'],
-                                                     max=sb_limit_map[filtername]['max']))
+    bfs.append(fs.M5_diff_basis_function(filtername=filtername, nside=nside))
+    # bfs.append(fs.HourAngle_bonus_basis_function(max_hourangle=3.))
+    # bfs.append(fs.Skybrightness_limit_basis_function(nside=nside,
+    #                                                  filtername=filtername,
+    #                                                  min=sb_limit_map[filtername]['min'],
+    #                                                  max=sb_limit_map[filtername]['max']))
     bfs.append(fs.Target_map_basis_function(filtername=filtername,
                                             target_map=target_maps[filtername][0],
                                             out_of_bounds_val=hp.UNSEEN, nside=nside))
@@ -92,7 +92,7 @@ for filtername in filters:
                                               zenith_pad=z_pad))
     # bfs.append(fs.HADecAltAzPatchBasisFunction(nside=nside,
     #                                            patches=patches[::-1]))
-    bfs.append(fs.Slewtime_basis_function(filtername=filtername, nside=nside, order=6., hard_max=20.))
+    bfs.append(fs.Slewtime_basis_function(filtername=filtername, nside=nside, order=6., hard_max=500.))
     bfs.append(fs.Strict_filter_basis_function(filtername=filtername,
                                                time_lag_min=90.,
                                                time_lag_max=150.,
@@ -109,6 +109,7 @@ for filtername in filters:
     # bfs.append(fs.NorthSouth_scan_basis_function(length=70.))
 
     weights = np.array([2., 0.1, .1, 1., 3., 1.5, 1.0, 1.0, 1.0])
+    weights = np.array([2., .1, 1., 3., 1.5, 1.0, 1.0, 1.0])
     surveys.append(fs.Greedy_survey_fields(bfs, weights, block_size=1,
                                            filtername=filtername, dither=True,
                                            nside=nside,
