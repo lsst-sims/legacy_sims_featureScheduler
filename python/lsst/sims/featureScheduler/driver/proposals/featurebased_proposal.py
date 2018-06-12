@@ -11,7 +11,7 @@ class FeatureBasedProposal(AreaDistributionProposal):
         self.winners_list = []
         self.losers_list = []
 
-    def register_observation(self, observation):
+    def register_observation(self, observation, isColdStart=False):
 
         self.last_observation = observation.get_copy()
         self.last_observation_was_for_this_proposal = False

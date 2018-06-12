@@ -64,6 +64,7 @@ class BaseSurvey(object):
         self.basis_functions = basis_functions
         self.basis_weights = basis_weights
         self.reward = None
+        self.counter = 0
         if extra_features is None:
             self.extra_features = {}
         else:
@@ -155,7 +156,26 @@ class BaseSurvey(object):
             self.smooth_reward()
             return self.reward_smooth
         else:
-            return self.reward
+            if True:
+                bfs = {}
+                for b in self.basis_functions:
+                    bfs_name = str(b).split('.')[-1].split(' ')[0].split('_')[0]
+                    bfs[bfs_name] = dict()
+                    bfs[bfs_name]['basis_function'] = b()
+                    bfs[bfs_name]['survey_features'] = dict()
+                    bfs[bfs_name]['condition_features'] = dict()
+
+                    for feature in b.survey_features:
+                        bfs[bfs_name]['survey_features'][feature] = b.survey_features[feature].feature
+
+                    for feature in b.condition_features:
+                        bfs[bfs_name]['condition_features'][str(feature)] = b.condition_features[feature].feature
+
+                bfs['reward'] = self.reward
+                log.debug('Saving bfs %s_%s_%i' % (self.night, self.filtername, self.counter))
+                np.save('bf_%s_%s_%i.npy' % (self.night, self.filtername, self.counter), bfs)
+                self.counter += 1
+        return self.reward
 
     def _hp2fieldsetup(self, ra, dec, leafsize=100):
         """Map each healpixel to nearest field. This will only work if healpix
