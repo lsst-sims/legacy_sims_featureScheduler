@@ -58,8 +58,8 @@ cloud_map = fs.utils.generate_cloud_map(target_maps,filtername='r',
 # weight = (A * width + B)
 # height = np.zeros_like(width) + 80.
 
-width = (30.,)
-z_pad = (38.,)
+width = (10.,)
+z_pad = (18.,)
 weight = (1.,)
 height = (80.,)
 

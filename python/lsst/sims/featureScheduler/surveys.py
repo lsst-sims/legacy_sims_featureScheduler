@@ -1477,6 +1477,59 @@ class Pairs_survey_scripted(Scripted_survey):
         return result
 
 
+class Pairs_different_filters_scripted(Pairs_survey_scripted):
+
+    def __init__(self, basis_functions, basis_weights, extra_features=None, filt_to_pair='griz',
+                 dt=40., ttol=10., reward_val=101., note='scripted', ignore_obs='ack',
+                 min_alt=30., max_alt=85., lat=-30.2444, moon_distance=30., max_slew_to_pair=15.,
+                 nside=default_nside, filter_goals=None):
+
+        super(Pairs_different_filters_scripted, self).__init__(basis_functions, basis_weights, extra_features,
+                                                               filt_to_pair, dt, ttol, reward_val,
+                                                               note, ignore_obs, min_alt, max_alt, lat,
+                                                               moon_distance, max_slew_to_pair, nside)
+
+        for filtername in self.filt_to_pair:
+            self.extra_features['N_obs_%s' % filtername] = features.N_obs_count(filtername=filtername)
+
+        self.extra_features['N_obs'] = features.N_obs_count(filtername=None)
+        self.filter_goals = filter_goals
+
+    def __call__(self):
+        # Toss anything in the queue that is too old to pair up:
+        self._purge_queue()
+        # Check for something I want a pair of
+        result = []
+        # if len(self.observing_queue) > 0:
+
+        for indx in range(len(self.observing_queue)):
+
+            check = self._check_observation(self.observing_queue[indx])
+
+            if check[0]:
+                result = self.observing_queue.pop(indx)
+                result['note'] = 'pair(%s)' % self.note
+                # Make sure we are in a different filter and change it to the one with the highest need if need
+                if ( (self.extra_features['current_filter'].feature is not None) and
+                        (self.extra_features['current_filter'].feature == result['filter']) ):
+                    # check which filter needs more observations
+                    proportion = np.zeros(len(self.filt_to_pair))
+                    for i, obs_filter in enumerate(self.filt_to_pair):
+                        proportion[i] = self.extra_features['N_obs_%s' % obs_filter].feature / \
+                                        self.extra_features['N_obs'].feature / self.filter_goals[obs_filter]
+                    filter_idx = np.argmin(proportion)
+                    result['filter'] = self.filt_to_pair[filter_idx]
+                # Make sure it is observable!
+                # if self._check_mask(result):
+                result = [result]
+                break
+            elif not check[1]:
+                # If this is not in time window and queue is chronological, none will be...
+                break
+
+        return result
+
+
 def generate_dd_surveys(nside=default_nside):
     """Utility to return a list of standard deep drilling field surveys.
 
