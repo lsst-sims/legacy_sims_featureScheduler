@@ -223,7 +223,9 @@ class Last_observed(BaseSurveyFeature):
         self.feature = np.zeros(hp.nside2npix(nside), dtype=float)
 
     def add_observation(self, observation, indx=None):
-        if observation['filter'][0] in self.filtername:
+        if self.filtername is None:
+            self.feature[indx] = observation['mjd']
+        elif observation['filter'][0] in self.filtername:
             self.feature[indx] = observation['mjd']
 
 
