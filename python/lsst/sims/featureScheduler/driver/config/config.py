@@ -7,38 +7,38 @@ target_maps = {}
 nside = fs.set_default_nside(nside=32)  # Required
 
 target_maps['u'] = fs.generate_goal_map(NES_fraction=0.,
-                                        WFD_fraction=0.31, SCP_fraction=0.15,
-                                        GP_fraction=0.15,
+                                        WFD_fraction=0.31, SCP_fraction=0.08,
+                                        GP_fraction=0.008,
                                         WFD_upper_edge_fraction=0.0,
                                         nside=nside,
                                         generate_id_map=True)
 target_maps['g'] = fs.generate_goal_map(NES_fraction=0.2,
-                                        WFD_fraction=0.44, SCP_fraction=0.15,
-                                        GP_fraction=0.15,
+                                        WFD_fraction=0.44, SCP_fraction=0.08,
+                                        GP_fraction=0.008,
                                         WFD_upper_edge_fraction=0.0,
                                         nside=nside,
                                         generate_id_map=True)
 target_maps['r'] = fs.generate_goal_map(NES_fraction=0.46,
-                                        WFD_fraction=1.0, SCP_fraction=0.15,
+                                        WFD_fraction=1.0, SCP_fraction=0.08,
                                         WFD_upper_edge_fraction=0.0,
-                                        GP_fraction=0.15,
+                                        GP_fraction=0.008,
                                         nside=nside,
                                         generate_id_map=True)
 target_maps['i'] = fs.generate_goal_map(NES_fraction=0.46,
-                                        WFD_fraction=1.0, SCP_fraction=0.15,
-                                        GP_fraction=0.15,
+                                        WFD_fraction=1.0, SCP_fraction=0.08,
+                                        GP_fraction=0.008,
                                         WFD_upper_edge_fraction=0.0,
                                         nside=nside,
                                         generate_id_map=True)
 target_maps['z'] = fs.generate_goal_map(NES_fraction=0.4,
-                                        WFD_fraction=0.9, SCP_fraction=0.15,
-                                        GP_fraction=0.15,
+                                        WFD_fraction=0.9, SCP_fraction=0.08,
+                                        GP_fraction=0.008,
                                         WFD_upper_edge_fraction=0.0,
                                         nside=nside,
                                         generate_id_map=True)
 target_maps['y'] = fs.generate_goal_map(NES_fraction=0.,
-                                        WFD_fraction=0.9, SCP_fraction=0.15,
-                                        GP_fraction=0.15,
+                                        WFD_fraction=0.9, SCP_fraction=0.08,
+                                        GP_fraction=0.008,
                                         WFD_upper_edge_fraction=0.0,
                                         nside=nside,
                                         generate_id_map=True)
@@ -133,8 +133,7 @@ pairs_bfs.append(fs.Target_map_basis_function(filtername='',
 pairs_bfs.append(fs.MeridianStripeBasisFunction(nside=nside, zenith_pad=(45.,), width=(35.,)))
 pairs_bfs.append(fs.Moon_avoidance_basis_function(nside=nside, moon_distance=30.))
 
-surveys.append(fs.Pairs_different_filters_scripted(pairs_bfs, [1., 1., 1.], ignore_obs='DD', min_alt=20.,
-                                                   filter_goals=filter_prop))
+surveys.append(fs.Pairs_scripted(pairs_bfs, [1., 1., 1.], ignore_obs='DD', min_alt=20.))
 # surveys.append(fs.Pairs_survey_scripted([], [], ignore_obs='DD'))
 
 # Set up the DD
