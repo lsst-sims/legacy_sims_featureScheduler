@@ -1515,9 +1515,13 @@ class Pairs_different_filters_scripted(Pairs_survey_scripted):
                     # check which filter needs more observations
                     proportion = np.zeros(len(self.filt_to_pair))
                     for i, obs_filter in enumerate(self.filt_to_pair):
+                        if self.extra_features['current_filter'].feature == obs_filter:
+                            proportion[i] = -1
                         proportion[i] = self.extra_features['N_obs_%s' % obs_filter].feature / \
                                         self.extra_features['N_obs'].feature / self.filter_goals[obs_filter]
                     filter_idx = np.argmin(proportion)
+                    log.debug('Swapping filter to pair {} -> {}'.format(self.extra_features['current_filter'].feature,
+                                                                        self.filt_to_pair[filter_idx]))
                     result['filter'] = self.filt_to_pair[filter_idx]
                 # Make sure it is observable!
                 # if self._check_mask(result):
