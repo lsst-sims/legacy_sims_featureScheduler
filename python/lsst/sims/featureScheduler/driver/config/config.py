@@ -49,6 +49,24 @@ cloud_map = fs.utils.generate_cloud_map(target_maps,filtername='r',
                                         gp_cloud_max=0.7,
                                         nes_cloud_max=0.7)
 
+# Setup masks for rolling cadence.
+
+wfd = fs.WFD_healpixels(nside=nside, dec_min=-62.5, dec_max=2.8)
+ra, dec = fs.ra_dec_hp_map(nside=nside)
+dec_limits = np.radians([-16.852, -35.545])
+
+#Northern mask
+rolling_mask1 = np.zeros(ra.size, dtype=bool)
+rolling_mask1[np.where((wfd == 1) & (dec > dec_limits[0]))] = True
+
+#Middle mask
+rolling_mask2 = np.zeros(ra.size, dtype=bool)
+rolling_mask2[np.where((dec < dec_limits[0]) & (dec > dec_limits[1]) & (wfd == 1))] = True
+
+#Southern mask
+rolling_mask3 = np.zeros(ra.size, dtype=bool)
+rolling_mask3[np.where((dec < dec_limits[1]) & (wfd == 1))] = True
+
 # x1 = 30.
 # x0 = 2.
 # B = x1 / (x1 - x0)
@@ -108,7 +126,25 @@ for filtername in filters:
     #                                               max_duration=90.))
     # bfs.append(fs.NorthSouth_scan_basis_function(length=70.))
 
-    weights = np.array([2., 0.1, .1, 1., 3., 1.5, 1.0, 1.0, 1.0])
+    bfs.append(fs.Rolling_mask_basis_function(rolling_mask1, year_mod=3, year_offset=0,
+                                              mjd_start=59853.035, nside=nside))
+
+    bfs.append(fs.Rolling_mask_basis_function(rolling_mask1, year_mod=3, year_offset=1,
+                                              mjd_start=59853.035, nside=nside))
+
+    bfs.append(fs.Rolling_mask_basis_function(rolling_mask2, year_mod=3, year_offset=1,
+                                              mjd_start=59853.035, nside=nside))
+
+    bfs.append(fs.Rolling_mask_basis_function(rolling_mask2, year_mod=3, year_offset=2,
+                                              mjd_start=59853.035, nside=nside))
+
+    bfs.append(fs.Rolling_mask_basis_function(rolling_mask3, year_mod=3, year_offset=2,
+                                              mjd_start=59853.035, nside=nside))
+
+    bfs.append(fs.Rolling_mask_basis_function(rolling_mask3, year_mod=3, year_offset=3,
+                                              mjd_start=59853.035, nside=nside))
+
+    weights = np.array([2., 0.1, .1, 1., 3., 1.5, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
     surveys.append(fs.Greedy_survey_fields(bfs, weights, block_size=1,
                                            filtername=filtername, dither=True,
                                            nside=nside,
