@@ -1494,6 +1494,7 @@ class Pairs_different_filters_scripted(Pairs_survey_scripted):
 
         self.extra_features['N_obs'] = features.N_obs_count(filtername=None)
         self.filter_goals = filter_goals
+        self.filter_idx = 0
 
     def __call__(self):
         # Toss anything in the queue that is too old to pair up:
@@ -1510,8 +1511,8 @@ class Pairs_different_filters_scripted(Pairs_survey_scripted):
                 result = self.observing_queue.pop(indx)
                 result['note'] = 'pair(%s)' % self.note
                 # Make sure we are in a different filter and change it to the one with the highest need if need
-                if ( (self.extra_features['current_filter'].feature is not None) and
-                        (self.extra_features['current_filter'].feature == result['filter']) ):
+                if ((self.extra_features['current_filter'].feature is not None) and
+                        (self.extra_features['current_filter'].feature == result['filter'])):
                     # check which filter needs more observations
                     proportion = np.zeros(len(self.filt_to_pair))
                     for i, obs_filter in enumerate(self.filt_to_pair):
@@ -1524,10 +1525,12 @@ class Pairs_different_filters_scripted(Pairs_survey_scripted):
                             proportion[i] = 1. - nobs / nobs_all + goal if nobs_all > 0 else 1. + goal
                         # proportion[i] = self.extra_features['N_obs_%s' % obs_filter].feature / \
                         #                 self.extra_features['N_obs'].feature / self.filter_goals[obs_filter]
-                    filter_idx = np.argmax(proportion)
+                    self.filter_idx = np.argmax(proportion)
                     log.debug('Swapping filter to pair {} -> {}'.format(self.extra_features['current_filter'].feature,
-                                                                        self.filt_to_pair[filter_idx]))
-                    result['filter'] = self.filt_to_pair[filter_idx]
+                                                                        self.filt_to_pair[self.filter_idx]))
+                    result['filter'] = self.filt_to_pair[self.filter_idx]
+                else:
+                    result['filter'] = self.filt_to_pair[self.filter_idx]
                 # Make sure it is observable!
                 # if self._check_mask(result):
                 result = [result]
