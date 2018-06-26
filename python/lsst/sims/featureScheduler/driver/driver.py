@@ -304,10 +304,9 @@ class FeatureSchedulerDriver(Driver):
 
     def register_observation(self, observation):
         if observation.targetid > 0:
-            # FIXME: Add convertion of observation to fbs target
+            # FIXME: Add conversion of observation to fbs target
             self.scheduler.add_observation(self.scheduler_winner_target)
-
-            return []
+            return [self.last_winner_target]
         else:
             return []
 
