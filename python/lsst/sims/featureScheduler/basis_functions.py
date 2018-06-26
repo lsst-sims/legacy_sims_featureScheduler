@@ -932,9 +932,9 @@ class Strict_filter_basis_function(Base_basis_function):
         # How far behind we are with respect to proportion?
         nobs = self.survey_features['N_obs'].feature
         nobs_all = self.survey_features['N_obs_all'].feature
-        goal = (1-self.proportion)/(1+self.proportion)
-        need = (nobs_all-nobs)/(nobs_all+nobs) if nobs_all > 0 else 1.
-        need /= goal
+        goal = self.proportion
+        need = 1.-nobs/nobs_all+goal if nobs_all > 0 else 1.+goal
+        # need /= goal
         if hasattr(time, '__iter__'):
             before_lag = np.where(time <= lag_min)
             bonus[before_lag] = -np.inf if self.unseen_before_lag else 0.

@@ -1517,9 +1517,14 @@ class Pairs_different_filters_scripted(Pairs_survey_scripted):
                     for i, obs_filter in enumerate(self.filt_to_pair):
                         if self.extra_features['current_filter'].feature == obs_filter:
                             proportion[i] = -1
-                        proportion[i] = self.extra_features['N_obs_%s' % obs_filter].feature / \
-                                        self.extra_features['N_obs'].feature / self.filter_goals[obs_filter]
-                    filter_idx = np.argmin(proportion)
+                        else:
+                            nobs = self.extra_features['N_obs_%s' % obs_filter].feature
+                            nobs_all = self.extra_features['N_obs'].feature
+                            goal = self.filter_goals[obs_filter]
+                            proportion[i] = 1. - nobs / nobs_all + goal if nobs_all > 0 else 1. + goal
+                        # proportion[i] = self.extra_features['N_obs_%s' % obs_filter].feature / \
+                        #                 self.extra_features['N_obs'].feature / self.filter_goals[obs_filter]
+                    filter_idx = np.argmax(proportion)
                     log.debug('Swapping filter to pair {} -> {}'.format(self.extra_features['current_filter'].feature,
                                                                         self.filt_to_pair[filter_idx]))
                     result['filter'] = self.filt_to_pair[filter_idx]
