@@ -2,6 +2,9 @@
 import copy
 import numpy as np
 from importlib import import_module
+import importlib.util
+from lsst.sims.featureScheduler import obs_to_fbsobs
+import pickle
 from numpy.lib.recfunctions import append_fields
 
 from lsst.sims.ocs.configuration import Environment
@@ -10,6 +13,8 @@ from lsst.sims.ocs.kernel.time_handler import TimeHandler
 from lsst.sims.skybrightness_pre import SkyModelPre
 from lsst.sims.utils import _hpid2RaDec, _raDec2Hpid, Site, calcLmstLast, m5_flat_sed
 from lsst.sims.seeingModel import SeeingModel
+
+from lsst.sims.featureScheduler.driver.constants import CONFIG_NAME
 
 from lsst.ts.observatory.model import Target
 import lsst.sims.featureScheduler as fs
@@ -55,6 +60,8 @@ class FeatureSchedulerDriver(Driver):
         self.time_distribution = False
 
         self.initialized = False
+        self.obsList = []
+        self.fbs_obsList = []
 
     # def start_survey(self, timestamp, night):
     #
@@ -155,7 +162,13 @@ class FeatureSchedulerDriver(Driver):
         self.initialized = True
 
     def end_survey(self):
+        f = open("first847fbs", "wb")
+        pickle.dump(self.obsList,f)
+        f.close()
+        np.save('first847.npy',np.array(self.fbs_obsList))
+        # f = open("first847np", "wb")
 
+        # pickle.dump(list2,f)
         self.log.info("end_survey")
 
     def start_night(self, timestamp, night):
@@ -165,6 +178,72 @@ class FeatureSchedulerDriver(Driver):
         for fieldid in self.target_list.keys():
             for filtername in self.target_list[fieldid].keys():
                 self.target_list[fieldid][filtername].groupix = 0
+
+    def end_night(self, timestamp, night):
+        #put the telescope in a 'parked position' by setting filter to None.
+        telemetry_stream = self.get_telemetry()
+        telemetry_stream['filter'] = None
+        self.scheduler.update_conditions(telemetry_stream)
+
+        timeprogress = (timestamp - self.start_time) / self.survey_duration_SECS
+        self.log.info("end_night t=%.6f, night=%d timeprogress=%.2f%%" %
+                      (timestamp, night, 100 * timeprogress))
+
+        self.isnight = False
+
+        self.last_winner_target = self.nulltarget
+        self.deep_drilling_target = None
+
+        previous_midnight_moonphase = self.midnight_moonphase
+        self.sky.update(timestamp)
+        (sunset, sunrise) = self.sky.get_night_boundaries(self.params.night_boundary)
+        self.log.debug("end_night sunset=%.6f sunrise=%.6f" % (sunset, sunrise))
+
+        self.sunset_timestamp = sunset
+        self.sunrise_timestamp = sunrise
+        next_midnight = (sunset + sunrise) / 2
+        self.sky.update(next_midnight)
+        info = self.sky.get_moon_sun_info(np.array([0.0]), np.array([0.0]))
+        self.midnight_moonphase = info["moonPhase"]
+        self.log.info("end_night next moonphase=%.2f%%" % (self.midnight_moonphase))
+
+        self.need_filter_swap = False
+        self.filter_to_mount = ""
+        self.filter_to_unmount = ""
+        if self.darktime:
+            if self.midnight_moonphase > previous_midnight_moonphase:
+                self.log.info("end_night dark time waxing")
+                if self.midnight_moonphase > self.params.new_moon_phase_threshold:
+                    self.need_filter_swap = True
+                    self.filter_to_mount = self.unmounted_filter
+                    self.filter_to_unmount = self.mounted_filter
+                    self.darktime = False
+            else:
+                self.log.info("end_night dark time waning")
+        else:
+            if self.midnight_moonphase < previous_midnight_moonphase:
+                self.log.info("end_night bright time waning")
+                if self.midnight_moonphase < self.params.new_moon_phase_threshold:
+                    self.need_filter_swap = True
+                    self.filter_to_mount = self.observatoryModel.params.filter_darktime
+                    self.filter_to_unmount = self.observatoryModel.params.filter_removable_list[0]
+
+                    self.darktime = True
+            else:
+                self.log.info("end_night bright time waxing")
+
+        if self.need_filter_swap:
+            self.log.debug("end_night filter swap %s=>cam=>%s" %
+                           (self.filter_to_mount, self.filter_to_unmount))
+        
+        #f = open("fbs_night_{}".format(night), "wb")
+        #pickle.dump(self.obsList,f)
+        #f.close()
+        self.obsList = []
+        #np.save('fbs_night_{}.npy'.format(night),np.array(self.fbs_obsList))
+        self.fbs_obsList = []
+
+        super(FeatureSchedulerDriver, self).end_night(timestamp, night)
 
     def select_next_target(self):
 
@@ -273,13 +352,28 @@ class FeatureSchedulerDriver(Driver):
 
         return self.last_winner_target
 
-    def register_observation(self, observation):
+    def register_observation(self, observation, isColdStart = False):
         if observation.targetid > 0:
-            self.scheduler.add_observation(self.scheduler_winner_target)
-
-            return super(FeatureSchedulerDriver, self).register_observation(observation)
+            fbsobs = obs_to_fbsobs(observation) # THIS
+            self.obsList.append(copy.copy(observation))
+            self.fbs_obsList.append(fbsobs)
+            self.scheduler.add_observation(fbsobs) # THIS
+            return super(FeatureSchedulerDriver, self).register_observation(observation, isColdStart)
         else:
             return []
+
+    def cold_start(self, obslist=None):
+
+        """Rebuilds the state of the scheduler from a list of observations"""
+        print("Running coldstart (fbs)")
+        f = open("fbs_night_1_normal","rb")
+        obs_from_file = pickle.load(f)
+        
+        #replay observations
+        for obs in obs_from_file:
+            self.register_observation(obs, isColdStart = True)
+        
+        print("Coldstart finished")
 
     def update_time(self, timestamp, night):
 
@@ -329,6 +423,7 @@ class FeatureSchedulerDriver(Driver):
         target.progress = 0.0
         target.groupid = 1
         target.groupix = 0
+        target.num_props = 1
         target.propid_list = [propid]
         target.need_list = [target.need]
         target.bonus_list = [target.bonus]
