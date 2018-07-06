@@ -2,6 +2,13 @@
 import numpy as np
 import healpy as hp
 import lsst.sims.featureScheduler as fs
+from lsst.ts.scheduler.kernel import SurveyTopology
+
+survey_topology = SurveyTopology()
+survey_topology.num_general_props = 4
+survey_topology.general_propos = ["NorthEclipticSpur", "SouthCelestialPole", "WideFastDeep", "GalacticPlane"]
+survey_topology.num_seq_props = 1
+survey_topology.sequence_propos = ["DeepDrillingCosmology1"]
 
 target_maps = {}
 nside = fs.set_default_nside(nside=32)  # Required

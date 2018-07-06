@@ -1,23 +1,19 @@
 
+import os
 import copy
 import numpy as np
 from importlib import import_module
-from numpy.lib.recfunctions import append_fields
+import importlib.util
 
-from lsst.sims.ocs.configuration import Environment
-from lsst.sims.ocs.configuration.instrument import Filters
-from lsst.sims.ocs.kernel.time_handler import TimeHandler
-from lsst.sims.skybrightness_pre import SkyModelPre
 from lsst.sims.utils import _hpid2RaDec, _raDec2Hpid, Site, calcLmstLast, m5_flat_sed
 from lsst.sims.seeingModel import SeeingModel
 
+from lsst.sims.featureScheduler.driver.constants import CONFIG_NAME
+
 from lsst.ts.observatory.model import Target
-import lsst.sims.featureScheduler as fs
 from lsst.sims.featureScheduler import stupidFast_RaDec2AltAz
 from lsst.ts.dateloc import DateProfile
 from lsst.ts.scheduler import Driver
-from lsst.ts.scheduler.proposals import AreaDistributionProposal
-from lsst.sims.featureScheduler.driver.proposals import FeatureBasedProposal
 
 import logging
 
@@ -73,56 +69,55 @@ class FeatureSchedulerDriver(Driver):
     #     self.sunset_timestamp = sunset
     #     self.sunrise_timestamp = sunrise
 
-    def create_area_proposal(self, propid, name, config_dict):
-        '''Override create_area_proposal from superclass.
+    # def create_area_proposal(self, propid, name, config_dict):
+    #     '''Override create_area_proposal from superclass.
+    #
+    #     One call to rule them all!
+    #
+    #     :param propid:
+    #     :param name:
+    #     :param config_dict:
+    #     :return:
+    #     '''
+    #     if not self.initialized and name == 'WideFastDeep':
+    #         self.initialize(config_dict)
+    #
+    # def create_sequence_proposal(self, propid, name, config_dict):
+    #     pass
 
-        One call to rule them all!
+    def configure_scheduler(self, **kwargs):
+        """
+        Load configuration from a python module.
 
-        :param propid:
-        :param name:
-        :param config_dict:
+        :param kwargs:
         :return:
-        '''
-        if not self.initialized and name == 'WideFastDeep':
-            self.initialize(config_dict)
+        """
 
-    def create_sequence_proposal(self, propid, name, config_dict):
-        pass
+        # Check if there's a feature scheduler configuration file on the path
+        if 'config_name' in kwargs:
+            configure_path = os.path.join(kwargs['config_path'], kwargs['config_name'])
+        else:
+            configure_path = os.path.join(kwargs['config_path'], CONFIG_NAME)
 
-    def initialize(self, config_dict):
-        # Load configuration from a python module.
-        # TODO:
-        # This can be changed later to load from a given string, I'm planning on getting the name from
-        # lsst.sims.ocs.configuration.survey.general_proposals
-        conf = import_module('lsst.sims.featureScheduler.driver.config')
-        from lsst.ts.scheduler.kernel import Field
+        if os.path.exists(configure_path):
+            self.log.info('Loading feature based scheduler configuration from {}.'.format(configure_path))
+            spec = importlib.util.spec_from_file_location("config", configure_path)
+            conf = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(conf)
+            # conf = None
+        else:
+            self.log.info('Loading feature based scheduler default configuration.')
+            conf = import_module('lsst.sims.featureScheduler.driver.config')
 
         self.scheduler = conf.scheduler
         self.sky_nside = conf.nside
-        # self.scheduler_visit_counting_bfs = conf.scheduler_visit_counting_bfs
 
-        # Now, configure the different proposals inside Driver
-        # Get the proposal list from feature based scheduler
-
-        survey_fields = {}
         for survey in self.scheduler.surveys:
             if 'proposals' in survey.features:
                 for i, pid in enumerate(survey.features['proposals'].id.keys()):
                     # This gets names of all proposals on all surveys, overwrites repeated and stores new ones
                     self.proposal_id_dict[pid] = [0,
                                                   survey.features['proposals'].id[pid]]
-
-            # # Now need to get fields for each proposal
-            # for field in survey.fields:
-            #     if field['tag'] > 0:
-            #         if field['tag'] not in survey_fields.keys():
-            #             # add and skip to next iteration
-            #             survey_fields[field['tag']] = np.array([field])
-            #             continue
-            #
-            #         if field['field_id'] not in survey_fields[field['tag']]['field_id']:
-            #             survey_fields[field['tag']] = np.append(survey_fields[field['tag']],
-            #                                                     field)
 
         self.log.debug('Proposal_id_dict: %s' % self.proposal_id_dict.keys())
         # self.log.debug('survey_fields: %s' % survey_fields.keys())
@@ -131,28 +126,9 @@ class FeatureSchedulerDriver(Driver):
             self.proposal_id_dict[pid][0] = self.propid_counter
             self.propid_counter += 1
 
-            self.log.debug('%s: %s' % (pid, self.proposal_id_dict[pid]))
-
-            prop = FeatureBasedProposal(pid,
-                                        self.proposal_id_dict[pid][1],
-                                        config_dict,
-                                        self.sky)
-
-            prop.configure_constraints(self.params)
-            # create proposal field list
-            # prop.survey_fields = len(survey_fields[pid])
-            # for field in survey_fields[pid]:
-            #     prop.survey_fields_dict[field['field_id']] = Field(fieldid=field['field_id'],
-            #                                                        ra_rad=field['RA'],
-            #                                                        dec_rad=field['dec'],
-            #                                                        gl_rad=field['gl'],
-            #                                                        gb_rad=field['gb'],
-            #                                                        el_rad=field['el'],
-            #                                                        eb_rad=field['eb'],
-            #                                                        fov_rad=field['fov_rad'])
-            self.science_proposal_list.append(prop)
-
         self.initialized = True
+
+        return conf.survey_topology
 
     def end_survey(self):
 
@@ -165,6 +141,59 @@ class FeatureSchedulerDriver(Driver):
         for fieldid in self.target_list.keys():
             for filtername in self.target_list[fieldid].keys():
                 self.target_list[fieldid][filtername].groupix = 0
+
+    def end_night(self, timestamp, night):
+
+        timeprogress = (timestamp - self.start_time) / self.survey_duration_SECS
+        self.log.info("end_night t=%.6f, night=%d timeprogress=%.2f%%" %
+                      (timestamp, night, 100 * timeprogress))
+
+        self.isnight = False
+
+        self.last_winner_target = self.nulltarget
+        self.deep_drilling_target = None
+
+        previous_midnight_moonphase = self.midnight_moonphase
+        self.sky.update(timestamp)
+        (sunset, sunrise) = self.sky.get_night_boundaries(self.params.night_boundary)
+        self.log.debug("end_night sunset=%.6f sunrise=%.6f" % (sunset, sunrise))
+
+        self.sunset_timestamp = sunset
+        self.sunrise_timestamp = sunrise
+        next_midnight = (sunset + sunrise) / 2
+        self.sky.update(next_midnight)
+        info = self.sky.get_moon_sun_info(np.array([0.0]), np.array([0.0]))
+        self.midnight_moonphase = info["moonPhase"]
+        self.log.info("end_night next moonphase=%.2f%%" % (self.midnight_moonphase))
+
+        self.need_filter_swap = False
+        self.filter_to_mount = ""
+        self.filter_to_unmount = ""
+        if self.darktime:
+            if self.midnight_moonphase > previous_midnight_moonphase:
+                self.log.info("end_night dark time waxing")
+                if self.midnight_moonphase > self.params.new_moon_phase_threshold:
+                    self.need_filter_swap = True
+                    self.filter_to_mount = self.unmounted_filter
+                    self.filter_to_unmount = self.mounted_filter
+                    self.darktime = False
+            else:
+                self.log.info("end_night dark time waning")
+        else:
+            if self.midnight_moonphase < previous_midnight_moonphase:
+                self.log.info("end_night bright time waning")
+                if self.midnight_moonphase < self.params.new_moon_phase_threshold:
+                    self.need_filter_swap = True
+                    self.filter_to_mount = self.observatoryModel.params.filter_darktime
+                    self.filter_to_unmount = self.observatoryModel.params.filter_removable_list[0]
+
+                    self.darktime = True
+            else:
+                self.log.info("end_night bright time waxing")
+
+        if self.need_filter_swap:
+            self.log.debug("end_night filter swap %s=>cam=>%s" %
+                           (self.filter_to_mount, self.filter_to_unmount))
 
     def select_next_target(self):
 
@@ -193,7 +222,7 @@ class FeatureSchedulerDriver(Driver):
         target = self.generate_target(winner_target[0])
 
         self.target_list[target.fieldid] = {filtername: target}
-        self.science_proposal_list[indx].survey_targets_dict[target.fieldid] = {filtername: target}
+        # self.science_proposal_list[indx].survey_targets_dict[target.fieldid] = {filtername: target}
 
         target.time = self.time
 
@@ -267,17 +296,17 @@ class FeatureSchedulerDriver(Driver):
             self.last_winner_target = self.nulltarget
 
         self.log.debug(self.last_winner_target)
-        for propid in self.proposal_id_dict.keys():
-            self.science_proposal_list[self.proposal_id_dict[propid][0]].winners_list = []
-        self.science_proposal_list[indx].winners_list = [target.get_copy()]
+        # for propid in self.proposal_id_dict.keys():
+        #     self.science_proposal_list[self.proposal_id_dict[propid][0]].winners_list = []
+        # self.science_proposal_list[indx].winners_list = [target.get_copy()]
 
         return self.last_winner_target
 
     def register_observation(self, observation):
         if observation.targetid > 0:
+            # FIXME: Add conversion of observation to fbs target
             self.scheduler.add_observation(self.scheduler_winner_target)
-
-            return super(FeatureSchedulerDriver, self).register_observation(observation)
+            return [self.last_winner_target]
         else:
             return []
 
