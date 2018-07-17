@@ -83,17 +83,26 @@ class BulkCloudCover(BaseConditionsFeature):
 class N_obs_count(BaseSurveyFeature):
     """Count the number of observations.
     """
-    def __init__(self, filtername=None):
+    def __init__(self, filtername=None, tag=None):
         self.feature = 0
         self.filtername = filtername
+        self.tag = tag
 
     def add_observation(self, observation, indx=None):
-        # Track all observations
-        if self.filtername is None:
+
+        if (self.filtername is None) and (self.tag is None):
+            # Track all observations
             self.feature += 1
-        else:
-            if observation['filter'][0] in self.filtername:
-                self.feature += 1
+        elif (self.filtername is not None) and (self.tag is None) and (observation['filter'][0] in self.filtername):
+            # Track all observations on a specified filter
+            self.feature += 1
+        elif (self.filtername is None) and (self.tag is not None) and (observation['tag'][0] in self.tag):
+            # Track all observations on a specified tag
+            self.feature += 1
+        elif ((self.filtername is None) and (self.tag is not None) and
+              # Track all observations on a specified filter on a specified tag
+              (observation['filter'][0] in self.filtername) and (observation['tag'][0] in self.tag)):
+            self.feature += 1
 
 
 class N_obs_survey(BaseSurveyFeature):

@@ -885,7 +885,7 @@ class Strict_filter_basis_function(Base_basis_function):
     """
     def __init__(self, survey_features=None, condition_features=None, time_lag_min=10., time_lag_max=30.,
                  time_lag_boost=60., boost_gain=2.0, unseen_before_lag=False,
-                 filtername='r', twi_change=-18., proportion=1.0, aways_available=False):
+                 filtername='r', tag=None, twi_change=-18., proportion=1.0, aways_available=False):
         """
         Paramters
         ---------
@@ -915,7 +915,8 @@ class Strict_filter_basis_function(Base_basis_function):
             self.survey_features = {}
             self.survey_features['Last_observation'] = features.Last_observation()
             self.survey_features['N_obs_all'] = features.N_obs_count(filtername=None)
-            self.survey_features['N_obs'] = features.N_obs_count(filtername=filtername)
+            self.survey_features['N_obs'] = features.N_obs_count(filtername=filtername,
+                                                                 tag=tag)
 
         super(Strict_filter_basis_function, self).__init__(survey_features=self.survey_features,
                                                            condition_features=self.condition_features)
