@@ -118,6 +118,27 @@ class N_obs_survey(BaseSurveyFeature):
                 self.feature += 1
 
 
+class N_obs_area(BaseSurveyFeature):
+    """Count the number of observations that happened on a specific region.
+    """
+    def __init__(self, tag_map=None):
+        """
+        Parameters
+        ----------
+        tag_map : np.ndarray (None)
+            A healpix map with a tag map. Only observations with tag equals to the region tag will be counted.
+        """
+        self.feature = 0
+        self.tag_map = tag_map
+
+    def add_observation(self, observation, indx=None):
+
+        if self.tag_map is not None:
+            tags = np.unique(self.tag_map[indx])
+            if observation['tag'] in tags:
+                self.feature += 1
+
+
 class Last_observation(BaseSurveyFeature):
     """When was the last observation
     """
