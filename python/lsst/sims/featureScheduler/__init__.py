@@ -5,4 +5,5 @@ from .surveys import *
 from .utils import *
 from .dithering import *
 from .comcamTessellate import *
+from .tsp import *
 from .version import *

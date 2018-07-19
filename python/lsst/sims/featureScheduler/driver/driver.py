@@ -112,12 +112,13 @@ class FeatureSchedulerDriver(Driver):
         self.scheduler = conf.scheduler
         self.sky_nside = conf.nside
 
-        for survey in self.scheduler.surveys:
-            if 'proposals' in survey.features:
-                for i, pid in enumerate(survey.features['proposals'].id.keys()):
-                    # This gets names of all proposals on all surveys, overwrites repeated and stores new ones
-                    self.proposal_id_dict[pid] = [0,
-                                                  survey.features['proposals'].id[pid]]
+        for survey_list in self.scheduler.survey_lists:
+            for survey in survey_list:
+                if 'proposals' in survey.features:
+                    for i, pid in enumerate(survey.features['proposals'].id.keys()):
+                        # This gets names of all proposals on all surveys, overwrites repeated and stores new ones
+                        self.proposal_id_dict[pid] = [0,
+                                                      survey.features['proposals'].id[pid]]
 
         self.log.debug('Proposal_id_dict: %s' % self.proposal_id_dict.keys())
         # self.log.debug('survey_fields: %s' % survey_fields.keys())

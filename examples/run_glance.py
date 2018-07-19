@@ -1,6 +1,6 @@
 import lsst.sims.maf.db as db
 import lsst.sims.maf.metricBundles as metricBundles
-from lsst.sims.maf.batches import glanceBatch
+from lsst.sims.maf.batches import glanceBatch, fOBatch
 import argparse
 
 
@@ -13,11 +13,18 @@ def runGlance(dbfile, outDir='Glance', runName='runname', camera='LSST'):
               'rotSkyPos': 'rotSkyPos', 'raDecDeg': True, 'slewdist': None,
               'note': 'note'}
 
-    gb = glanceBatch(colmap=colmap, slicer_camera=camera)
+    #del colmap['note']
+
+    gb = glanceBatch(colmap=colmap, slicer_camera=camera, runName=runName)
     resultsDb = db.ResultsDb(outDir=outDir)
 
     group = metricBundles.MetricBundleGroup(gb, conn, outDir=outDir, resultsDb=resultsDb)
 
+    group.runAll()
+    group.plotAll()
+
+    fb = fOBatch(colmap=colmap, runName=runName)
+    group = metricBundles.MetricBundleGroup(fb, conn, outDir=outDir, resultsDb=resultsDb)
     group.runAll()
     group.plotAll()
 

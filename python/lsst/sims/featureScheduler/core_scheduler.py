@@ -20,6 +20,7 @@ class Core_scheduler(object):
         surveys : list of survey objects
             A list of surveys to consider. If multiple surveys retrurn the same highest
             reward value, the survey at the earliest position in the list will be selected.
+            Can also be a list of lists to make heirarchical priorities.
         nside : int
             A HEALpix nside value.
         camera : str ('LSST')
@@ -31,7 +32,11 @@ class Core_scheduler(object):
 
         # initialize a queue of observations to request
         self.queue = []
-        self.surveys = surveys
+        # If we have a list of survey objects, convert to list-of-lists
+        if isinstance(surveys[0], list):
+            self.survey_lists = surveys
+        else:
+            self.survey_lists = [surveys]
         self.nside = nside
         hpid = np.arange(hp.nside2npix(nside))
         self.ra_grid_rad, self.dec_grid_rad = _hpid2RaDec(nside, hpid)
@@ -66,11 +71,9 @@ class Core_scheduler(object):
         # I think indx would then be a dict with keys 32,64,128, etc. Then each feature would
         # say indx = indx[self.nside]
         indx = self.pointing2hpindx(observation['RA'], observation['dec'], observation['rotSkyPos'])
-        for survey in self.surveys:
-            # if field_id is set, use survey internal h2fields map
-            # if observation['field_id'] > 0:
-            #     indx = np.where(survey.hp2fields == observation['field_id']-1)[0]
-            survey.add_observation(observation, indx=indx)
+        for surveys in self.survey_lists:
+            for survey in surveys:
+                survey.add_observation(observation, indx=indx)
 
     def update_conditions(self, conditions):
         """
@@ -81,9 +84,9 @@ class Core_scheduler(object):
         """
         # Add the current queue and scheduled queue to the conditions
         conditions['queue'] = self.queue
-
-        for survey in self.surveys:
-            survey.update_conditions(conditions)
+        for surveys in self.survey_lists:
+            for survey in surveys:
+                survey.update_conditions(conditions)
         self.conditions = conditions
 
     def request_observation(self):
@@ -109,10 +112,14 @@ class Core_scheduler(object):
         Compute reward function for each survey and fill the observing queue with the
         observations from the highest reward survey.
         """
-        rewards = np.zeros(len(self.surveys))
 
-        for i, survey in enumerate(self.surveys):
-            rewards[i] = np.max(survey.calc_reward_function())
+        for surveys in self.survey_lists:
+            rewards = np.zeros(len(surveys))
+            for i, survey in enumerate(surveys):
+                rewards[i] = np.max(survey.calc_reward_function())
+            # If we have a good reward, break out of the loop
+            if np.nanmax(rewards) > -np.inf:
+                break
 
         # Take a min here, so the surveys will be executed in the order they are
         # entered if there is a tie.
@@ -124,7 +131,7 @@ class Core_scheduler(object):
                 good = np.min(np.where(rewards == np.max(rewards)))
 
                 # Survey return list of observations
-                result = self.surveys[good]()
+                result = surveys[good]()
                 self.queue = result
             except ValueError:
                 self.queue = []
