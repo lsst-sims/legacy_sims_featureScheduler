@@ -19,6 +19,7 @@ from lsst.sims.featureScheduler.driver.constants import CONFIG_NAME
 from lsst.ts.observatory.model import Target
 import lsst.sims.featureScheduler as fs
 from lsst.sims.featureScheduler import stupidFast_RaDec2AltAz
+from lsst.sims.featureScheduler.coldstart import coldstarter
 from lsst.ts.dateloc import DateProfile
 from lsst.ts.scheduler import Driver
 from lsst.ts.scheduler.proposals import AreaDistributionProposal
@@ -162,13 +163,9 @@ class FeatureSchedulerDriver(Driver):
         self.initialized = True
 
     def end_survey(self):
-        f = open("first847fbs", "wb")
-        pickle.dump(self.obsList,f)
-        f.close()
+        
         np.save('first847.npy',np.array(self.fbs_obsList))
-        # f = open("first847np", "wb")
-
-        # pickle.dump(list2,f)
+        
         self.log.info("end_survey")
 
     def start_night(self, timestamp, night):
@@ -236,11 +233,8 @@ class FeatureSchedulerDriver(Driver):
             self.log.debug("end_night filter swap %s=>cam=>%s" %
                            (self.filter_to_mount, self.filter_to_unmount))
         
-        #f = open("fbs_night_{}".format(night), "wb")
-        #pickle.dump(self.obsList,f)
-        #f.close()
+
         self.obsList = []
-        #np.save('fbs_night_{}.npy'.format(night),np.array(self.fbs_obsList))
         self.fbs_obsList = []
 
         super(FeatureSchedulerDriver, self).end_night(timestamp, night)
@@ -353,11 +347,16 @@ class FeatureSchedulerDriver(Driver):
         return self.last_winner_target
 
     def register_observation(self, observation, isColdStart = False):
-        if observation.targetid > 0:
-            fbsobs = obs_to_fbsobs(observation) # THIS
+        if isColdStart:
+            self.obsList.append(copy.copy(observation))
+            self.fbs_obsList.append(observation)
+            self.scheduler.add_observation(observation) 
+            
+        elif observation.targetid > 0:
+            fbsobs = obs_to_fbsobs(observation) 
             self.obsList.append(copy.copy(observation))
             self.fbs_obsList.append(fbsobs)
-            self.scheduler.add_observation(fbsobs) # THIS
+            self.scheduler.add_observation(fbsobs) 
             return super(FeatureSchedulerDriver, self).register_observation(observation, isColdStart)
         else:
             return []
@@ -365,15 +364,13 @@ class FeatureSchedulerDriver(Driver):
     def cold_start(self, obslist=None):
 
         """Rebuilds the state of the scheduler from a list of observations"""
-        print("Running coldstart (fbs)")
-        f = open("fbs_night_1_normal","rb")
-        obs_from_file = pickle.load(f)
-        
-        #replay observations
-        for obs in obs_from_file:
+        self.log.info("Running coldstart (fbs)")
+        obs_history = coldstarter.get_observation_history("docker_mothra_2117.db")
+        self.log.info("Loaded " + str(len(obs_history)) + " observations from coldstart database.")
+        for obs in obs_history:
             self.register_observation(obs, isColdStart = True)
         
-        print("Coldstart finished")
+        self.log.info("Coldstart finished")
 
     def update_time(self, timestamp, night):
 
