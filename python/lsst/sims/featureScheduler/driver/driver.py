@@ -4,7 +4,6 @@ import numpy as np
 from importlib import import_module
 import importlib.util
 from lsst.sims.featureScheduler import obs_to_fbsobs
-import pickle
 from numpy.lib.recfunctions import append_fields
 
 from lsst.sims.ocs.configuration import Environment
@@ -163,9 +162,6 @@ class FeatureSchedulerDriver(Driver):
         self.initialized = True
 
     def end_survey(self):
-        
-        np.save('first847.npy',np.array(self.fbs_obsList))
-        
         self.log.info("end_survey")
 
     def start_night(self, timestamp, night):
@@ -361,7 +357,7 @@ class FeatureSchedulerDriver(Driver):
         else:
             return []
 
-    def cold_start(self, obslist=None):
+    def cold_start(self, fileName=None):
 
         """Rebuilds the state of the scheduler from a list of observations"""
         self.log.info("Running coldstart (fbs)")
