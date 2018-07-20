@@ -361,7 +361,7 @@ class FeatureSchedulerDriver(Driver):
 
         """Rebuilds the state of the scheduler from a list of observations"""
         self.log.info("Running coldstart (fbs)")
-        obs_history = coldstarter.get_observation_history("docker_mothra_2117.db")
+        obs_history = coldstarter.get_observation_history(fileName)
         self.log.info("Loaded " + str(len(obs_history)) + " observations from coldstart database.")
         for obs in obs_history:
             self.register_observation(obs, isColdStart = True)
