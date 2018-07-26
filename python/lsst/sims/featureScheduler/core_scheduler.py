@@ -5,6 +5,7 @@ import healpy as hp
 from lsst.sims.utils import _hpid2RaDec
 from .utils import hp_in_lsst_fov, set_default_nside, hp_in_comcam_fov
 import warnings
+import logging
 
 default_nside = None
 
@@ -30,8 +31,12 @@ class Core_scheduler(object):
         if nside is None:
             nside = set_default_nside()
 
+        self.log = logging.getLogger("Core_scheduler")
         # initialize a queue of observations to request
         self.queue = []
+        self.is_sequence = False
+        self.survey_index = [0, 0]
+
         # If we have a list of survey objects, convert to list-of-lists
         if isinstance(surveys[0], list):
             self.survey_lists = surveys
@@ -101,11 +106,20 @@ class Core_scheduler(object):
             self._fill_queue()
 
         if len(self.queue) == 0:
-            warnings.warn('Failed to fill queue')
+            self.log.warning('Failed to fill queue')
             # self._fill_queue()
             return None
         else:
-            return self.queue.pop(0)
+            observation = self.queue.pop(0)
+            if self.is_sequence:
+                if self.survey_lists[self.survey_index[0]][self.survey_index[1]].check_feasibility(observation):
+                    return observation
+                else:
+                    self.log.warning('Sequence interrupted! Cleaning queue!')
+                    self._clean_queue()
+                    return None
+            else:
+                return observation
 
     def _fill_queue(self):
         """
@@ -113,29 +127,42 @@ class Core_scheduler(object):
         observations from the highest reward survey.
         """
 
-        for surveys in self.survey_lists:
+        rewards = None
+        for ns, surveys in enumerate(self.survey_lists):
             rewards = np.zeros(len(surveys))
             for i, survey in enumerate(surveys):
                 rewards[i] = np.max(survey.calc_reward_function())
             # If we have a good reward, break out of the loop
             if np.nanmax(rewards) > -np.inf:
+                self.survey_index[0] = ns
                 break
 
         # Take a min here, so the surveys will be executed in the order they are
         # entered if there is a tie.
         if np.all(np.bitwise_or(np.isnan(rewards), np.isneginf(rewards))):
             # All values are invalid
-            self.queue = []
+            self._clean_queue()
         else:
             try:
-                good = np.min(np.where(rewards == np.max(rewards)))
+                to_fix = np.where(np.isnan(rewards))
+                rewards[to_fix] = -np.inf
+                self.survey_index[1] = np.min(np.where(rewards == np.max(rewards)))
 
                 # Survey return list of observations
-                result = surveys[good]()
+                result = self.survey_lists[self.survey_index[0]][self.survey_index[1]]()
                 self.queue = result
-            except ValueError:
-                self.queue = []
+                self.is_sequence = self.survey_lists[self.survey_index[0]][self.survey_index[1]].sequence
+            except ValueError as e:
+                self.log.exception(e)
+                self._clean_queue()
 
+    def _clean_queue(self):
+        """
+        Clean queue.
+        """
+        self.queue = []
+        self.is_sequence = False
+        self.survey_index = None
 
 class Core_scheduler_parallel(Core_scheduler):
     """Execute survey methods in parallel
