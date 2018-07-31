@@ -282,6 +282,7 @@ class FeatureSchedulerDriver(Driver):
             self.scheduler.flush_queue()
             self.targetid -= 1
             self.last_winner_target = self.nulltarget
+            self.scheduler_winner_target = None
 
         self.log.debug(self.last_winner_target)
         # for propid in self.proposal_id_dict.keys():
@@ -292,10 +293,12 @@ class FeatureSchedulerDriver(Driver):
 
     def register_observation(self, observation):
         if observation.targetid > 0:
+            self.log.debug('Registering: {}'.format(self.scheduler_winner_target))
             # FIXME: Add conversion of observation to fbs target
             self.scheduler.add_observation(self.scheduler_winner_target)
             return [self.last_winner_target]
         else:
+            self.log.debug('Register received invalid observation. Skipping...')
             return []
 
     def update_time(self, timestamp, night):
