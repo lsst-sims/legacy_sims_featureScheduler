@@ -429,7 +429,7 @@ def SCP_healpixels(nside=None, dec_max=-60.):
     ra, dec = ra_dec_hp_map(nside=nside)
     result = np.zeros(ra.size)
     good = np.where(np.bitwise_and(dec < np.radians(dec_max),
-                                   dec > np.radians(-86.5)))
+                                   dec > np.radians(-83.)))
     result[good] += 1
     return result
 
