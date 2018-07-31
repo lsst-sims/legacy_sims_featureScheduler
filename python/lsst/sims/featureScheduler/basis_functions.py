@@ -566,25 +566,15 @@ class Normalized_Target_map_basis_function(Base_basis_function):
             indx = np.arange(result.size)
 
         n_max = np.max(self.survey_features['N_obs'].feature[self.inside_area])
-        n_min = np.min(self.survey_features['N_obs'].feature[self.inside_area])
+        # n_min = np.median(self.survey_features['N_obs'].feature[self.inside_area])
 
         if n_max > 0:
-            goal = (n_max - self.survey_features['N_obs'].feature) / (n_max - n_min)
+            goal = (n_max - self.survey_features['N_obs'].feature)
             result[self.inside_area] += self.target_map[self.inside_area] * goal[self.inside_area]
         else:
             result[self.inside_area] += self.target_map[self.inside_area]
 
-        # # Find out how many observations we want now at those points
-        # goal_N = self.target_map[indx] * self.survey_features['N_obs_count_all'].feature * self.norm_factor
-        #
-        # result[indx] = goal_N - self.survey_features['N_obs'].feature[indx]
-        #
-        # result[self.out_of_bounds_area] = self.out_of_bounds_val
-        # norm_val = np.max(result[self.inside_area])v
-        # result[self.inside_area] -= (norm_val-1.)
-
         return result[indx]
-
 
 class Avoid_Fast_Revists(Base_basis_function):
     """Marks targets as unseen if they are in a specified time window in order to avoid fast revisits.
