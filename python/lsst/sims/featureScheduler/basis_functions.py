@@ -8,6 +8,9 @@ import healpy as hp
 from lsst.sims.utils import _hpid2RaDec, Site, _angularSeparation
 from lsst.sims.skybrightness_pre import M5percentiles
 import matplotlib.pylab as plt
+import logging
+
+log = logging.getLogger(__name__)
 
 default_nside = None
 
@@ -536,7 +539,7 @@ class Normalized_Target_map_basis_function(Base_basis_function):
             self.survey_features['N_obs'] = features.N_observations(filtername=filtername)
             # Count of all the observations
             self.survey_features['N_obs_count_all'] = features.N_obs_count(filtername=None)
-        super(Target_map_basis_function, self).__init__(survey_features=self.survey_features,
+        super(Normalized_Target_map_basis_function, self).__init__(survey_features=self.survey_features,
                                                         condition_features=condition_features)
         self.nside = nside
         if target_map is None:
@@ -562,16 +565,25 @@ class Normalized_Target_map_basis_function(Base_basis_function):
         if indx is None:
             indx = np.arange(result.size)
 
-        # Find out how many observations we want now at those points
-        goal_N = self.target_map[indx] * self.survey_features['N_obs_count_all'].feature * self.norm_factor
+        n_max = np.max(self.survey_features['N_obs'].feature[self.inside_area])
+        n_min = np.min(self.survey_features['N_obs'].feature[self.inside_area])
 
-        result[indx] = goal_N - self.survey_features['N_obs'].feature[indx]
+        if n_max > 0:
+            goal = (n_max - self.survey_features['N_obs'].feature) / (n_max - n_min)
+            result[self.inside_area] += self.target_map[self.inside_area] * goal[self.inside_area]
+        else:
+            result[self.inside_area] += self.target_map[self.inside_area]
 
-        result[self.out_of_bounds_area] = self.out_of_bounds_val
-        norm_val = np.max(result[self.inside_area])
-        result[self.inside_area] -= (norm_val-1.)
+        # # Find out how many observations we want now at those points
+        # goal_N = self.target_map[indx] * self.survey_features['N_obs_count_all'].feature * self.norm_factor
+        #
+        # result[indx] = goal_N - self.survey_features['N_obs'].feature[indx]
+        #
+        # result[self.out_of_bounds_area] = self.out_of_bounds_val
+        # norm_val = np.max(result[self.inside_area])v
+        # result[self.inside_area] -= (norm_val-1.)
 
-        return result
+        return result[indx]
 
 
 class Avoid_Fast_Revists(Base_basis_function):

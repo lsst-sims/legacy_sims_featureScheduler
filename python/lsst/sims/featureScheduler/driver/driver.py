@@ -52,39 +52,6 @@ class FeatureSchedulerDriver(Driver):
 
         self.initialized = False
 
-    # def start_survey(self, timestamp, night):
-    #
-    #     self.start_time = timestamp
-    #     self.log.info("start_survey t=%.6f" % timestamp)
-    #
-    #     self.survey_started = True
-    #
-    #     self.sky.update(timestamp)
-    #
-    #     (sunset, sunrise) = self.sky.get_night_boundaries(self.params.night_boundary)
-    #     self.log.debug("start_survey sunset=%.6f sunrise=%.6f" % (sunset, sunrise))
-    #     if sunset <= timestamp < sunrise:
-    #         self.start_night(timestamp, night)
-    #
-    #     self.sunset_timestamp = sunset
-    #     self.sunrise_timestamp = sunrise
-
-    # def create_area_proposal(self, propid, name, config_dict):
-    #     '''Override create_area_proposal from superclass.
-    #
-    #     One call to rule them all!
-    #
-    #     :param propid:
-    #     :param name:
-    #     :param config_dict:
-    #     :return:
-    #     '''
-    #     if not self.initialized and name == 'WideFastDeep':
-    #         self.initialize(config_dict)
-    #
-    # def create_sequence_proposal(self, propid, name, config_dict):
-    #     pass
-
     def configure_scheduler(self, **kwargs):
         """
         Load configuration from a python module.
@@ -137,6 +104,19 @@ class FeatureSchedulerDriver(Driver):
         self.initialized = True
 
         return survey_topology
+
+    def cold_start(self, observations):
+        """
+        Rebuild scheduler internal data structure from list of observations.
+
+        :param observations:
+        :return:
+        """
+
+        self.log.debug('Registering {} observations'.format(len(observations)))
+
+        for observation in observations:
+            self.register_observation(observation)
 
     def end_survey(self):
 
@@ -381,6 +361,7 @@ class FeatureSchedulerDriver(Driver):
         target.dd_exposures_list = [target.dd_exposures]
         target.dd_filterchanges_list = [target.dd_filterchanges]
         target.dd_exptime_list = [target.dd_exptime]
+        target.note = fb_observation['note']
 
         return target
 
