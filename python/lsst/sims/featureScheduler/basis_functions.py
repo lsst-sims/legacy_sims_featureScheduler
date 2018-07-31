@@ -513,6 +513,7 @@ class Normalized_Target_map_basis_function(Base_basis_function):
     """
     def __init__(self, filtername='r', nside=default_nside, target_map=None,
                  survey_features=None, condition_features=None, norm_factor=240./2.5e6,
+                 max_diff = 10.,
                  out_of_bounds_val=-10.):
         """
         Parameters
@@ -533,6 +534,7 @@ class Normalized_Target_map_basis_function(Base_basis_function):
             nside = utils.set_default_nside()
 
         self.norm_factor = norm_factor
+        self.max_diff = max_diff
         if survey_features is None:
             self.survey_features = {}
             # Map of the number of observations in filter
@@ -566,15 +568,10 @@ class Normalized_Target_map_basis_function(Base_basis_function):
             indx = np.arange(result.size)
 
         n_max = np.max(self.survey_features['N_obs'].feature[self.inside_area])
-        non_zero = np.where(self.survey_features['N_obs'].feature > 0)
-        n_mean = np.median(self.survey_features['N_obs'].feature[non_zero])
-        if np.isnan(n_mean):
-            n_mean = 0
 
-        if n_max > 0 and n_mean > 0:
-            goal = (n_max - self.survey_features['N_obs'].feature) / n_mean
-        elif n_max == n_mean:
+        if n_max > 0:
             goal = (n_max - self.survey_features['N_obs'].feature)
+            goal[goal < self.max_diff] = self.max_diff
         else:
             goal = np.ones_like(self.survey_features['N_obs'].feature)
 
