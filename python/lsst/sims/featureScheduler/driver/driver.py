@@ -283,6 +283,7 @@ class FeatureSchedulerDriver(Driver):
             self.targetid -= 1
             self.last_winner_target = self.nulltarget
             self.scheduler_winner_target = None
+            raise IOError('Slewtime lower than zero! (slewtime = %f)' % slewtime)
 
         self.log.debug(self.last_winner_target)
         # for propid in self.proposal_id_dict.keys():
