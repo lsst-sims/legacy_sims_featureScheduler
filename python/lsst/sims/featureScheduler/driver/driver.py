@@ -442,7 +442,7 @@ class FeatureSchedulerDriver(Driver):
                                          self.observatoryModel.location.latitude_rad,
                                          self.observatoryModel.location.longitude_rad,
                                          self.observatoryModel.dateprofile.mjd,
-                                         self.observatoryModel.dateprofile.lst_rad)
+                                         self.observatoryModel.dateprofile.lst_rad * 12. / np.pi % 24.)
         current_filter = self.observatoryModel.current_state.filter
 
         lax_dome = self.observatoryModel.params.domaz_free_range > 0.

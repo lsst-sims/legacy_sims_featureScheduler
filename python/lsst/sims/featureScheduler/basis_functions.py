@@ -513,7 +513,7 @@ class Normalized_Target_map_basis_function(Base_basis_function):
     """
     def __init__(self, filtername='r', nside=default_nside, target_map=None,
                  survey_features=None, condition_features=None, norm_factor=240./2.5e6,
-                 max_diff = 10.,
+                 max_diff=10.,
                  out_of_bounds_val=-10.):
         """
         Parameters
@@ -580,6 +580,7 @@ class Normalized_Target_map_basis_function(Base_basis_function):
 
         goal[goal > self.max_diff] = self.max_diff
         result[self.inside_area] += self.target_map[self.inside_area] * goal[self.inside_area]
+        result[self.out_of_bounds_area] = hp.UNSEEN
 
         return result[indx]
 
