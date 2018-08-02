@@ -540,6 +540,7 @@ class Normalized_Target_map_basis_function(Base_basis_function):
             # Map of the number of observations in filter
             self.survey_features['N_obs'] = features.N_observations(filtername=filtername)
             # Count of all the observations
+            self.survey_features['N_obs_count'] = features.N_obs_count(filtername=filtername)
             self.survey_features['N_obs_count_all'] = features.N_obs_count(filtername=None)
         super(Normalized_Target_map_basis_function, self).__init__(survey_features=self.survey_features,
                                                         condition_features=condition_features)
@@ -568,17 +569,19 @@ class Normalized_Target_map_basis_function(Base_basis_function):
             indx = np.arange(result.size)
 
         n_max = np.max(self.survey_features['N_obs'].feature[self.inside_area])
+        n_min = np.min(self.survey_features['N_obs'].feature[self.inside_area])
         # non_zero = np.where(self.survey_features['N_obs'].feature > 0)
-        # n_mean = np.median(self.survey_features['N_obs'].feature[non_zero])
+        n_median = np.median(self.survey_features['N_obs'].feature[self.inside_area])
         # if np.isnan(n_mean):
         #     n_mean = 0
 
         if n_max > 0:
-            goal = 1. - self.survey_features['N_obs'].feature / n_max
+            # goal = 1. - self.survey_features['N_obs'].feature / n_max
+            goal = 1. + n_median - self.survey_features['N_obs'].feature
         else:
             goal = np.ones_like(self.survey_features['N_obs'].feature)
 
-        goal[goal > self.max_diff] = self.max_diff
+        # goal[goal > self.max_diff] = self.max_diff
         result[self.inside_area] += self.target_map[self.inside_area] * goal[self.inside_area]
         result[self.out_of_bounds_area] = hp.UNSEEN
 
