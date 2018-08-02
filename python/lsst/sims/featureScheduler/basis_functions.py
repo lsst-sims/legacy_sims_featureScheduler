@@ -571,12 +571,16 @@ class Normalized_Target_map_basis_function(Base_basis_function):
         n_max = np.max(self.survey_features['N_obs'].feature[self.inside_area])
         n_min = np.min(self.survey_features['N_obs'].feature[self.inside_area])
         # non_zero = np.where(self.survey_features['N_obs'].feature > 0)
-        n_median = np.max([1.,
-                           np.median(self.survey_features['N_obs'].feature[self.inside_area])])
+        # n_mean = np.max([1.,
+        #                  np.mean(self.survey_features['N_obs'].feature[self.inside_area])])
         # if np.isnan(n_mean):
         #     n_mean = 0
 
-        goal = 1. - self.survey_features['N_obs'].feature / n_median
+        if n_max > 0:
+            goal = (n_max - self.survey_features['N_obs'].feature) / (n_max - n_min)
+            # goal = 1. - self.survey_features['N_obs'].feature / n_mean
+        else:
+            goal = np.ones_like(self.survey_features['N_obs'].feature)
 
         # goal[goal > self.max_diff] = self.max_diff
         result[self.inside_area] += self.target_map[self.inside_area] * goal[self.inside_area]
