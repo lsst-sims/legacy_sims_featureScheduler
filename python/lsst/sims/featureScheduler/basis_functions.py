@@ -536,11 +536,11 @@ class Normalized_Target_map_basis_function(Base_basis_function):
             self.survey_features['N_obs'] = features.N_observations(filtername=filtername)
             # Count of all the observations
             self.survey_features['N_obs_count_all'] = features.N_obs_count(filtername=None)
-        super(Target_map_basis_function, self).__init__(survey_features=self.survey_features,
-                                                        condition_features=condition_features)
+        super(Normalized_Target_map_basis_function, self).__init__(survey_features=self.survey_features,
+                                                                   condition_features=condition_features)
         self.nside = nside
         if target_map is None:
-            self.target_map = utils.generate_goal_map(filtername=filtername)
+            self.target_map = utils.standard_goals(nside)[filtername]
         else:
             self.target_map = target_map
         self.out_of_bounds_area = np.where(self.target_map == 0)[0]
@@ -557,22 +557,25 @@ class Normalized_Target_map_basis_function(Base_basis_function):
         -------
         Healpix reward map
         """
-        # Should probably update this to be as masked array.
+        # Should probably update this to be a masked array.
         result = np.zeros(hp.nside2npix(self.nside), dtype=float)
         if indx is None:
             indx = np.arange(result.size)
 
-        # Find out how many observations we want now at those points
-        goal_N = self.target_map[indx] * self.survey_features['N_obs_count_all'].feature * self.norm_factor
+        nobs_c = np.copy(self.survey_features['N_obs'].feature)
+        nobs_c[self.inside_area] /= self.target_map[self.inside_area]
 
-        result[indx] = goal_N - self.survey_features['N_obs'].feature[indx]
+        n_max = np.max(nobs_c[self.inside_area])
+        n_min = np.min(nobs_c[self.inside_area])
 
-        result[self.out_of_bounds_area] = self.out_of_bounds_val
-        norm_val = np.max(result[self.inside_area])
-        result[self.inside_area] -= (norm_val-1.)
+        if n_max > 0:
+            result[self.inside_area] += (n_max - nobs_c[self.inside_area]) / (n_max - n_min)
+        else:
+            result[self.inside_area] += self.target_map[self.inside_area]
 
-        return result
+        result[self.out_of_bounds_area] = hp.UNSEEN
 
+        return result[indx]
 
 class Avoid_Fast_Revists(Base_basis_function):
     """Marks targets as unseen if they are in a specified time window in order to avoid fast revisits.
@@ -817,12 +820,21 @@ class Goal_Strict_filter_basis_function(Base_basis_function):
                  time_lag_boost=60., boost_gain=2.0, unseen_before_lag=False,
                  filtername='r', tag=None, twi_change=-18., proportion=1.0, aways_available=False):
         """
-        Paramters
+        Parameters
         ---------
-        time_lag : float (10.)
-            If there is a gap between observations longer than this, let the filter change (minutes)
-        twi_change : float (-18.)
-            The sun altitude to consider twilight starting/ending
+        time_lag_min: Minimum time after a filter change for which a new filter change will receive zero reward, or
+            be denied at all (see unseen_before_lag).
+        time_lag_max: Time after a filter change where the reward for changing filters achieve its maximum.
+        time_lag_boost: Time after a filter change to apply a boost on the reward.
+        boost_gain: A multiplier factor for the reward after time_lag_boost.
+        unseen_before_lag: If True will make it impossible to switch filter before time_lag has passed.
+        filtername: The filter for which this basis function will be used.
+        tag: When using filter proportion use only regions with this tag to count for observations.
+        twi_change: Switch reward on when twilight changes.
+        proportion: The expected filter proportion distribution.
+        aways_available: If this is true the basis function will aways be computed regardless of the feasibility. If
+            False a more detailed feasibility check is performed. When set to False, it may speed up the computation
+            process by avoiding to compute the reward functions paired with this bf, when observation is not feasible.
         """
         self.time_lag_min = time_lag_min / 60. / 24.  # Convert to days
         self.time_lag_max = time_lag_max / 60. / 24.  # Convert to days
@@ -879,9 +891,22 @@ class Goal_Strict_filter_basis_function(Base_basis_function):
         return bonus * need
 
     def check_feasibility(self):
+        """
+        This method makes a pre-check of the feasibility of this basis function. If a basis function return False
+        on the feasibility check, it won't computed at all.
+
+        :return:
+        """
+
+        # Make a quick check about the feasibility of this basis function. If current filter is none, telescope
+        # is parked and we could, in principle, switch to any filter. If this basis function computes reward for
+        # the current filter, then it is also feasible. At last we check for an "aways_available" flag. Meaning, we
+        # force this basis function to be aways be computed.
         if self.condition_features['Current_filter'].feature is None or \
                 self.condition_features['Current_filter'].feature == self.filtername or self.aways_available:
             return True
+
+        # If we arrive here, we make some extra checks to make sure this bf is feasible and should be computed.
 
         # Did the moon set or rise since last observation?
         moon_changed = self.condition_features['Sun_moon_alts'].feature['moonAlt'] * \
@@ -1046,7 +1071,7 @@ class Slewtime_basis_function(Base_basis_function):
         return result
 
 
-class Agreesive_Slewtime_basis_function(Base_basis_function):
+class Aggressive_Slewtime_basis_function(Base_basis_function):
     """Reward slews that take little time
     """
 
@@ -1065,8 +1090,8 @@ class Agreesive_Slewtime_basis_function(Base_basis_function):
             self.condition_features['Current_filter'] = features.Current_filter()
             self.condition_features['hp2fields'] = features.HP2Fields()
             self.condition_features['slewtime'] = features.SlewtimeFeature(nside=nside)
-        super(Agreesive_Slewtime_basis_function, self).__init__(survey_features=survey_features,
-                                                                condition_features=self.condition_features)
+        super(Aggressive_Slewtime_basis_function, self).__init__(survey_features=survey_features,
+                                                                 condition_features=self.condition_features)
 
     def __call__(self, indx=None):
         # If we are in a different filter, the Filter_change_basis_function will take it
@@ -1176,7 +1201,7 @@ class Moon_avoidance_basis_function(Base_basis_function):
         if survey_features is None:
             self.survey_features = {}
         if condition_features is None:
-            self.condition_features = dict()
+            self.condition_features = {}
             self.condition_features['altaz'] = features.AltAzFeature(nside=nside)
             self.condition_features['lmst'] = features.Current_lmst()
             self.condition_features['moon'] = features.Moon()
@@ -1357,7 +1382,7 @@ class CableWrap_unwrap_basis_function(Base_basis_function):
         Parameters
         ----------
         minAz : float (20.)
-            The minimum azimuth to activite bf (degrees)
+            The minimum azimuth to activate bf (degrees)
         maxAz : float (82.)
             The maximum azimuth to activate bf (degrees)
         unwrap_until: float (90.)

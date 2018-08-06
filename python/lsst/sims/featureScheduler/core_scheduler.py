@@ -133,13 +133,13 @@ class Core_scheduler(object):
             for i, survey in enumerate(surveys):
                 rewards[i] = np.max(survey.calc_reward_function())
             # If we have a good reward, break out of the loop
-            if np.nanmax(rewards) > -np.inf:
+            if np.nanmax(rewards) > -np.inf and np.nanmax(rewards) > hp.UNSEEN:
                 self.survey_index[0] = ns
                 break
 
         # Take a min here, so the surveys will be executed in the order they are
         # entered if there is a tie.
-        if np.all(np.bitwise_or(np.isnan(rewards), np.isneginf(rewards))):
+        if np.all(np.bitwise_or(np.bitwise_or(np.isnan(rewards), np.isneginf(rewards)), rewards == hp.UNSEEN)):
             # All values are invalid
             self._clean_queue()
         else:
@@ -162,7 +162,7 @@ class Core_scheduler(object):
         """
         self.queue = []
         self.is_sequence = False
-        self.survey_index = None
+        self.survey_index = [0, 0]
 
 class Core_scheduler_parallel(Core_scheduler):
     """Execute survey methods in parallel

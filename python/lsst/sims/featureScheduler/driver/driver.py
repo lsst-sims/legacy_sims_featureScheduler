@@ -302,6 +302,7 @@ class FeatureSchedulerDriver(Driver):
             self.scheduler.flush_queue()
             self.targetid -= 1
             self.last_winner_target = self.nulltarget
+            self.scheduler_winner_target = None
 
         self.log.debug(self.last_winner_target)
         # for propid in self.proposal_id_dict.keys():
@@ -458,7 +459,7 @@ class FeatureSchedulerDriver(Driver):
                                          self.observatoryModel.location.latitude_rad,
                                          self.observatoryModel.location.longitude_rad,
                                          self.observatoryModel.dateprofile.mjd,
-                                         self.observatoryModel.dateprofile.lst_rad)
+                                         self.observatoryModel.dateprofile.lst_rad * 12. / np.pi % 24.)
         current_filter = self.observatoryModel.current_state.filter
 
         lax_dome = self.observatoryModel.params.domaz_free_range > 0.

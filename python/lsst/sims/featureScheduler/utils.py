@@ -604,6 +604,7 @@ def generate_cloud_map(target_maps=None, filtername='r', wfd_cloud_max=0.7,
 
     return cloud_map
 
+
 def generate_sb_map(target_maps, filters, wfd_sb_limits=None,
                     scp_sb_limits=None, gp_sb_limits=None, nes_sb_limits=None):
     """

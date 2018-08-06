@@ -56,25 +56,18 @@ cloud_map = fs.utils.generate_cloud_map(target_maps, filtername='r',
                                         gp_cloud_max=0.7,
                                         nes_cloud_max=0.7)
 
-# x1 = 30.
-# x0 = 2.
-# B = x1 / (x1 - x0)
-# A = -B / x1
-# width = np.arange(x0, x1, 0.5)
-# z_pad = width + 8.
-# weight = (A * width + B)
-# height = np.zeros_like(width) + 80.
-
-width = (10.,)
-z_pad = (18.,)
-weight = (1.,)
-height = (80.,)
+# Parameters for MeridianStripeBasisFunction.
+width = (10.,)  # The width of the meridian mask.
+z_pad = (18.,)  # The radius of the zenith pad.
+weight = (1.,)  # The weight of the mask.
+height = (80.,)  # The height (distance from zenith to North/South) of the mask.
 
 filters = ['u', 'g', 'r', 'i', 'z', 'y']
 surveys = []
 
 sb_limit_map = fs.utils.generate_sb_map(target_maps, filters)
 
+# The proportion of the number of visits on each filter.
 filter_prop = {'u': 0.069,
                'g': 0.097,
                'r': 0.222,
@@ -100,14 +93,14 @@ for filtername in filters:
     # bfs.append(fs.HADecAltAzPatchBasisFunction(nside=nside,
     #                                            patches=patches[::-1]))
     bfs.append(fs.Slewtime_basis_function(filtername=filtername, nside=nside, order=6., hard_max=20.))
-    bfs.append(fs.Strict_filter_basis_function(filtername=filtername,
-                                               time_lag_min=90.,
-                                               time_lag_max=150.,
-                                               time_lag_boost=180.,
-                                               boost_gain=1.0,
-                                               unseen_before_lag=True,
-                                               proportion=filter_prop[filtername],
-                                               aways_available=filtername in 'zy'))
+    bfs.append(fs.Goal_Strict_filter_basis_function(filtername=filtername,
+                                                    time_lag_min=90.,
+                                                    time_lag_max=150.,
+                                                    time_lag_boost=180.,
+                                                    boost_gain=1.0,
+                                                    unseen_before_lag=True,
+                                                    proportion=filter_prop[filtername],
+                                                    aways_available=filtername in 'zy'))
     bfs.append(fs.Avoid_Fast_Revists(filtername=None, gap_min=240., nside=nside))
     bfs.append(fs.Bulk_cloud_basis_function(max_cloud_map=cloud_map, nside=nside))
     bfs.append(fs.Moon_avoidance_basis_function(nside=nside, moon_distance=40.))
