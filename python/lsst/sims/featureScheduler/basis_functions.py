@@ -821,7 +821,8 @@ class Goal_Strict_filter_basis_function(Base_basis_function):
 
     def __init__(self, survey_features=None, condition_features=None, time_lag_min=10., time_lag_max=30.,
                  time_lag_boost=60., boost_gain=2.0, unseen_before_lag=False,
-                 filtername='r', tag=None, twi_change=-18., proportion=1.0, aways_available=False):
+                 filtername='r', tag=None, twi_change=-18., proportion=1.0, norm_factor = 100.,
+                 aways_available=False):
         """
         Parameters
         ---------
@@ -849,6 +850,7 @@ class Goal_Strict_filter_basis_function(Base_basis_function):
         self.filtername = filtername
         self.proportion = proportion
         self.aways_available = aways_available
+        self.norm_factor = norm_factor
 
         if condition_features is None:
             self.condition_features = {}
@@ -881,7 +883,9 @@ class Goal_Strict_filter_basis_function(Base_basis_function):
         nobs_all = self.survey_features['N_obs_all'].feature
         goal = self.proportion
         # need = 1. - nobs / nobs_all + goal if nobs_all > 0 else 1. + goal
-        need = goal / nobs * nobs_all if nobs > 0 else 1.
+        need = (goal * nobs_all - nobs) / self.norm_factor  # if nobs > 0 else 1.
+        if need < 0.:
+            return 0.
         # need /= goal
         if hasattr(time, '__iter__'):
             before_lag = np.where(time <= lag_min)
