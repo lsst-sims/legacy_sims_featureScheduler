@@ -177,6 +177,25 @@ class LastSequence_observation(BaseSurveyFeature):
             self.feature = observation
 
 
+class LastFilterChange(BaseSurveyFeature):
+    """When was the last observation
+    """
+    def __init__(self):
+        self.feature = {'mjd': 0.,
+                        'previous_filter': None,
+                        'current_filter': None}
+
+    def add_observation(self, observation, indx=None):
+        if self.feature['current_filter'] is None:
+            self.feature['mjd'] = observation['mjd'][0]
+            self.feature['previous_filter'] = None
+            self.feature['current_filter'] = observation['filter'][0]
+        elif observation['filter'][0] != self.feature['current_filter']:
+            self.feature['mjd'] = observation['mjd'][0]
+            self.feature['previous_filter'] = self.feature['current_filter']
+            self.feature['current_filter'] = observation['filter'][0]
+
+
 class N_observations(BaseSurveyFeature):
     """
     Track the number of observations that have been made accross the sky.
@@ -206,7 +225,7 @@ class N_observations(BaseSurveyFeature):
         indx : ints
             The indices of the healpixel map that have been observed by observation
         """
-        if observation['filter'][0] in self.filtername:
+        if self.filtername is None or observation['filter'][0] in self.filtername:
             self.feature[indx] += 1
 
         if self.mask_indx is not None:

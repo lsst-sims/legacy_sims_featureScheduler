@@ -534,6 +534,7 @@ class Normalized_Target_map_basis_function(Base_basis_function):
             self.survey_features = {}
             # Map of the number of observations in filter
             self.survey_features['N_obs'] = features.N_observations(filtername=filtername)
+            self.survey_features['N_obs_all'] = features.N_observations(filtername=None)
             # Count of all the observations
             self.survey_features['N_obs_count_all'] = features.N_obs_count(filtername=None)
         super(Normalized_Target_map_basis_function, self).__init__(survey_features=self.survey_features,
@@ -562,14 +563,16 @@ class Normalized_Target_map_basis_function(Base_basis_function):
         if indx is None:
             indx = np.arange(result.size)
 
-        nobs_c = np.copy(self.survey_features['N_obs'].feature)
+        nobs_c = np.copy(self.survey_features['N_obs_all'].feature)
+        nobs_c_this = np.copy(self.survey_features['N_obs'].feature)
         nobs_c[self.inside_area] /= self.target_map[self.inside_area]
+        nobs_c_this[self.inside_area] /= self.target_map[self.inside_area]
 
         n_max = np.max(nobs_c[self.inside_area])
         n_min = np.min(nobs_c[self.inside_area])
 
         if n_max > 0:
-            result[self.inside_area] += (n_max - nobs_c[self.inside_area]) / (n_max - n_min)
+            result[self.inside_area] += (n_max - nobs_c_this[self.inside_area]) / (n_max - n_min)
         else:
             result[self.inside_area] += self.target_map[self.inside_area]
 
@@ -856,6 +859,7 @@ class Goal_Strict_filter_basis_function(Base_basis_function):
         if survey_features is None:
             self.survey_features = {}
             self.survey_features['Last_observation'] = features.Last_observation()
+            self.survey_features['Last_filter_change'] = features.LastFilterChange()
             self.survey_features['N_obs_all'] = features.N_obs_count(filtername=None)
             self.survey_features['N_obs'] = features.N_obs_count(filtername=filtername,
                                                                  tag=tag)
@@ -876,7 +880,8 @@ class Goal_Strict_filter_basis_function(Base_basis_function):
         nobs = self.survey_features['N_obs'].feature
         nobs_all = self.survey_features['N_obs_all'].feature
         goal = self.proportion
-        need = 1. - nobs / nobs_all + goal if nobs_all > 0 else 1. + goal
+        # need = 1. - nobs / nobs_all + goal if nobs_all > 0 else 1. + goal
+        need = goal / nobs * nobs_all if nobs > 0 else 1.
         # need /= goal
         if hasattr(time, '__iter__'):
             before_lag = np.where(time <= lag_min)
@@ -916,7 +921,7 @@ class Goal_Strict_filter_basis_function(Base_basis_function):
         not_in_filter = (self.condition_features['Current_filter'].feature != self.filtername)
 
         # Has enough time past?
-        lag = self.condition_features['Current_mjd'].feature - self.survey_features['Last_observation'].feature['mjd']
+        lag = self.condition_features['Current_mjd'].feature - self.survey_features['Last_filter_change'].feature['mjd']
         time_past = lag > self.time_lag_min
 
         # Did twilight start/end?
@@ -938,18 +943,18 @@ class Goal_Strict_filter_basis_function(Base_basis_function):
 
         if self.condition_features['Current_filter'].feature is None:
             return 0.  # no bonus if no filter is mounted
-        elif self.condition_features['Current_filter'].feature == self.filtername:
-            return 0.  # no bonus if on the filter already
+        # elif self.condition_features['Current_filter'].feature == self.filtername:
+        #     return 0.  # no bonus if on the filter already
 
         # Did the moon set or rise since last observation?
         moon_changed = self.condition_features['Sun_moon_alts'].feature['moonAlt'] * \
                        self.survey_features['Last_observation'].feature['moonAlt'] < 0
 
         # Are we already in the filter (or at start of night)?
-        not_in_filter = (self.condition_features['Current_filter'].feature != self.filtername)
+        # not_in_filter = (self.condition_features['Current_filter'].feature != self.filtername)
 
         # Has enough time past?
-        lag = self.condition_features['Current_mjd'].feature - self.survey_features['Last_observation'].feature['mjd']
+        lag = self.condition_features['Current_mjd'].feature - self.survey_features['Last_filter_change'].feature['mjd']
         time_past = lag > self.time_lag_min
 
         # Did twilight start/end?
@@ -962,7 +967,7 @@ class Goal_Strict_filter_basis_function(Base_basis_function):
         # Is the filter mounted?
         mounted = self.filtername in self.condition_features['Mounted_filter'].feature
 
-        if (moon_changed | time_past | twi_changed | wasDD) & mounted & not_in_filter:
+        if (moon_changed | time_past | twi_changed | wasDD) & mounted:
             result = self.filter_change_bonus(lag) if time_past else 0.
         else:
             result = -100. if self.unseen_before_lag else 0.
