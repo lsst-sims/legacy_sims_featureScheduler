@@ -99,18 +99,25 @@ class FeatureSchedulerDriver(Driver):
         else:
             configure_path = os.path.join(kwargs['config_path'], CONFIG_NAME)
 
-        if os.path.exists(configure_path):
-            self.log.info('Loading feature based scheduler configuration from {}.'.format(configure_path))
-            spec = importlib.util.spec_from_file_location("config", configure_path)
-            conf = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(conf)
-            # conf = None
-        else:
-            self.log.info('Loading feature based scheduler default configuration.')
-            conf = import_module('lsst.sims.featureScheduler.driver.config')
+        force = kwargs.pop('force', False)
+        survey_topology = None
 
-        self.scheduler = conf.scheduler
-        self.sky_nside = conf.nside
+        if self.scheduler is None or force:
+            if os.path.exists(configure_path):
+                self.log.info('Loading feature based scheduler configuration from {}.'.format(configure_path))
+                spec = importlib.util.spec_from_file_location("config", configure_path)
+                conf = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(conf)
+                # conf = None
+            else:
+                self.log.info('Loading feature based scheduler default configuration.')
+                conf = import_module('lsst.sims.featureScheduler.driver.config')
+
+            self.scheduler = conf.scheduler
+            self.sky_nside = conf.nside
+            survey_topology = conf.survey_topology
+        else:
+            self.log.info('Scheduler already configured.')
 
         for survey_list in self.scheduler.survey_lists:
             for survey in survey_list:
@@ -129,7 +136,7 @@ class FeatureSchedulerDriver(Driver):
 
         self.initialized = True
 
-        return conf.survey_topology
+        return survey_topology
 
     def end_survey(self):
 
@@ -295,6 +302,7 @@ class FeatureSchedulerDriver(Driver):
             self.scheduler.flush_queue()
             self.targetid -= 1
             self.last_winner_target = self.nulltarget
+            self.scheduler_winner_target = None
 
         self.log.debug(self.last_winner_target)
         # for propid in self.proposal_id_dict.keys():
@@ -433,9 +441,9 @@ class FeatureSchedulerDriver(Driver):
         telemetry_stream['mounted_filters'] = copy.copy(self.observatoryModel.current_state.mountedfilters)
         telemetry_stream['telRA'] = copy.copy(np.degrees(self.observatoryModel.current_state.ra_rad))
         telemetry_stream['telDec'] = copy.copy(np.degrees(self.observatoryModel.current_state.dec_rad))
-        telemetry_stream['telAlt'] = copy.copy(np.degrees(self.observatoryModel.current_state.alt_rad))
-        telemetry_stream['telAz'] = copy.copy(np.degrees(self.observatoryModel.current_state.az_rad))
-        telemetry_stream['telRot'] = copy.copy(np.degrees(self.observatoryModel.current_state.rot_rad))
+        telemetry_stream['telAlt'] = copy.copy(np.degrees(self.observatoryModel.current_state.telalt_rad))
+        telemetry_stream['telAz'] = copy.copy(np.degrees(self.observatoryModel.current_state.telaz_rad))
+        telemetry_stream['telRot'] = copy.copy(np.degrees(self.observatoryModel.current_state.telrot_rad))
 
         # What is the sky brightness over the sky (healpix map)
         telemetry_stream['skybrightness'] = copy.copy(
@@ -451,11 +459,13 @@ class FeatureSchedulerDriver(Driver):
                                          self.observatoryModel.location.latitude_rad,
                                          self.observatoryModel.location.longitude_rad,
                                          self.observatoryModel.dateprofile.mjd,
-                                         self.observatoryModel.dateprofile.lst_rad)
+                                         self.observatoryModel.dateprofile.lst_rad * 12. / np.pi % 24.)
         current_filter = self.observatoryModel.current_state.filter
 
+        lax_dome = self.observatoryModel.params.domaz_free_range > 0.
         telemetry_stream['slewtimes'] = copy.copy(self.observatoryModel.get_approximate_slew_delay(alt, az,
-                                                                                         current_filter))
+                                                                                                   current_filter,
+                                                                                                   lax_dome=lax_dome))
         # What is the airmass over the sky (healpix map).
 
         telemetry_stream['airmass'] = copy.copy(
@@ -471,9 +481,17 @@ class FeatureSchedulerDriver(Driver):
             telemetry_stream['FWHMeff_%s' % filtername] = copy.copy(fwhm_effective[i])  # arcsec
             telemetry_stream['FWHM_geometric_%s' % filtername] = copy.copy(fwhm_geometric[i])
 
-        sunMoon_info = self.sky_brightness.returnSunMoon(self.observatoryModel.dateprofile.mjd)
+        self.sky.update(self.time)
+
+        sunMoon_info = self.sky.get_moon_sun_info(np.array([0.0]), np.array([0.0]))
+
         # Pretty sure these are radians
         telemetry_stream['sunAlt'] = copy.copy(np.max(sunMoon_info['sunAlt']))
         telemetry_stream['moonAlt'] = copy.copy(np.max(sunMoon_info['moonAlt']))
+
+        telemetry_stream['moonAz'] = copy.copy(np.max(sunMoon_info['moonAz']))
+        telemetry_stream['moonRA'] = copy.copy(np.max(sunMoon_info['moonRA']))
+        telemetry_stream['moonDec'] = copy.copy(np.max(sunMoon_info['moonDec']))
+        telemetry_stream['moonPhase'] = copy.copy(np.max(sunMoon_info['moonPhase']))
 
         return telemetry_stream

@@ -83,17 +83,26 @@ class BulkCloudCover(BaseConditionsFeature):
 class N_obs_count(BaseSurveyFeature):
     """Count the number of observations.
     """
-    def __init__(self, filtername=None):
+    def __init__(self, filtername=None, tag=None):
         self.feature = 0
         self.filtername = filtername
+        self.tag = tag
 
     def add_observation(self, observation, indx=None):
-        # Track all observations
-        if self.filtername is None:
+
+        if (self.filtername is None) and (self.tag is None):
+            # Track all observations
             self.feature += 1
-        else:
-            if observation['filter'][0] in self.filtername:
-                self.feature += 1
+        elif (self.filtername is not None) and (self.tag is None) and (observation['filter'][0] in self.filtername):
+            # Track all observations on a specified filter
+            self.feature += 1
+        elif (self.filtername is None) and (self.tag is not None) and (observation['tag'][0] in self.tag):
+            # Track all observations on a specified tag
+            self.feature += 1
+        elif ((self.filtername is None) and (self.tag is not None) and
+              # Track all observations on a specified filter on a specified tag
+              (observation['filter'][0] in self.filtername) and (observation['tag'][0] in self.tag)):
+            self.feature += 1
 
 
 class N_obs_survey(BaseSurveyFeature):
@@ -118,6 +127,27 @@ class N_obs_survey(BaseSurveyFeature):
                 self.feature += 1
 
 
+class N_obs_area(BaseSurveyFeature):
+    """Count the number of observations that happened on a specific region.
+    """
+    def __init__(self, tag_map=None):
+        """
+        Parameters
+        ----------
+        tag_map : np.ndarray (None)
+            A healpix map with a tag map. Only observations with tag equals to the region tag will be counted.
+        """
+        self.feature = 0
+        self.tag_map = tag_map
+
+    def add_observation(self, observation, indx=None):
+
+        if self.tag_map is not None:
+            tags = np.unique(self.tag_map[indx])
+            if observation['tag'] in tags:
+                self.feature += 1
+
+
 class Last_observation(BaseSurveyFeature):
     """When was the last observation
     """
@@ -132,6 +162,38 @@ class Last_observation(BaseSurveyFeature):
                 self.feature = observation
         else:
             self.feature = observation
+
+
+class LastSequence_observation(BaseSurveyFeature):
+    """When was the last observation
+    """
+    def __init__(self, sequence_ids=''):
+        self.sequence_ids = sequence_ids  # The ids of all sequence observations...
+        # Start out with an empty observation
+        self.feature = utils.empty_observation()
+
+    def add_observation(self, observation, indx=None):
+        if observation['survey_id'] in self.sequence_ids:
+            self.feature = observation
+
+
+class LastFilterChange(BaseSurveyFeature):
+    """When was the last observation
+    """
+    def __init__(self):
+        self.feature = {'mjd': 0.,
+                        'previous_filter': None,
+                        'current_filter': None}
+
+    def add_observation(self, observation, indx=None):
+        if self.feature['current_filter'] is None:
+            self.feature['mjd'] = observation['mjd'][0]
+            self.feature['previous_filter'] = None
+            self.feature['current_filter'] = observation['filter'][0]
+        elif observation['filter'][0] != self.feature['current_filter']:
+            self.feature['mjd'] = observation['mjd'][0]
+            self.feature['previous_filter'] = self.feature['current_filter']
+            self.feature['current_filter'] = observation['filter'][0]
 
 
 class N_observations(BaseSurveyFeature):
@@ -163,7 +225,7 @@ class N_observations(BaseSurveyFeature):
         indx : ints
             The indices of the healpixel map that have been observed by observation
         """
-        if observation['filter'][0] in self.filtername:
+        if self.filtername is None or observation['filter'][0] in self.filtername:
             self.feature[indx] += 1
 
         if self.mask_indx is not None:
@@ -210,7 +272,9 @@ class Last_observed(BaseSurveyFeature):
         self.feature = np.zeros(hp.nside2npix(nside), dtype=float)
 
     def add_observation(self, observation, indx=None):
-        if observation['filter'][0] in self.filtername:
+        if self.filtername is None:
+            self.feature[indx] = observation['mjd']
+        elif observation['filter'][0] in self.filtername:
             self.feature[indx] = observation['mjd']
 
 
@@ -358,10 +422,46 @@ class M5Depth(BaseConditionsFeature):
         self.feature = ma.masked_values(self.feature, hp.UNSEEN)
 
 
+class SkyBrightness(BaseConditionsFeature):
+    """
+    Given current conditions, return the 5-sigma limiting depth for a filter.
+    """
+    def __init__(self, filtername='r', nside=default_nside):
+        if nside is None:
+            nside = utils.set_default_nside()
+
+        self.filtername = filtername
+        self.feature = None
+        self.nside = nside
+
+    def update_conditions(self, conditions):
+        """
+        Parameters
+        ----------
+        conditions : dict
+            Keys should include airmass, sky_brightness, seeing.
+        """
+        sb = np.empty(conditions['skybrightness'][self.filtername].size)
+        sb.fill(hp.UNSEEN)
+        sb_mask = np.zeros(sb.size, dtype=bool)
+        sb_mask[np.where(conditions['skybrightness'][self.filtername] == hp.UNSEEN)] = True
+        good = np.where(conditions['skybrightness'][self.filtername] != hp.UNSEEN)
+        sb[good] = conditions['skybrightness'][self.filtername][good]
+        self.feature = sb
+        self.feature[sb_mask] = hp.UNSEEN
+        self.feature = hp.ud_grade(self.feature, nside_out=self.nside)
+        self.feature = ma.masked_values(self.feature, hp.UNSEEN)
+
+
 class Current_filter(BaseConditionsFeature):
     def update_conditions(self, conditions):
         self.feature = conditions['filter']
 
+
+class HP2Fields(BaseConditionsFeature):
+    def update_conditions(self, conditions):
+        if 'hp2fields' in conditions:
+            self.feature = conditions['hp2fields']
 
 class Mounted_filters(BaseConditionsFeature):
     def update_conditions(self, conditions):
@@ -374,6 +474,15 @@ class Mounted_filters(BaseConditionsFeature):
 class Sun_moon_alts(BaseConditionsFeature):
     def update_conditions(self, conditions):
         self.feature = {'moonAlt': conditions['moonAlt'], 'sunAlt': conditions['sunAlt']}
+
+
+class Moon(BaseConditionsFeature):
+    def update_conditions(self, conditions):
+        self.feature = {'moonAlt': conditions['moonAlt'],
+                        'moonAz': conditions['moonAz'],
+                        'moonPhase': conditions['moonPhase'],
+                        'moonRA': conditions['moonRA'],
+                        'moonDec': conditions['moonDec']}
 
 
 class Current_mjd(BaseConditionsFeature):
@@ -415,7 +524,8 @@ class CurrentNightBoundaries(BaseConditionsFeature):
 
 class Current_pointing(BaseConditionsFeature):
     def update_conditions(self, conditions):
-        self.feature = {'RA': conditions['telRA'], 'dec': conditions['telDec']}
+        self.feature = {'RA': conditions['telRA'], 'dec': conditions['telDec'],
+                        'alt': conditions['telAlt'], 'az': conditions['telAz']}
 
 
 class Time_to_set(BaseConditionsFeature):

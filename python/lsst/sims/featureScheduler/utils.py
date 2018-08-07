@@ -605,6 +605,85 @@ def generate_cloud_map(target_maps=None, filtername='r', wfd_cloud_max=0.7,
     return cloud_map
 
 
+def generate_sb_map(target_maps, filters, wfd_sb_limits=None,
+                    scp_sb_limits=None, gp_sb_limits=None, nes_sb_limits=None):
+    """
+
+    Parameters
+    ----------
+    target_maps:
+    filters:
+    wfd_sb_limits:
+    scp_sb_limits:
+    gp_sb_limits:
+    nes_sb_limits:
+
+    Returns
+    -------
+
+    """
+
+    if wfd_sb_limits is None:
+        wfd_sb_limits = {'u': {'min': 21.30, 'max': 30.00},
+                         'g': {'min': 21.00, 'max': 30.00},
+                         'r': {'min': 20.25, 'max': 30.00},
+                         'i': {'min': 19.50, 'max': 30.00},
+                         'z': {'min': 17.00, 'max': 21.00},
+                         'y': {'min': 16.50, 'max': 21.00},
+                         }
+
+    if scp_sb_limits is None:
+        scp_sb_limits = {'u': {'min': 21.30, 'max': 30.00},
+                         'g': {'min': 21.00, 'max': 30.00},
+                         'r': {'min': 20.25, 'max': 30.00},
+                         'i': {'min': 19.50, 'max': 30.00},
+                         'z': {'min': 17.00, 'max': 21.00},
+                         'y': {'min': 16.50, 'max': 21.00},
+                         }
+
+    if gp_sb_limits is None:
+        gp_sb_limits = {'u': {'min': 21.30, 'max': 30.00},
+                        'g': {'min': 21.00, 'max': 30.00},
+                        'r': {'min': 20.25, 'max': 30.00},
+                        'i': {'min': 19.50, 'max': 30.00},
+                        'z': {'min': 17.00, 'max': 21.00},
+                        'y': {'min': 16.50, 'max': 21.00},
+                        }
+
+    if nes_sb_limits is None:
+        nes_sb_limits = {'u': {'min': 21.30, 'max': 30.00},
+                         'g': {'min': 21.00, 'max': 30.00},
+                         'r': {'min': 20.25, 'max': 30.00},
+                         'i': {'min': 19.50, 'max': 30.00},
+                         'z': {'min': 17.00, 'max': 21.00},
+                         'y': {'min': 16.50, 'max': 21.00},
+                         }
+
+    sb_map = {}
+    for filtername in filters:
+        sb_map_min = np.zeros_like(target_maps[filtername][0])
+        sb_map_max = np.zeros_like(target_maps[filtername][0])
+
+        wfd_cloud = np.where(target_maps[filtername][1] == 3)
+        scp_cloud = np.where(target_maps[filtername][1] == 2)
+        gp_cloud = np.where(target_maps[filtername][1] == 4)
+        nes_cloud = np.where(target_maps[filtername][1] == 1)
+
+        sb_map_min[wfd_cloud] = wfd_sb_limits[filtername]['min']
+        sb_map_min[scp_cloud] = scp_sb_limits[filtername]['min']
+        sb_map_min[gp_cloud] = gp_sb_limits[filtername]['min']
+        sb_map_min[nes_cloud] = nes_sb_limits[filtername]['min']
+
+        sb_map_max[wfd_cloud] = wfd_sb_limits[filtername]['max']
+        sb_map_max[scp_cloud] = scp_sb_limits[filtername]['max']
+        sb_map_max[gp_cloud] = gp_sb_limits[filtername]['max']
+        sb_map_max[nes_cloud] = nes_sb_limits[filtername]['max']
+        sb_map[filtername] = {'min': sb_map_min,
+                              'max': sb_map_max}
+
+    return sb_map
+
+
 def standard_goals(nside=None):
     """
     A quick function to generate the "standard" goal maps.
