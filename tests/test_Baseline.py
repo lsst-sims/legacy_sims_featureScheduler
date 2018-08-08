@@ -49,7 +49,7 @@ class TestFeatures(unittest.TestCase):
                                                              filename=None)
 
         # Check that a second part of a pair was taken
-        assert('scripted' in observations['note'])
+        assert('pair(scripted)' in observations['note'])
         # Check that the COSMOS DD was observed
         assert('DD:COSMOS' in observations['note'])
         # And the u-band

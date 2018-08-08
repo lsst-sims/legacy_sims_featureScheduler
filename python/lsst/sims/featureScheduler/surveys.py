@@ -1164,9 +1164,9 @@ class Blob_survey(Greedy_survey_fields):
                 result = observations + observations_paired
 
             # Let's tag which one is supposed to be first/second in the pair:
-            for i in range(0, self.nvisit_block, 1):
+            for i in range(0, np.size(result)/2, 1):
                 result[i]['note'] = '%s, a' % (self.survey_note)
-            for i in range(self.nvisit_block, self.nvisit_block*2, 1):
+            for i in range(np.size(result)/2, np.size(result), 1):
                 result[i]['note'] = '%s, b' % (self.survey_note)
 
         # XXX--note, we could run this like the DD surveys and keep the queue locally,
