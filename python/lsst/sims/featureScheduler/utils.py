@@ -48,6 +48,61 @@ def set_default_nside(nside=None):
     return set_default_nside.nside
 
 
+def haversine(long1, lat1, long2, lat2):
+    """sims.utils turned off numpy broadcasting for some reason?
+    """
+    t1 = np.sin(lat2/2.0 - lat1/2.0)**2
+    t2 = np.cos(lat1)*np.cos(lat2)*np.sin(long2/2.0 - long1/2.0)**2
+    _sum = t1 + t2
+    _sum = np.where(_sum < 0.0, 0.0, _sum)
+
+    return 2.0*np.arcsin(np.sqrt(_sum))
+
+
+def sum_reject(inarr, reject_val=hp.UNSEEN):
+    """
+    compute the sum of an array but retrun -inf if reject_val present
+    """
+    if reject_val in inarr:
+        return -np.inf
+
+    else:
+        return np.sum(inarr)
+
+
+def max_reject(inarr, reject_val=hp.UNSEEN):
+    """
+    compute the max of an array but retrun -inf if reject_val present
+    """
+    if reject_val in inarr:
+        return -np.inf
+
+    else:
+        return np.max(inarr)
+
+
+def int_binned_stat(ids, values, statistic=np.mean):
+    """
+    Like scipy.binned_statistic, but for unique int ids
+    """
+
+    uids = np.unique(ids)
+    order = np.argsort(ids)
+
+    ordered_ids = ids[order]
+    ordered_values = values[order]
+
+    left = np.searchsorted(ordered_ids, uids, side='left')
+    right = np.searchsorted(ordered_ids, uids, side='right')
+
+    stat_results = []
+    for le, ri in zip(left, right):
+        stat_results.append(statistic(ordered_values[le:ri]))
+
+    return uids, np.array(stat_results)
+
+
+
 def gnomonic_project_toxy(RA1, Dec1, RAcen, Deccen):
     """Calculate x/y projection of RA1/Dec1 in system with center at RAcen, Deccen.
     Input radians. Grabbed from sims_selfcal"""
