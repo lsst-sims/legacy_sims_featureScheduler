@@ -2543,7 +2543,7 @@ class Vary_expt_survey(Greedy_survey_fields):
         return result
 
 
-class Scripted_survey(BaseSurvey):
+class Scripted_single_block_survey(BaseSurvey):
     """
     Take a set of scheduled observations and serve them up.
     This executes one block of observations. If you have multiple blocks, use
