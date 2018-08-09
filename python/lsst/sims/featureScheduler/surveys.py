@@ -736,8 +736,8 @@ class Greedy_survey_fields(BaseSurvey):
         if lon2 is None:
             lon2 = np.random.rand()*np.pi*2
         # rotate longitude
-        ra = (self.fields['RA'] + lon) % (2.*np.pi)
-        dec = self.fields['dec'] + 0
+        ra = (self.fields_init['RA'] + lon) % (2.*np.pi)
+        dec = self.fields_init['dec'] + 0
 
         # Now to rotate ra and dec about the x-axis
         x, y, z = thetaphi2xyz(ra, dec+np.pi/2.)
