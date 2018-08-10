@@ -658,9 +658,11 @@ class Simple_greedy_survey_fields(BaseSurvey):
 
 def rotx(theta, x, y, z):
     """rotate the x,y,z points theta radians about x axis"""
+    sin_t = np.sin(theta)
+    cos_t = np.cos(theta)
     xp = x
-    yp = -y*np.cos(theta)-z*np.sin(theta)
-    zp = -y*np.sin(theta)+z*np.cos(theta)
+    yp = y*cos_t+z*sin_t
+    zp = -y*sin_t+z*cos_t
     return xp, yp, zp
 
 
@@ -732,7 +734,8 @@ class Greedy_survey_fields(BaseSurvey):
         if lon is None:
             lon = np.random.rand()*np.pi*2
         if lat is None:
-            lat = np.random.rand()*np.pi*2
+            # Make sure latitude points spread correctly
+            lat = np.arccos(2.*np.random.rand() - 1.)
         if lon2 is None:
             lon2 = np.random.rand()*np.pi*2
         # rotate longitude
