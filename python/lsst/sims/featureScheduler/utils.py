@@ -167,6 +167,39 @@ def empty_observation():
     return result
 
 
+def obs_to_fbsobs(obs):
+    """
+    converts an Observation from the Driver (which is a normal python class)
+    to an observation for the feature based scheduler (a numpy ndarray).
+    """
+
+    fbsobs = empty_observation()
+    fbsobs['RA'] = obs.ra_rad
+    fbsobs['dec'] = obs.dec_rad
+    fbsobs['mjd'] = obs.observation_start_mjd
+    fbsobs['exptime'] = sum(obs.exp_times)
+    fbsobs['filter'] = obs.filter
+    fbsobs['rotSkyPos'] = obs.ang_rad
+    fbsobs['nexp'] = obs.num_exp
+    fbsobs['airmass'] = obs.airmass
+    fbsobs['FWHMeff'] = obs.seeing_fwhm_eff
+    fbsobs['FWHM_geometric'] = obs.seeing_fwhm_geom
+    fbsobs['skybrightness'] = obs.sky_brightness
+    fbsobs['night'] = obs.night
+    fbsobs['slewtime'] = obs.slewtime
+    fbsobs['fivesigmadepth'] = obs.five_sigma_depth
+    fbsobs['alt'] = obs.alt_rad
+    fbsobs['az'] = obs.az_rad
+    fbsobs['clouds'] = obs.cloud
+    fbsobs['moonAlt'] = obs.moon_alt
+    fbsobs['sunAlt'] = obs.sun_alt
+    fbsobs['note'] = obs.note
+    fbsobs['field_id'] = obs.fieldid
+    fbsobs['survey_id'] = obs.propid_list[0]
+
+    return fbsobs
+
+
 def empty_scheduled_observation():
     """
     Same as empty observation, but with mjd_min, mjd_max columns

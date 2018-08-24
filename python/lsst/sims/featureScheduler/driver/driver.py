@@ -11,7 +11,7 @@ from lsst.sims.seeingModel import SeeingModel
 from lsst.sims.featureScheduler.driver.constants import CONFIG_NAME
 
 from lsst.ts.observatory.model import Target
-from lsst.sims.featureScheduler import stupidFast_RaDec2AltAz
+from lsst.sims.featureScheduler import stupidFast_RaDec2AltAz, obs_to_fbsobs
 from lsst.ts.dateloc import DateProfile
 from lsst.ts.scheduler import Driver
 
@@ -136,7 +136,58 @@ class FeatureSchedulerDriver(Driver):
 
         self.initialized = True
 
+        # Time to make the startup decision, COLD, WARM or HOT
+        config = kwargs.pop('config')
+
+        if config.sched_driver.startup_type == 'HOT':
+            # This is the regular startup, will just return without doing anything.
+            self.log.info("Start up type is HOT, no state will be read from the EFD.")
+        elif config.sched_driver.startup_type != 'HOT' and \
+                config.sched_driver.startup_database is None:
+            raise IOError('Startup database not defined for startup type {}'.format(
+                config.sched_driver.startup_type))
+        elif config.sched_driver.startup_type == 'WARM':
+            raise NotImplementedError('Warm start not implemented yet.')
+        elif config.sched_driver.startup_type == 'COLD':
+            import pandas as pd
+            import sqlite3
+
+            self.log.info('Running cold start from {}'.format(config.sched_driver.startup_database))
+
+            conn = sqlite3.connect(config.sched_driver.startup_database)
+            df = pd.read_sql_query('select * from ObsHistory join ObsProposalHistory on '
+                                   '"ObsHistory"."observationId" = "ObsProposalHistory"."ObsHistory_observationId";',
+                                   conn)
+
+            self.log.debug('Found {} observations on database.'.format(len(df)))
+
+            from lsst.ts.observatory.model import Observation
+
+            list_observations = []
+            for iobs in range(len(df)):
+                list_observations.append(Observation.make_copy(df.iloc[iobs].to_dict()))
+
+            self.cold_start(list_observations)
+
         return survey_topology
+
+    def cold_start(self, observations):
+        """
+        Configure cold start from a list of observations.
+
+        Parameters
+        ----------
+        observations
+
+        Returns
+        -------
+
+        """
+
+        for i in range(len(observations)):
+
+            self.last_winner_target = observations[i]
+            self.register_observation(observations[i])
 
     def end_survey(self):
 
@@ -314,7 +365,8 @@ class FeatureSchedulerDriver(Driver):
     def register_observation(self, observation):
         if observation.targetid > 0:
             # FIXME: Add conversion of observation to fbs target
-            self.scheduler.add_observation(self.scheduler_winner_target)
+            fbs_obs = obs_to_fbsobs(observation)
+            self.scheduler.add_observation(fbs_obs)
             return [self.last_winner_target]
         else:
             return []
@@ -367,6 +419,7 @@ class FeatureSchedulerDriver(Driver):
         target.progress = 0.0
         target.groupid = 1
         target.groupix = 0
+        target.num_props = 1
         target.propid_list = [propid]
         target.need_list = [target.need]
         target.bonus_list = [target.bonus]
@@ -382,6 +435,7 @@ class FeatureSchedulerDriver(Driver):
         target.dd_exposures_list = [target.dd_exposures]
         target.dd_filterchanges_list = [target.dd_filterchanges]
         target.dd_exptime_list = [target.dd_exptime]
+        target.note = fb_observation['note']
 
         return target
 
