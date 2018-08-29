@@ -2039,7 +2039,7 @@ class Pairs_survey_scripted(Scripted_survey):
         alt, az = stupidFast_RaDec2AltAz(observation['RA'], observation['dec'],
                                          self.lat, None,
                                          self.extra_features['current_mjd'].feature,
-                                         lmst=self.extra_features['current_lmst'].feature/12.*np.pi)
+                                         lmst=self.extra_features['current_lmst'].feature)
         in_range = np.where((alt < self.max_alt) & (alt > self.min_alt))[0]
         if np.size(in_range) > 0:
             result = True
