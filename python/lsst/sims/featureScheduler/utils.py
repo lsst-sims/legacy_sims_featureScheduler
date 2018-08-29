@@ -19,6 +19,8 @@ import datetime
 from . import version
 import warnings
 
+log = logging.getLogger(__name__)
+
 _load_local_fieldlist = False
 try:
     from lsst.ts.scheduler.fields import FieldsDatabase
@@ -176,8 +178,9 @@ def obs_to_fbsobs(obs):
     fbsobs = empty_observation()
     fbsobs['RA'] = obs.ra_rad
     fbsobs['dec'] = obs.dec_rad
+    log.debug('Observation MJD: %.4f', obs.observation_start_mjd)
     fbsobs['mjd'] = obs.observation_start_mjd
-    fbsobs['exptime'] = sum(obs.exp_times)
+    fbsobs['exptime'] = obs.exp_time
     fbsobs['filter'] = obs.filter
     fbsobs['rotSkyPos'] = obs.ang_rad
     fbsobs['nexp'] = obs.num_exp

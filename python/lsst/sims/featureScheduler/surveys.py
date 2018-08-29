@@ -103,7 +103,7 @@ class BaseSurvey(object):
 
     def add_observation(self, observation, **kwargs):
         # ugh, I think here I have to assume observation is an array and not a dict.
-        if self.ignore_obs not in observation['note']:
+        if self.ignore_obs not in str(observation['note']):
             for bf in self.basis_functions:
                 bf.add_observation(observation, **kwargs)
             for feature in self.extra_features:
@@ -1981,12 +1981,18 @@ class Pairs_survey_scripted(Scripted_survey):
         self.filt_to_pair = filt_to_pair
         # list to hold observations
         self.observing_queue = []
+        # make ignore_obs a list
+        if type(self.ignore_obs) is str:
+            self.ignore_obs = [self.ignore_obs]
 
     def add_observation(self, observation, indx=None, **kwargs):
         """Add an observed observation
         """
-
-        if self.ignore_obs not in observation['note']:
+        # self.ignore_obs not in str(observation['note'])
+        to_ignore = np.any([ignore in str(observation['note']) for ignore in self.ignore_obs])
+        log.debug('[Pairs.add_observation]: %s: %s: %s', to_ignore, str(observation['note']), self.ignore_obs)
+        log.debug('[Pairs.add_observation.queue]: %s', self.observing_queue)
+        if not to_ignore:
             # Update my extra features:
             for bf in self.basis_functions:
                 bf.add_observation(observation, indx=indx)
@@ -2006,8 +2012,12 @@ class Pairs_survey_scripted(Scripted_survey):
                 for key in observation.dtype.names:
                     obs_to_queue[key] = observation[key]
                 # Fill in the ideal time we would like this observed
+                log.debug('Observation MJD: %.4f (dt=%.4f)', obs_to_queue['mjd'], self.dt)
                 obs_to_queue['mjd'] += self.dt
                 self.observing_queue.append(obs_to_queue)
+        log.debug('[Pairs.add_observation.queue.size]: %i', len(self.observing_queue))
+        for obs in self.observing_queue:
+            log.debug('[Pairs.add_observation.queue]: %s', obs)
 
     def _purge_queue(self):
         """Remove any pair where it's too late to observe it
@@ -2016,15 +2026,21 @@ class Pairs_survey_scripted(Scripted_survey):
         if len(self.observing_queue) > 0:
             stale = True
             in_window = np.abs(self.observing_queue[0]['mjd']-self.extra_features['current_mjd'].feature) < self.ttol
+            log.debug('Purging queue')
             while stale:
                 # If the next observation in queue is past the window, drop it
                 if (self.observing_queue[0]['mjd'] < self.extra_features['current_mjd'].feature) & (~in_window):
+                    log.debug('Past the window: obs_mjd=%.4f (current_mjd=%.4f)',
+                              self.observing_queue[0]['mjd'],
+                              self.extra_features['current_mjd'].feature)
                     del self.observing_queue[0]
                 # If we are in the window, but masked, drop it
                 elif (in_window) & (~self._check_mask(self.observing_queue[0])):
+                    log.debug('Masked')
                     del self.observing_queue[0]
                 # If in time window, but in alt exclusion zone
                 elif (in_window) & (~self._check_alts(self.observing_queue[0])):
+                    log.debug('in alt exclusion zone')
                     del self.observing_queue[0]
                 else:
                     stale = False
@@ -2039,7 +2055,7 @@ class Pairs_survey_scripted(Scripted_survey):
         alt, az = stupidFast_RaDec2AltAz(observation['RA'], observation['dec'],
                                          self.lat, None,
                                          self.extra_features['current_mjd'].feature,
-                                         lmst=self.extra_features['current_lmst'].feature/12.*np.pi)
+                                         lmst=self.extra_features['current_lmst'].feature)
         in_range = np.where((alt < self.max_alt) & (alt > self.min_alt))[0]
         if np.size(in_range) > 0:
             result = True
@@ -2077,7 +2093,7 @@ class Pairs_survey_scripted(Scripted_survey):
         for indx in range(len(self.observing_queue)):
 
             check = self._check_observation(self.observing_queue[indx])
-
+            log.debug('%s: %s', check, self.observing_queue[indx])
             if check[0]:
                 result = self.reward_val
                 self.reward = self.reward_val
@@ -2091,6 +2107,11 @@ class Pairs_survey_scripted(Scripted_survey):
     def _check_observation(self, observation):
 
         delta_t = observation['mjd'] - self.extra_features['current_mjd'].feature
+        log.debug('Check_observation: obs_mjd=%.4f (current_mjd=%.4f, delta=%.4f, tol=%.4f)',
+                  observation['mjd'],
+                  self.extra_features['current_mjd'].feature,
+                  delta_t,
+                  self.ttol)
         obs_hp = _raDec2Hpid(self.nside, observation['RA'], observation['dec'])
         slewtime = self.extra_features['slewtime'].feature[obs_hp[0]]
         in_slew_window = slewtime <= self.max_slew_to_pair or delta_t < 0.
