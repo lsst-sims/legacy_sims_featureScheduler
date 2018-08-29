@@ -19,6 +19,8 @@ import datetime
 from . import version
 import warnings
 
+log = logging.getLogger(__name__)
+
 _load_local_fieldlist = False
 try:
     from lsst.ts.scheduler.fields import FieldsDatabase
@@ -165,6 +167,40 @@ def empty_observation():
              float, float, float, float, float, '|U40', int, int, int]
     result = np.zeros(1, dtype=list(zip(names, types)))
     return result
+
+
+def obs_to_fbsobs(obs):
+    """
+    converts an Observation from the Driver (which is a normal python class)
+    to an observation for the feature based scheduler (a numpy ndarray).
+    """
+
+    fbsobs = empty_observation()
+    fbsobs['RA'] = obs.ra_rad
+    fbsobs['dec'] = obs.dec_rad
+    log.debug('Observation MJD: %.4f', obs.observation_start_mjd)
+    fbsobs['mjd'] = obs.observation_start_mjd
+    fbsobs['exptime'] = obs.exp_time
+    fbsobs['filter'] = obs.filter
+    fbsobs['rotSkyPos'] = obs.ang_rad
+    fbsobs['nexp'] = obs.num_exp
+    fbsobs['airmass'] = obs.airmass
+    fbsobs['FWHMeff'] = obs.seeing_fwhm_eff
+    fbsobs['FWHM_geometric'] = obs.seeing_fwhm_geom
+    fbsobs['skybrightness'] = obs.sky_brightness
+    fbsobs['night'] = obs.night
+    fbsobs['slewtime'] = obs.slewtime
+    fbsobs['fivesigmadepth'] = obs.five_sigma_depth
+    fbsobs['alt'] = obs.alt_rad
+    fbsobs['az'] = obs.az_rad
+    fbsobs['clouds'] = obs.cloud
+    fbsobs['moonAlt'] = obs.moon_alt
+    fbsobs['sunAlt'] = obs.sun_alt
+    fbsobs['note'] = obs.note
+    fbsobs['field_id'] = obs.fieldid
+    fbsobs['survey_id'] = obs.propid_list[0]
+
+    return fbsobs
 
 
 def empty_scheduled_observation():
