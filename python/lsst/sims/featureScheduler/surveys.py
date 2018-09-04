@@ -2081,7 +2081,7 @@ class Pairs_survey_scripted(Scripted_survey):
         obs_hp = _raDec2Hpid(self.nside, observation['RA'], observation['dec'])
         slewtime = self.extra_features['slewtime'].feature[obs_hp[0]]
         in_slew_window = slewtime <= self.max_slew_to_pair or delta_t < 0.
-        in_time_window = np.abs(delta_t) < self.ttol
+        in_time_window = np.abs(delta_t-self.dt) < self.ttol
 
         if self.extra_features['current_filter'].feature is None:
             infilt = True
@@ -2093,6 +2093,7 @@ class Pairs_survey_scripted(Scripted_survey):
         log.debug('Pair - observation: %s ' % observation)
         log.debug('Pair - check[%s]: in_time_window[%s] infilt[%s] in_slew_window[%s] is_observable[%s]' %
                   (valid, in_time_window, infilt, in_slew_window, is_observable))
+
         return (valid,
                 in_time_window,
                 infilt,
