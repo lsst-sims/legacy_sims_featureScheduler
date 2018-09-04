@@ -730,11 +730,25 @@ class Greedy_survey_fields(BaseSurvey):
 
     def _spin_fields(self, lon=None, lat=None, lon2=None):
         """Spin the field tessellation to generate a random orientation
+
+        The default field tesselation is rotated randomly in longitude, and then the
+        pole is rotated to a random point on the sphere.
+
+        Parameters
+        ----------
+        lon : float (None)
+            The amount to initially rotate in longitude (radians). Will use a random value
+            between 0 and 2 pi if None (default).
+        lat : float (None)
+            The amount to rotate in latitude (radians).
+        lon2 : float (None)
+            The amount to rotate the pole in longitude (radians).
         """
         if lon is None:
             lon = np.random.rand()*np.pi*2
         if lat is None:
             # Make sure latitude points spread correctly
+            # http://mathworld.wolfram.com/SpherePointPicking.html
             lat = np.arccos(2.*np.random.rand() - 1.)
         if lon2 is None:
             lon2 = np.random.rand()*np.pi*2
