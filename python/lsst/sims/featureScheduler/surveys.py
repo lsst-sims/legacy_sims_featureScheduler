@@ -2081,7 +2081,7 @@ class Pairs_survey_scripted(Scripted_survey):
         obs_hp = _raDec2Hpid(self.nside, observation['RA'], observation['dec'])
         slewtime = self.extra_features['slewtime'].feature[obs_hp[0]]
         in_slew_window = slewtime <= self.max_slew_to_pair or delta_t < 0.
-        in_time_window = np.abs(delta_t-self.dt) < self.ttol
+        in_time_window = np.abs(delta_t) < self.ttol
 
         if self.extra_features['current_filter'].feature is None:
             infilt = True
