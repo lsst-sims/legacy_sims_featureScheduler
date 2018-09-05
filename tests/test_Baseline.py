@@ -43,7 +43,7 @@ class TestFeatures(unittest.TestCase):
         surveys.extend(dd_surveys)
 
         scheduler = fs.Core_scheduler(surveys, nside=nside)
-        observatory = Speed_observatory(nside=nside)
+        observatory = Speed_observatory(nside=nside, mjd_start=59853.)
         observatory, scheduler, observations = fs.sim_runner(observatory, scheduler,
                                                              survey_length=survey_length,
                                                              filename=None)
@@ -51,9 +51,9 @@ class TestFeatures(unittest.TestCase):
         # Check that a second part of a pair was taken
         assert('pair(scripted)' in observations['note'])
         # Check that the COSMOS DD was observed
-        assert('DD:COSMOS' in observations['note'])
+        assert('DD:ECDFS' in observations['note'])
         # And the u-band
-        assert('DD:u,COSMOS' in observations['note'])
+        assert('DD:u,ECDFS' in observations['note'])
         # Make sure a few different filters were observed
         assert(len(np.unique(observations['filter'])) > 3)
         # Make sure lots of observations executed
