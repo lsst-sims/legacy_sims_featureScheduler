@@ -17,7 +17,8 @@ class Base_basis_function(object):
     Class that takes features and computes a reward function when called.
     """
 
-    def __init__(self, survey_features=None, condition_features=None, **kwargs):
+    def __init__(self, survey_features=None, condition_features=None, mixed_features=None,
+                 **kwargs):
         """
 
         """
@@ -29,14 +30,24 @@ class Base_basis_function(object):
             self.condition_features = {}
         else:
             self.condition_features = condition_features
+        if mixed_features is None:
+            self.mixed_features = {}
+        else:
+            self.mixed_features = mixed_features
 
     def add_observation(self, observation, indx=None):
         for feature in self.survey_features:
             self.survey_features[feature].add_observation(observation, indx=indx)
+        if hasattr(self, 'mixed_features'):
+            for feature in self.mixed_features:
+                self.mixed_features[feature].add_observation(observation, indx=indx)
 
     def update_conditions(self, conditions):
         for feature in self.condition_features:
             self.condition_features[feature].update_conditions(conditions)
+        if hasattr(self, 'mixed_features'):
+            for feature in self.mixed_features:
+                self.mixed_features[feature].update_conditions(conditions)
 
     def check_feasibility(self):
         return True
