@@ -39,14 +39,6 @@ class BaseConditionsFeature(object):
         raise NotImplementedError
 
 
-class BaseMixedFeature(BaseFeature):
-    def add_observation(self, observation, **kwargs):
-        raise NotImplementedError
-
-    def update_conditions(self, conditions, **kwargs):
-        raise NotImplementedError
-
-
 class AltAzFeature(BaseConditionsFeature):
     """Compute the alt and az of all the pixels
     """
