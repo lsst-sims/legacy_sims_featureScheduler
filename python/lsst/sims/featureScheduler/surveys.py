@@ -2162,8 +2162,10 @@ class Pairs_different_filters_scripted(Pairs_survey_scripted):
                 result = self.observing_queue.pop(indx)
                 result['note'] = 'pair(%s)' % self.note
                 # Make sure we are in a different filter and change it to the one with the highest need if need
+                log.debug('Current filter: {}  Original: {}'.format(self.extra_features['current_filter'].feature,
+                                                                    result['filter']))
                 if ((self.extra_features['current_filter'].feature is not None) and
-                        (self.extra_features['current_filter'].feature == result['filter'])):
+                        (self.extra_features['current_filter'].feature in str(result['filter']))):
                     # check which filter needs more observations
                     proportion = np.zeros(len(self.filt_to_pair))
                     for i, obs_filter in enumerate(self.filt_to_pair):
