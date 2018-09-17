@@ -362,6 +362,98 @@ class Pair_in_night(BaseSurveyFeature):
             self.feature[indx[matches]] += 1
 
 
+class ObservingQueue(BaseSurveyFeature):
+    """A feature to store queues of observations.
+    """
+
+    def __init__(self, add_obs=None, filter_to_track='griz'):
+        self.feature = []
+        self.filter_to_track = filter_to_track
+        self.add_obs = add_obs
+
+    def add_observation(self, observation, indx=None):
+        """
+        Add/remove observation from the queue. If observation not in the queue, it is added. If observation in the
+        queue, it is removed.
+
+        Parameters
+        ----------
+        observation
+        indx
+
+        Returns
+        -------
+
+        """
+
+        pass
+
+class N_observations_mod(BaseSurveyFeature):
+    """
+    Track the number of observations that have been made accross the sky, modulo year
+    """
+    def __init__(self, filtername=None, nside=default_nside,
+                 mask_indx=None, mjd0=59580.035, mod_year=2, offset=0):
+        """
+        Parameters
+        ----------
+        filtername : str ('r')
+            String or list that has all the filters that can count.
+        nside : int (32)
+            The nside of the healpixel map to use
+        mjd0 : float
+            The start of the survey
+        mod_year : int
+            Only record observations on these years.
+        offset : int
+            The offset to apply when calculating mod
+        """
+        if nside is None:
+            nside = utils.set_default_nside()
+
+        self.feature = np.zeros(hp.nside2npix(nside), dtype=float)
+        self.filtername = filtername
+        self.mjd0 = mjd0
+        self.offset = offset
+        self.mod_year = mod_year
+
+    def add_observation(self, observation, indx=None):
+        """
+        Parameters
+        ----------
+        indx : ints
+            The indices of the healpixel map that have been observed by observation
+        """
+        year = np.floor((observation['mjd'] - self.mjd0)/365.25)
+
+        if (year + self.offset) % self.mod_year == 0:
+            if observation['filter'][0] in self.filtername:
+                self.feature[indx] += 1
+
+
+class N_obs_count_mod(BaseSurveyFeature):
+    """Count the number of observations.
+    """
+    def __init__(self, mod_year=2, offset=0, mjd0=59580.035,
+                 filtername=None):
+        self.feature = 0
+        self.filtername = filtername
+        self.mod_year = mod_year
+        self.offset = offset
+        self.mjd0 = mjd0
+
+    def add_observation(self, observation, indx=None):
+        # Track all observations if the year is correct
+        year = np.floor((observation['mjd'] - self.mjd0)/365.25)
+
+        if (year + self.offset) % self.mod_year == 0:
+            if self.filtername is None:
+                self.feature += 1
+            else:
+                if observation['filter'][0] in self.filtername:
+                    self.feature += 1
+
+
 class SlewtimeFeature(BaseConditionsFeature):
     """Grab the slewtime map from the observatory.
 

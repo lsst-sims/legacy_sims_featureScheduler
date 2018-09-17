@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 from builtins import zip
 from builtins import object
+import collections
 import numpy as np
 from .utils import (empty_observation, set_default_nside, hp_in_lsst_fov, read_fields,
                     raster_sort, gnomonic_project_toxy, haversine, int_binned_stat,
@@ -680,9 +681,12 @@ class Greedy_survey_fields(BaseSurvey):
             extra_features = {}
             extra_features['night'] = features.Current_night()
             extra_features['mounted_filters'] = features.Mounted_filters()
+            extra_features['current_filter'] = features.Current_filter()
         if tag_fields and tag_names is not None:
             extra_features['proposals'] = features.SurveyProposals(ids=tag_names.keys(),
                                                                    names=tag_names.values())
+            extra_features['observe_queue'] = features.ObservingQueue()
+
         super(Greedy_survey_fields, self).__init__(basis_functions=basis_functions,
                                                    basis_weights=basis_weights,
                                                    extra_features=extra_features,
@@ -721,7 +725,13 @@ class Greedy_survey_fields(BaseSurvey):
         """
         Check if the survey is feasible in the current conditions
         """
+        if 'observe_queue' in self.extra_features and \
+                len(self.extra_features['observe_queue'].feature) > 0\
+                and self.filtername != self.extra_features['current_filter'].feature:
+            return False
+
         feasibility = self.filtername in self.extra_features['mounted_filters'].feature
+
         # return feasibility
         for bf in self.basis_functions:
             # log.debug('Check feasability: [%s] %s %s' % (str(bf), feasibility, bf.check_feasibility()))
@@ -995,7 +1005,7 @@ class Blob_survey(Greedy_survey_fields):
 
     def calc_reward_function(self):
         """
-        
+
         """
         # Set the number of observations we are going to try and take
         self._set_block_size()
@@ -1587,7 +1597,7 @@ class Deep_drilling_survey(BaseSurvey):
     def __init__(self, RA, dec, extra_features=None, sequence='rgizy',
                  nvis=[20, 10, 20, 26, 20],
                  exptime=30.,
-                 nexp=2, ignore_obs='dummy', survey_name='DD', fraction_limit=0.01,
+                 nexp=2, ignore_obs='dummy', survey_name='DD', fraction_limit=0.01, track_queue=None,
                  ha_limits=([0., 1.5], [21.0, 24.]), reward_value=101., moon_up=True, readtime=2.,
                  avoid_same_day=False,
                  day_space=2., max_clouds=0.7, moon_distance=30., filter_goals=None, nside=default_nside):
@@ -1634,6 +1644,7 @@ class Deep_drilling_survey(BaseSurvey):
         self.reward_value = reward_value
         self.moon_up = moon_up
         self.fraction_limit = fraction_limit
+        self.track_queue = track_queue
         self.day_space = day_space
         self.survey_id = 5
         self.nside = nside
@@ -1685,6 +1696,8 @@ class Deep_drilling_survey(BaseSurvey):
                                                                         names=(self.survey_name,))
             # Cloud cover information
             self.extra_features['bulk_cloud'] = features.BulkCloudCover()
+
+            self.extra_features['observe_queue'] = features.ObservingQueue()
         else:
             self.extra_features = extra_features
 
@@ -1743,6 +1756,10 @@ class Deep_drilling_survey(BaseSurvey):
         self.filter_set = set(self.filter_list)
 
     def _check_feasability(self):
+        log.debug('observe_queue size: %i', len(self.extra_features['observe_queue'].feature))
+        if len(self.extra_features['observe_queue'].feature) > 0:
+            return False
+
         # Check that all filters are available
         result = self.filter_set.issubset(set(self.extra_features['mounted_filters'].feature))
         if not result:
@@ -1909,7 +1926,7 @@ class Pairs_survey_scripted(Scripted_survey):
     """Check if incoming observations will need a pair in 30 minutes. If so, add to the queue
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, filt_to_pair='griz',
-                 dt=40., ttol=10., reward_val=101., note='scripted', ignore_obs='ack',
+                 dt=40., ttol=10., reward_val=101., note='scripted', ignore_obs='ack', qsize=42,
                  min_alt=30., max_alt=85., lat=-30.2444, moon_distance=30., max_slew_to_pair=15.,
                  nside=default_nside):
         """
@@ -1929,8 +1946,15 @@ class Pairs_survey_scripted(Scripted_survey):
         self.note = note
         self.ttol = ttol/60./24.
         self.dt = dt/60./24.  # To days
+        self.qsize = qsize
+        self.observe_queue = False
         self.max_slew_to_pair = max_slew_to_pair  # in seconds
         self._moon_distance = np.radians(moon_distance)
+        self.reward_val = reward_val
+        self.filt_to_pair = filt_to_pair
+        # list to hold observations
+        self.observing_queue = []
+
         if extra_features is None:
             self.extra_features = {}
             self.extra_features['Pair_map'] = features.Pair_in_night(filtername=filt_to_pair)
@@ -1941,27 +1965,26 @@ class Pairs_survey_scripted(Scripted_survey):
             self.extra_features['m5_depth'] = features.M5Depth(filtername='r', nside=nside)
             self.extra_features['Moon'] = features.Moon()
             self.extra_features['slewtime'] = features.SlewtimeFeature(nside=nside)
+            self.extra_features['queue'] = features.ObservingQueue()
+            self.extra_features['queue'].feature = self.observing_queue
 
         super(Pairs_survey_scripted, self).__init__(basis_functions=basis_functions,
                                                     basis_weights=basis_weights,
                                                     extra_features=self.extra_features,
                                                     ignore_obs=ignore_obs, min_alt=min_alt,
                                                     max_alt=max_alt, nside=nside)
-        self.reward_val = reward_val
-        self.filt_to_pair = filt_to_pair
-        # list to hold observations
-        self.observing_queue = []
         # make ignore_obs a list
         if type(self.ignore_obs) is str:
             self.ignore_obs = [self.ignore_obs]
+        self.ignore_obs.append(self.note)
 
     def add_observation(self, observation, indx=None, **kwargs):
         """Add an observed observation
         """
         # self.ignore_obs not in str(observation['note'])
         to_ignore = np.any([ignore in str(observation['note']) for ignore in self.ignore_obs])
-        log.debug('[Pairs.add_observation]: %s: %s: %s', to_ignore, str(observation['note']), self.ignore_obs)
-        log.debug('[Pairs.add_observation.queue]: %s', self.observing_queue)
+        # log.debug('[Pairs.add_observation]: %s: %s: %s', to_ignore, str(observation['note']), self.ignore_obs)
+        # log.debug('[Pairs.add_observation.queue]: %s', self.observing_queue)
         if not to_ignore:
             # Update my extra features:
             for bf in self.basis_functions:
@@ -1982,12 +2005,12 @@ class Pairs_survey_scripted(Scripted_survey):
                 for key in observation.dtype.names:
                     obs_to_queue[key] = observation[key]
                 # Fill in the ideal time we would like this observed
-                log.debug('Observation MJD: %.4f (dt=%.4f)', obs_to_queue['mjd'], self.dt)
+                # log.debug('Observation MJD: %.4f (dt=%.4f)', obs_to_queue['mjd'], self.dt)
                 obs_to_queue['mjd'] += self.dt
                 self.observing_queue.append(obs_to_queue)
-        log.debug('[Pairs.add_observation.queue.size]: %i', len(self.observing_queue))
-        for obs in self.observing_queue:
-            log.debug('[Pairs.add_observation.queue]: %s', obs)
+        # log.debug('[Pairs.add_observation.queue.size]: %i', len(self.observing_queue))
+        # for obs in self.observing_queue:
+        #     log.debug('[Pairs.add_observation.queue]: %s', obs)
 
     def _purge_queue(self):
         """Remove any pair where it's too late to observe it
@@ -2047,7 +2070,11 @@ class Pairs_survey_scripted(Scripted_survey):
         else:
             skyval_arr = np.zeros(len(self.basis_functions))
             for i,bf in enumerate(self.basis_functions):
-                skyval_arr[i] = bf()[hpid]
+                result = bf()
+                if isinstance(result, collections.Iterable):
+                    skyval_arr[i] = result[hpid]
+                else:
+                    skyval_arr[i] = result
             skyval = np.min(skyval_arr)
 
         if skyval > 0:
@@ -2059,11 +2086,12 @@ class Pairs_survey_scripted(Scripted_survey):
         self._purge_queue()
         result = -np.inf
         self.reward = result
-        log.debug('Pair - calc_reward_func')
+        # log.debug('Pair - calc_reward_func')
+        check = (False, False, False, False, False)
         for indx in range(len(self.observing_queue)):
 
             check = self._check_observation(self.observing_queue[indx])
-            log.debug('%s: %s', check, self.observing_queue[indx])
+            # log.debug('%s: %s', check, self.observing_queue[indx])
             if check[0]:
                 result = self.reward_val
                 self.reward = self.reward_val
@@ -2072,16 +2100,27 @@ class Pairs_survey_scripted(Scripted_survey):
                 break
 
         self.reward_checked = True
+        valid = check[4]
+
+        if self.observe_queue and len(self.observing_queue) > 0 and valid:
+            return self.reward_val
+        elif len(self.observing_queue) > self.qsize and valid:
+            self.observe_queue = True
+            return self.reward_val
+        elif self.observe_queue and len(self.observing_queue) == 0:
+            self.observe_queue = False
+            return -np.inf
+
         return result
 
     def _check_observation(self, observation):
 
         delta_t = observation['mjd'] - self.extra_features['current_mjd'].feature
-        log.debug('Check_observation: obs_mjd=%.4f (current_mjd=%.4f, delta=%.4f, tol=%.4f)',
-                  observation['mjd'],
-                  self.extra_features['current_mjd'].feature,
-                  delta_t,
-                  self.ttol)
+        # log.debug('Check_observation: obs_mjd=%.4f (current_mjd=%.4f, delta=%.4f, tol=%.4f)',
+        #           observation['mjd'],
+        #           self.extra_features['current_mjd'].feature,
+        #           delta_t,
+        #           self.ttol)
         obs_hp = _raDec2Hpid(self.nside, observation['RA'], observation['dec'])
         slewtime = self.extra_features['slewtime'].feature[obs_hp[0]]
         in_slew_window = slewtime <= self.max_slew_to_pair or delta_t < 0.
@@ -2094,9 +2133,9 @@ class Pairs_survey_scripted(Scripted_survey):
 
         is_observable = self._check_mask(observation)
         valid = in_time_window & infilt & in_slew_window & is_observable
-        log.debug('Pair - observation: %s ' % observation)
-        log.debug('Pair - check[%s]: in_time_window[%s] infilt[%s] in_slew_window[%s] is_observable[%s]' %
-                  (valid, in_time_window, infilt, in_slew_window, is_observable))
+        # log.debug('Pair - observation: %s ' % observation)
+        # log.debug('Pair - check[%s]: in_time_window[%s] infilt[%s] in_slew_window[%s] is_observable[%s]' %
+        #           (valid, in_time_window, infilt, in_slew_window, is_observable))
 
         return (valid,
                 in_time_window,
@@ -2111,15 +2150,17 @@ class Pairs_survey_scripted(Scripted_survey):
         result = []
         # if len(self.observing_queue) > 0:
         log.debug('Pair - call')
-        for indx in range(len(self.observing_queue)):
+        # for indx in range(len(self.observing_queue)):
+        while len(self.observing_queue) > 0:
+            result = self.observing_queue.pop(0)
+            check = self._check_observation(result)
 
-            check = self._check_observation(self.observing_queue[indx])
-
-            if check[0]:
-                result = self.observing_queue.pop(indx)
-                result['note'] = 'pair(%s)' % self.note
+            if check[4]:
+                note_id = int(result['note'][0].split('-')[1])
+                result['note'] = 'pair(%s[%i]) - %i' % (self.note, len(self.observing_queue), note_id)
                 # Make sure we don't change filter if we don't have to.
-                if self.extra_features['current_filter'].feature is not None:
+                if self.extra_features['current_filter'].feature is not None \
+                        and self.extra_features['current_filter'].feature in self.filt_to_pair:
                     result['filter'] = self.extra_features['current_filter'].feature
                 # Make sure it is observable!
                 # if self._check_mask(result):
@@ -2135,13 +2176,13 @@ class Pairs_survey_scripted(Scripted_survey):
 class Pairs_different_filters_scripted(Pairs_survey_scripted):
 
     def __init__(self, basis_functions, basis_weights, extra_features=None, filt_to_pair='griz',
-                 dt=40., ttol=10., reward_val=101., note='scripted', ignore_obs='ack',
+                 dt=40., ttol=10., reward_val=101., note='scripted', ignore_obs='ack', qsize=42,
                  min_alt=30., max_alt=85., lat=-30.2444, moon_distance=30., max_slew_to_pair=15.,
                  nside=default_nside, filter_goals=None):
 
         super(Pairs_different_filters_scripted, self).__init__(basis_functions, basis_weights, extra_features,
                                                                filt_to_pair, dt, ttol, reward_val,
-                                                               note, ignore_obs, min_alt, max_alt, lat,
+                                                               note, ignore_obs, qsize, min_alt, max_alt, lat,
                                                                moon_distance, max_slew_to_pair, nside)
 
         for filtername in self.filt_to_pair:
@@ -2162,12 +2203,14 @@ class Pairs_different_filters_scripted(Pairs_survey_scripted):
 
             check = self._check_observation(self.observing_queue[indx])
 
-            if check[0]:
+            if check[4]:
                 result = self.observing_queue.pop(indx)
-                result['note'] = 'pair(%s)' % self.note
+                result['note'] = 'pair(%s[%i])' % (self.note, len(self.observing_queue))
                 # Make sure we are in a different filter and change it to the one with the highest need if need
+                log.debug('Current filter: {}  Original: {}'.format(self.extra_features['current_filter'].feature,
+                                                                    result['filter']))
                 if ((self.extra_features['current_filter'].feature is not None) and
-                        (self.extra_features['current_filter'].feature == result['filter'])):
+                        (self.extra_features['current_filter'].feature in str(result['filter']))):
                     # check which filter needs more observations
                     proportion = np.zeros(len(self.filt_to_pair))
                     for i, obs_filter in enumerate(self.filt_to_pair):

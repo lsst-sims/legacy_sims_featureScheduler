@@ -8,8 +8,11 @@ import healpy as hp
 from lsst.sims.utils import _hpid2RaDec, Site, _angularSeparation
 from lsst.sims.skybrightness_pre import M5percentiles
 import matplotlib.pylab as plt
+import logging
 
 default_nside = None
+
+log = logging.getLogger(__name__)
 
 
 class Base_basis_function(object):
@@ -505,6 +508,89 @@ class Target_map_basis_function(Base_basis_function):
 
         return result
 
+class Target_map_modulo_basis_function(Base_basis_function):
+    """Like target map, but modulo a year
+    """
+    def __init__(self, filtername='r', nside=default_nside, target_map=None,
+                 survey_features=None, condition_features=None, norm_factor=0.00010519,
+                 out_of_bounds_val=-10., mod_year=2, offset=0, mjd0=59580.035):
+        """
+        Parameters
+        ----------
+        filtername: (string 'r')
+            The name of the filter for this target map.
+        nside: int (default_nside)
+            The healpix resolution.
+        target_map : numpy array (None)
+            A healpix map showing the ratio of observations desired for all points on the sky
+        norm_factor : float (0.00010519)
+            for converting target map to number of observations. Should be the area of the camera
+            divided by the area of a healpixel divided by the sum of all your goal maps. Default
+            value assumes LSST foV has 1.75 degree radius and the standard goal maps.
+        out_of_bounds_val : float (-10.)
+            Point value to give regions where there are no observations requested
+        """
+        if nside is None:
+            nside = utils.set_default_nside()
+
+        self.norm_factor = norm_factor
+        if survey_features is None:
+            survey_features = {}
+            # Map of the number of observations in filter
+            survey_features['N_obs'] = features.N_observations_mod(filtername=filtername,
+                                                                        mod_year=mod_year,
+                                                                        offset=offset,
+                                                                        mjd0=mjd0, nside=nside)
+            # Count of all the observations
+            survey_features['N_obs_count_all'] = features.N_obs_count_mod(filtername=None,
+                                                                               mod_year=mod_year,
+                                                                               offset=offset,
+                                                                               mjd0=mjd0)
+        if condition_features is None:
+            condition_features = {}
+            condition_features['Current_mjd'] = features.Current_mjd()
+        super(Target_map_modulo_basis_function, self).__init__(survey_features=survey_features,
+                                                               condition_features=condition_features)
+        self.nside = nside
+        if target_map is None:
+            self.target_map = utils.generate_goal_map(filtername=filtername)
+        else:
+            self.target_map = target_map
+        self.out_of_bounds_area = np.where(self.target_map == 0)[0]
+        self.out_of_bounds_val = out_of_bounds_val
+        self.mjd0 = mjd0
+        self.mod_year = mod_year
+        self.offset = offset
+
+    def __call__(self, indx=None):
+        """
+        Parameters
+        ----------
+        indx : list (None)
+            Index values to compute, if None, full map is computed
+        Returns
+        -------
+        Healpix reward map
+        """
+
+        # Check if the current year is one we should be calculating for
+        year = np.floor((self.condition_features['Current_mjd'].feature - self.mjd0)/365.25)
+        if (year + self.offset) % self.mod_year == 0:
+            result = np.zeros(hp.nside2npix(self.nside), dtype=float)
+            if indx is None:
+                indx = np.arange(result.size)
+
+            # Find out how many observations we want now at those points
+            goal_N = self.target_map[indx] * self.survey_features['N_obs_count_all'].feature * self.norm_factor
+
+            result[indx] = goal_N - self.survey_features['N_obs'].feature[indx]
+            result[self.out_of_bounds_area] = self.out_of_bounds_val
+        else:
+            result = 0
+
+        return result
+
+
 class Normalized_Target_map_basis_function(Base_basis_function):
     """Normalize the maps first to make things smoother
     """
@@ -902,13 +988,19 @@ class Goal_Strict_filter_basis_function(Base_basis_function):
 
         :return:
         """
+        # Is the filter mounted?
+        mounted = self.filtername in self.condition_features['Mounted_filter'].feature
+        if not mounted:
+            return False
 
         # Make a quick check about the feasibility of this basis function. If current filter is none, telescope
         # is parked and we could, in principle, switch to any filter. If this basis function computes reward for
         # the current filter, then it is also feasible. At last we check for an "aways_available" flag. Meaning, we
         # force this basis function to be aways be computed.
-        if self.condition_features['Current_filter'].feature is None or \
-                self.condition_features['Current_filter'].feature == self.filtername or self.aways_available:
+        is_current_none = self.condition_features['Current_filter'].feature is None
+        in_filter = self.condition_features['Current_filter'].feature == self.filtername
+
+        if is_current_none or in_filter or self.aways_available:
             return True
 
         # If we arrive here, we make some extra checks to make sure this bf is feasible and should be computed.
@@ -916,9 +1008,6 @@ class Goal_Strict_filter_basis_function(Base_basis_function):
         # Did the moon set or rise since last observation?
         moon_changed = self.condition_features['Sun_moon_alts'].feature['moonAlt'] * \
                        self.survey_features['Last_observation'].feature['moonAlt'] < 0
-
-        # Are we already in the filter (or at start of night)?
-        not_in_filter = (self.condition_features['Current_filter'].feature != self.filtername)
 
         # Has enough time past?
         lag = self.condition_features['Current_mjd'].feature - self.survey_features['Last_filter_change'].feature['mjd']
@@ -931,10 +1020,7 @@ class Goal_Strict_filter_basis_function(Base_basis_function):
         # Did we just finish a DD sequence
         wasDD = self.survey_features['Last_observation'].feature['note'] == 'DD'
 
-        # Is the filter mounted?
-        mounted = self.filtername in self.condition_features['Mounted_filter'].feature
-
-        if (moon_changed | time_past | twi_changed | wasDD) & mounted & not_in_filter:
+        if moon_changed or time_past or twi_changed or wasDD:
             return True
         else:
             return False
@@ -1554,4 +1640,89 @@ class Cadence_enhance_basis_function(Base_basis_function):
             result[ind[to_supress]] = self.supress_val
             to_enhance = np.where((mjd_diff > self.enhance_window[0]) & (mjd_diff < self.enhance_window[1]))
             result[ind[to_enhance]] = self.enhance_val
+        return result
+
+
+class Twilight_observation_basis_function(Base_basis_function):
+    """A basis function to either promote or prevent and observation on a given filter at twilight...
+
+    """
+
+    def __init__(self, survey_features=None, condition_features=None,
+                 filtername='r', twi_change=-18., promote=False, unseen=False):
+        """
+
+        Parameters
+        ----------
+        survey_features
+        condition_features
+        filtername: Filter to promote or prevent
+        twi_change: When twilight bonus switches
+        promote: Should it act to promote (True) or prevent observations on twilight?
+        unseen: When active (preventing) or inactive (promoting) should it mark as unseen?
+        """
+
+        self.twi_change = np.radians(twi_change)
+        self.filtername = filtername
+        self.promote = promote
+        self.unseen = unseen
+
+        if condition_features is None:
+            self.condition_features = {}
+            self.condition_features['Sun_moon_alts'] = features.Sun_moon_alts()
+        else:
+            self.condition_features = condition_features
+
+        self.survey_features = survey_features
+
+        super(Twilight_observation_basis_function, self).__init__(survey_features=self.survey_features,
+                                                                  condition_features=self.condition_features)
+
+    def check_feasibility(self):
+        """
+        This method makes a pre-check of the feasibility of this basis function. If a basis function return False
+        on the feasibility check, it won't computed at all.
+
+        :return:
+        """
+
+        if not self.unseen:
+            return True
+
+        # Did twilight start/end?
+        in_twilight = self.condition_features['Sun_moon_alts'].feature['sunAlt'] > self.twi_change
+
+        if self.promote and in_twilight:
+            return True
+        elif self.promote and not in_twilight:
+            return False
+        elif not self.promote and in_twilight:
+            return False
+        elif not self.promote and not in_twilight:
+            return True
+        else:
+            return True
+
+    def __call__(self, **kwargs):
+
+        result = 0.
+
+        in_twilight = self.condition_features['Sun_moon_alts'].feature['sunAlt'] > self.twi_change
+
+        if self.promote and in_twilight:
+            log.debug('In Twilight. Promoting observations with filter %s', self.filtername)
+            result = 1.
+        elif self.promote and not in_twilight:
+            log.debug('Out of Twilight. Preventing observations with filter %s', self.filtername)
+            result = 0.
+        elif not self.promote and in_twilight:
+            log.debug('In Twilight. Preventing observations with filter %s', self.filtername)
+            result = 0.
+        elif not self.promote and not in_twilight:
+            log.debug('Out of Twilight. Promoting observations with filter %s', self.filtername)
+            result = 1.
+        else:
+            log.debug('No Twilight option %s', self.filtername)
+            result = 0.
+
         return result
