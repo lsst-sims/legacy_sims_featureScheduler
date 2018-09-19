@@ -672,7 +672,7 @@ class Greedy_survey_fields(BaseSurvey):
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, filtername='r',
                  block_size=25, smoothing_kernel=None, nside=default_nside,
-                 dither=False, seed=42, ignore_obs='ack',
+                 dither=False, seed=42, ignore_obs='ack', note='greedy',
                  tag_fields=False, tag_map=None, tag_names=None, extra_basis_functions=None):
         if extra_features is None:
             extra_features = {}
@@ -702,6 +702,7 @@ class Greedy_survey_fields(BaseSurvey):
 
         self.tag_map = tag_map
         self.tag_fields = tag_fields
+        self.note = note
         # self.inside_tagged = np.zeros_like(self.hp2fields) == 0
 
         if tag_fields:
@@ -834,6 +835,7 @@ class Greedy_survey_fields(BaseSurvey):
                 obs['nexp'] = 2.  # FIXME: hardcoded
                 obs['exptime'] = 30.  # FIXME: hardcoded
                 obs['field_id'] = -1
+                obs['note'] = self.note
                 if self.tag_fields:
                     obs['survey_id'] = np.unique(self.tag_map[np.where(self.hp2fields == field)])[0]
                 else:
@@ -1905,7 +1907,7 @@ class Pairs_survey_scripted(Scripted_survey):
     """Check if incoming observations will need a pair in 30 minutes. If so, add to the queue
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, filt_to_pair='griz',
-                 dt=40., ttol=10., reward_val=101., note='scripted', ignore_obs='ack',
+                 dt=40., ttol=10., reward_val=101., note='scripted', ignore_obs='ack', qsize=42,
                  min_alt=30., max_alt=85., lat=-30.2444, moon_distance=30., max_slew_to_pair=15.,
                  nside=default_nside):
         """
@@ -1925,6 +1927,8 @@ class Pairs_survey_scripted(Scripted_survey):
         self.note = note
         self.ttol = ttol/60./24.
         self.dt = dt/60./24.  # To days
+        self.qsize = qsize
+        self.observe_queue = False
         self.max_slew_to_pair = max_slew_to_pair  # in seconds
         self._moon_distance = np.radians(moon_distance)
         if extra_features is None:
@@ -2056,6 +2060,7 @@ class Pairs_survey_scripted(Scripted_survey):
         result = -np.inf
         self.reward = result
         log.debug('Pair - calc_reward_func')
+        check = (False, False, False, False, False)
         for indx in range(len(self.observing_queue)):
 
             check = self._check_observation(self.observing_queue[indx])
@@ -2068,6 +2073,17 @@ class Pairs_survey_scripted(Scripted_survey):
                 break
 
         self.reward_checked = True
+        valid = check[4]
+
+        if self.observe_queue and len(self.observing_queue) > 0 and valid:
+            return self.reward_val
+        elif len(self.observing_queue) > self.qsize and valid:
+            self.observe_queue = True
+            return self.reward_val
+        elif self.observe_queue and len(self.observing_queue) == 0:
+            self.observe_queue = False
+            return -np.inf
+
         return result
 
     def _check_observation(self, observation):
@@ -2111,9 +2127,9 @@ class Pairs_survey_scripted(Scripted_survey):
 
             check = self._check_observation(self.observing_queue[indx])
 
-            if check[0]:
+            if check[4]:
                 result = self.observing_queue.pop(indx)
-                result['note'] = 'pair(%s)' % self.note
+                result['note'] = 'pair(%s[%i])' % (self.note, len(self.observing_queue))
                 # Make sure we don't change filter if we don't have to.
                 if self.extra_features['current_filter'].feature is not None:
                     result['filter'] = self.extra_features['current_filter'].feature
@@ -2131,13 +2147,13 @@ class Pairs_survey_scripted(Scripted_survey):
 class Pairs_different_filters_scripted(Pairs_survey_scripted):
 
     def __init__(self, basis_functions, basis_weights, extra_features=None, filt_to_pair='griz',
-                 dt=40., ttol=10., reward_val=101., note='scripted', ignore_obs='ack',
+                 dt=40., ttol=10., reward_val=101., note='scripted', ignore_obs='ack', qsize=42,
                  min_alt=30., max_alt=85., lat=-30.2444, moon_distance=30., max_slew_to_pair=15.,
                  nside=default_nside, filter_goals=None):
 
         super(Pairs_different_filters_scripted, self).__init__(basis_functions, basis_weights, extra_features,
                                                                filt_to_pair, dt, ttol, reward_val,
-                                                               note, ignore_obs, min_alt, max_alt, lat,
+                                                               note, ignore_obs, qsize, min_alt, max_alt, lat,
                                                                moon_distance, max_slew_to_pair, nside)
 
         for filtername in self.filt_to_pair:
@@ -2158,9 +2174,9 @@ class Pairs_different_filters_scripted(Pairs_survey_scripted):
 
             check = self._check_observation(self.observing_queue[indx])
 
-            if check[0]:
+            if check[4]:
                 result = self.observing_queue.pop(indx)
-                result['note'] = 'pair(%s)' % self.note
+                result['note'] = 'pair(%s[%i])' % (self.note, len(self.observing_queue))
                 # Make sure we are in a different filter and change it to the one with the highest need if need
                 log.debug('Current filter: {}  Original: {}'.format(self.extra_features['current_filter'].feature,
                                                                     result['filter']))
