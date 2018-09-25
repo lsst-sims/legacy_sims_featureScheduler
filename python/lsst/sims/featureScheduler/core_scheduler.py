@@ -137,15 +137,16 @@ class Core_scheduler(object):
                 self.survey_index[0] = ns
                 break
 
-        # Take a min here, so the surveys will be executed in the order they are
-        # entered if there is a tie.
-        if np.all(np.bitwise_or(np.bitwise_or(np.isnan(rewards), np.isneginf(rewards)), rewards == hp.UNSEEN)):
+        if np.all(np.bitwise_or(np.bitwise_or(np.isnan(rewards),
+                                              np.isneginf(rewards)), rewards == hp.UNSEEN)):
             # All values are invalid
             self._clean_queue()
         else:
             try:
                 to_fix = np.where(np.isnan(rewards))
                 rewards[to_fix] = -np.inf
+                # Take a min here, so the surveys will be executed in the order they are
+                # entered if there is a tie.
                 self.survey_index[1] = np.min(np.where(rewards == np.max(rewards)))
 
                 # Survey return list of observations
