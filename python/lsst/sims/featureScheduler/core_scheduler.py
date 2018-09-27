@@ -133,7 +133,7 @@ class Core_scheduler(object):
             for i, survey in enumerate(surveys):
                 rewards[i] = np.max(survey.calc_reward_function())
             # If we have a good reward, break out of the loop
-            if np.nanmax(rewards) > -np.inf and np.nanmax(rewards) > hp.UNSEEN:
+            if np.nanmax(rewards) > -np.inf and np.nanmax(rewards) != hp.UNSEEN:
                 self.survey_index[0] = ns
                 break
 

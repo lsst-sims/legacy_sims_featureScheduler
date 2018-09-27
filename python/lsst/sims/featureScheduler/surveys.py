@@ -970,7 +970,7 @@ class Blob_survey(Greedy_survey_fields):
             # We can take the remaining time and try to do 1,2, or 3 blocks.
             possible_times = available_time / np.arange(1, 4)
             diff = np.abs(self.ideal_pair_time-possible_times)
-            best_block_time = possible_times[np.where(diff == np.min(diff))]
+            best_block_time = np.max(possible_times[np.where(diff == np.min(diff))])
             self.nvisit_block = int(np.floor(best_block_time*60. / (self.slew_approx + self.exptime +
                                                                     self.read_approx*(self.nexp - 1))))
 
