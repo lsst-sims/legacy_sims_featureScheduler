@@ -8,8 +8,11 @@ import healpy as hp
 from lsst.sims.utils import _hpid2RaDec, Site, _angularSeparation
 from lsst.sims.skybrightness_pre import M5percentiles
 import matplotlib.pylab as plt
+import logging
 
 default_nside = None
+
+log = logging.getLogger(__name__)
 
 
 class Base_basis_function(object):
@@ -1554,4 +1557,89 @@ class Cadence_enhance_basis_function(Base_basis_function):
             result[ind[to_supress]] = self.supress_val
             to_enhance = np.where((mjd_diff > self.enhance_window[0]) & (mjd_diff < self.enhance_window[1]))
             result[ind[to_enhance]] = self.enhance_val
+        return result
+
+
+class Twilight_observation_basis_function(Base_basis_function):
+    """A basis function to either promote or prevent and observation on a given filter at twilight...
+
+    """
+
+    def __init__(self, survey_features=None, condition_features=None,
+                 filtername='r', twi_change=-18., promote=False, unseen=False):
+        """
+
+        Parameters
+        ----------
+        survey_features
+        condition_features
+        filtername: Filter to promote or prevent
+        twi_change: When twilight bonus switches
+        promote: Should it act to promote (True) or prevent observations on twilight?
+        unseen: When active (preventing) or inactive (promoting) should it mark as unseen?
+        """
+
+        self.twi_change = np.radians(twi_change)
+        self.filtername = filtername
+        self.promote = promote
+        self.unseen = unseen
+
+        if condition_features is None:
+            self.condition_features = {}
+            self.condition_features['Sun_moon_alts'] = features.Sun_moon_alts()
+        else:
+            self.condition_features = condition_features
+
+        self.survey_features = survey_features
+
+        super(Twilight_observation_basis_function, self).__init__(survey_features=self.survey_features,
+                                                                  condition_features=self.condition_features)
+
+    def check_feasibility(self):
+        """
+        This method makes a pre-check of the feasibility of this basis function. If a basis function return False
+        on the feasibility check, it won't computed at all.
+
+        :return:
+        """
+
+        if not self.unseen:
+            return True
+
+        # Did twilight start/end?
+        in_twilight = self.condition_features['Sun_moon_alts'].feature['sunAlt'] > self.twi_change
+
+        if self.promote and in_twilight:
+            return True
+        elif self.promote and not in_twilight:
+            return False
+        elif not self.promote and in_twilight:
+            return False
+        elif not self.promote and not in_twilight:
+            return True
+        else:
+            return True
+
+    def __call__(self, **kwargs):
+
+        result = 0.
+
+        in_twilight = self.condition_features['Sun_moon_alts'].feature['sunAlt'] > self.twi_change
+
+        if self.promote and in_twilight:
+            log.debug('In Twilight. Promoting observations with filter %s', self.filtername)
+            result = 1.
+        elif self.promote and not in_twilight:
+            log.debug('Out of Twilight. Preventing observations with filter %s', self.filtername)
+            result = 0.
+        elif not self.promote and in_twilight:
+            log.debug('In Twilight. Preventing observations with filter %s', self.filtername)
+            result = 0.
+        elif not self.promote and not in_twilight:
+            log.debug('Out of Twilight. Promoting observations with filter %s', self.filtername)
+            result = 1.
+        else:
+            log.debug('No Twilight option %s', self.filtername)
+            result = 0.
+
         return result

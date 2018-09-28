@@ -362,6 +362,32 @@ class Pair_in_night(BaseSurveyFeature):
             self.feature[indx[matches]] += 1
 
 
+class ObservingQueue(BaseSurveyFeature):
+    """A feature to store queues of observations.
+    """
+
+    def __init__(self, add_obs=None, filter_to_track='griz'):
+        self.feature = []
+        self.filter_to_track = filter_to_track
+        self.add_obs = add_obs
+
+    def add_observation(self, observation, indx=None):
+        """
+        Add/remove observation from the queue. If observation not in the queue, it is added. If observation in the
+        queue, it is removed.
+
+        Parameters
+        ----------
+        observation
+        indx
+
+        Returns
+        -------
+
+        """
+
+        pass
+
 class SlewtimeFeature(BaseConditionsFeature):
     """Grab the slewtime map from the observatory.
 
