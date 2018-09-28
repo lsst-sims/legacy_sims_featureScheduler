@@ -302,11 +302,9 @@ class FeatureSchedulerDriver(Driver):
 
         propid = winner_target['survey_id'][0]
         filtername = winner_target['filter'][0]
-        indx = self.proposal_id_dict[propid][0]
         target = self.generate_target(winner_target[0])
 
         self.target_list[target.fieldid] = {filtername: target}
-        # self.science_proposal_list[indx].survey_targets_dict[target.fieldid] = {filtername: target}
 
         target.time = self.time
 
