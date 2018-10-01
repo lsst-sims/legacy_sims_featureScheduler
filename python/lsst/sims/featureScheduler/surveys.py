@@ -123,6 +123,17 @@ class BaseSurvey(object):
             bf.update_conditions(conditions, **kwargs)
         self.reward_checked = False
 
+    def save_warmstart_snapshot(self):
+        """
+        returns a copy of this survey wherein basis functions have been
+        stripped of condition features.
+        """
+        cp = copy.copy(self)
+        for bf in cp.basis_functions:
+            bf = bf.save_warmstart_snapshot()
+        return cp
+
+
     def _check_feasability(self):
         """
         Check if the survey is feasable in the current conditions

@@ -6,6 +6,8 @@ from lsst.sims.utils import _hpid2RaDec
 from .utils import hp_in_lsst_fov, set_default_nside, hp_in_comcam_fov
 import warnings
 import logging
+import pickle
+
 
 default_nside = None
 
@@ -19,7 +21,7 @@ class Core_scheduler(object):
         Parameters
         ----------
         surveys : list of survey objects
-            A list of surveys to consider. If multiple surveys retrurn the same highest
+            A list of surveys to consider. If multiple surveys return the same highest
             reward value, the survey at the earliest position in the list will be selected.
             Can also be a list of lists to make heirarchical priorities.
         nside : int
@@ -120,6 +122,29 @@ class Core_scheduler(object):
                     return None
             else:
                 return observation
+
+    def save_warmstart_snapshot(self):
+        """
+        save the state of core scheduler's surveys so we can resume after warmstart
+        """
+        sl = []
+        for l in self.survey_lists:
+            inner_list = []
+            for s in l:
+                inner_list.append(s.save_warmstart_snapshot)
+            sl.append(inner_list)
+        
+        f = open("snapshot", 'wb')
+        pickle.dump(sl, f)
+        f.close()
+
+
+
+    def load_warmstart_snapshot(self, file):
+        """
+        load the state of core scheduler's surveys from a file
+        """
+        pass
 
     def _fill_queue(self):
         """
