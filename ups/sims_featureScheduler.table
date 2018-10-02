@@ -9,6 +9,7 @@ setupRequired(ephem)
 setupRequired(sims_seeingModel)
 setupRequired(sims_cloudModel)
 setupRequired(sims_downtimeModel)
+setupRequired(sims_speedObservatory)
 
 envPrepend(PYTHONPATH, ${PRODUCT_DIR}/python)
 envPrepend(PATH, ${PRODUCT_DIR}/bin)
