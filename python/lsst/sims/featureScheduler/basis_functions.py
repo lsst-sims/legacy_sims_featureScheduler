@@ -31,7 +31,7 @@ class Base_basis_function(object):
         else:
             self.condition_features = condition_features
 
-    def save_warmstart_snapshot(self):
+    def copy_without_condition_feats(self):
         """
         returns a copy of this basis function that has been stripped of condition features
         for use in warm start. 

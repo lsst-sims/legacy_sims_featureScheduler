@@ -128,9 +128,9 @@ class BaseSurvey(object):
         returns a copy of this survey wherein basis functions have been
         stripped of condition features.
         """
-        cp = copy.copy(self)
-        for bf in cp.basis_functions:
-            bf = bf.save_warmstart_snapshot()
+        cp = copy.deepcopy(self)
+        for i, bf in enumerate(cp.basis_functions):
+            cp.basis_functions[i] = bf.copy_without_condition_feats()
         return cp
 
 

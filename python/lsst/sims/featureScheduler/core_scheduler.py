@@ -131,7 +131,7 @@ class Core_scheduler(object):
         for l in self.survey_lists:
             inner_list = []
             for s in l:
-                inner_list.append(s.save_warmstart_snapshot)
+                inner_list.append(s.save_warmstart_snapshot())
             sl.append(inner_list)
         
         f = open("snapshot", 'wb')
@@ -144,7 +144,9 @@ class Core_scheduler(object):
         """
         load the state of core scheduler's surveys from a file
         """
-        pass
+        f = open("snapshot", 'rb')
+        self.survey_lists = pickle.load(f)
+        f.close()
 
     def _fill_queue(self):
         """
