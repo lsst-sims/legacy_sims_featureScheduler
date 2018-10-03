@@ -43,7 +43,7 @@ class TestFeatures(unittest.TestCase):
         surveys.extend(dd_surveys)
 
         scheduler = fs.Core_scheduler(surveys, nside=nside)
-        observatory = Speed_observatory(nside=nside, mjd_start=59853.)
+        observatory = Speed_observatory(nside=nside)
         observatory, scheduler, observations = fs.sim_runner(observatory, scheduler,
                                                              survey_length=survey_length,
                                                              filename=None)
