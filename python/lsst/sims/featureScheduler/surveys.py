@@ -681,6 +681,8 @@ class Greedy_survey_fields(BaseSurvey):
         if tag_fields and tag_names is not None:
             extra_features['proposals'] = features.SurveyProposals(ids=tag_names.keys(),
                                                                    names=tag_names.values())
+            extra_features['observe_queue'] = features.ObservingQueue()
+
         super(Greedy_survey_fields, self).__init__(basis_functions=basis_functions,
                                                    basis_weights=basis_weights,
                                                    extra_features=extra_features,
@@ -719,7 +721,11 @@ class Greedy_survey_fields(BaseSurvey):
         """
         Check if the survey is feasible in the current conditions
         """
+        if len(self.extra_features['observe_queue'].feature) > 0:
+            return False
+
         feasibility = self.filtername in self.extra_features['mounted_filters'].feature
+
         # return feasibility
         for bf in self.basis_functions:
             # log.debug('Check feasability: [%s] %s %s' % (str(bf), feasibility, bf.check_feasibility()))
