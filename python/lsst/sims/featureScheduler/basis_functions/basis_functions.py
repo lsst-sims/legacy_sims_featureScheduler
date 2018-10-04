@@ -17,35 +17,56 @@ class Base_basis_function(object):
     Class that takes features and computes a reward function when called.
     """
 
-    def __init__(self, survey_features=None, condition_features=None, **kwargs):
+    def __init__(self, update_on_newobs=True, update_on_mjd=True, **kwargs):
         """
-
         """
-        if survey_features is None:
-            self.survey_features = {}
-        else:
-            self.survey_features = survey_features
-        if condition_features is None:
-            self.condition_features = {}
-        else:
-            self.condition_features = condition_features
+        self.update_on_newobs = update_on_newobs
+        self.update_on_mjd = update_on_mjd
+        # Dict to hold all the features we want to track
+        self.survey_features = {}
+        # Keep track of the last time the basis function was called. If mjd doesn't change, use cached value
+        self.mjd_last = None
+        self.value = None
+        # list the attributes to compare to check if basis functions are equal.
+        self.attrs_to_compare = []
+        self.recalc = True
 
     def add_observation(self, observation, indx=None):
         for feature in self.survey_features:
             self.survey_features[feature].add_observation(observation, indx=indx)
+        if self.update_on_newobs:
+            self.recalc = True
 
-    def update_conditions(self, conditions):
-        for feature in self.condition_features:
-            self.condition_features[feature].update_conditions(conditions)
-
-    def check_feasibility(self):
+    def check_feasibility(self, conditions):
         return True
 
-    def __call__(self, **kwargs):
+    def _calc_value(self, conditions, **kwarge):
+        self.value = None
+        # Update the last time we had an mjd
+        self.mjd_last = conditions.mjd + 0
+        self.recalc = False
+
+    def __eq__(self):
+        pass
+
+    def __ne__(self):
+        pass
+
+    def __call__(self, conditions, **kwargs):
         """
+        Parameters
+        ----------
+        conditions : lsst.sims.featureScheduler.features.conditions object
+             Object that has attributes for 
+
         Return a reward healpix map or a reward scalar.
         """
-        pass
+        if self.recalc:
+            self._calc_value(conditions)
+        if self.update_on_mjd:
+            if conditions.mjd != self.mjd_last:
+                self._calc_value(conditions)
+        return self.value
 
 
 class Constant_basis_function(Base_basis_function):

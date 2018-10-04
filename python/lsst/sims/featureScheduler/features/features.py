@@ -4,7 +4,7 @@ import numpy as np
 import numpy.ma as ma
 import healpy as hp
 from . import utils
-from lsst.sims.utils import m5_flat_sed, Site, _hpid2RaDec, _approx_RaDec2AltAz
+from lsst.sims.utils import m5_flat_sed, Site, _hpid2RaDec
 
 
 default_nside = None
@@ -29,25 +29,6 @@ class BaseSurveyFeature(object):
     """
     def add_observation(self, observation, **kwargs):
         raise NotImplementedError
-
-
-class BaseConditionsFeature(object):
-    """
-    Feature based on the current conditions (e.g., mjd, cloud cover, skybrightness map, etc.)
-    """
-    def update_conditions(self, conditions, **kwargs):
-        raise NotImplementedError
-
-
-class BulkCloudCover(BaseConditionsFeature):
-
-    def __init__(self):
-        """Store the bulk cloud cover.
-        """
-        self.feature = dict()
-
-    def update_conditions(self, conditions, *kwargs):
-        self.feature = conditions['clouds']
 
 
 class N_obs_count(BaseSurveyFeature):
@@ -332,25 +313,6 @@ class Pair_in_night(BaseSurveyFeature):
             self.feature[indx[matches]] += 1
 
 
-class SlewtimeFeature(BaseConditionsFeature):
-    """Grab the slewtime map from the observatory.
-
-    The slewtimes are expected to be a healpix map, in a single filter.
-    The time to change filters is included in a feature
-    """
-    def __init__(self, nside=default_nside):
-        if nside is None:
-            nside = utils.set_default_nside()
-
-        self.feature = None
-        self.nside = nside
-
-    def update_conditions(self, conditions):
-        self.feature = conditions['slewtimes']
-        if np.size(self.feature) > 1:
-            self.feature = hp.ud_grade(self.feature, nside_out=self.nside)
-
-
 class Observatory(BaseFeature):
     """Hosts informations regarding the observatory parameters.
 
@@ -358,88 +320,11 @@ class Observatory(BaseFeature):
     def __init__(self, config):
         self.feature = config
 
-class M5Depth(BaseConditionsFeature):
-    """
-    Given current conditions, return the 5-sigma limiting depth for a filter.
-    """
-    def __init__(self, filtername='r', expTime=30., nside=default_nside):
-        if nside is None:
-            nside = utils.set_default_nside()
-
-        self.filtername = filtername
-        self.feature = None
-        self.expTime = expTime
-        self.nside = nside
-
-    def update_conditions(self, conditions):
-        """
-        Parameters
-        ----------
-        conditions : dict
-            Keys should include airmass, sky_brightness, seeing.
-        """
-        m5 = np.empty(conditions['skybrightness'][self.filtername].size)
-        m5.fill(hp.UNSEEN)
-        m5_mask = np.zeros(m5.size, dtype=bool)
-        m5_mask[np.where(conditions['skybrightness'][self.filtername] == hp.UNSEEN)] = True
-        good = np.where(conditions['skybrightness'][self.filtername] != hp.UNSEEN)
-        m5[good] = m5_flat_sed(self.filtername, conditions['skybrightness'][self.filtername][good],
-                               conditions['FWHMeff_%s' % self.filtername][good],
-                               self.expTime, conditions['airmass'][good])
-        self.feature = m5
-        self.feature[m5_mask] = hp.UNSEEN
-        self.feature = hp.ud_grade(self.feature, nside_out=self.nside)
-        self.feature = ma.masked_values(self.feature, hp.UNSEEN)
-
-
-class SkyBrightness(BaseConditionsFeature):
-    """
-    Given current conditions, return the 5-sigma limiting depth for a filter.
-    """
-    def __init__(self, filtername='r', nside=default_nside):
-        if nside is None:
-            nside = utils.set_default_nside()
-
-        self.filtername = filtername
-        self.feature = None
-        self.nside = nside
-
-    def update_conditions(self, conditions):
-        """
-        Parameters
-        ----------
-        conditions : dict
-            Keys should include airmass, sky_brightness, seeing.
-        """
-        sb = np.empty(conditions['skybrightness'][self.filtername].size)
-        sb.fill(hp.UNSEEN)
-        sb_mask = np.zeros(sb.size, dtype=bool)
-        sb_mask[np.where(conditions['skybrightness'][self.filtername] == hp.UNSEEN)] = True
-        good = np.where(conditions['skybrightness'][self.filtername] != hp.UNSEEN)
-        sb[good] = conditions['skybrightness'][self.filtername][good]
-        self.feature = sb
-        self.feature[sb_mask] = hp.UNSEEN
-        self.feature = hp.ud_grade(self.feature, nside_out=self.nside)
-        self.feature = ma.masked_values(self.feature, hp.UNSEEN)
-
-
-class Current_filter(BaseConditionsFeature):
-    def update_conditions(self, conditions):
-        self.feature = conditions['filter']
-
 
 class HP2Fields(BaseConditionsFeature):
     def update_conditions(self, conditions):
         if 'hp2fields' in conditions:
             self.feature = conditions['hp2fields']
-
-class Mounted_filters(BaseConditionsFeature):
-    def update_conditions(self, conditions):
-        if 'mounted_filters' in conditions:
-            self.feature = conditions['mounted_filters']
-        else:
-            self.feature = ['u', 'g', 'r', 'i', 'z', 'y']
-
 
 class Sun_moon_alts(BaseConditionsFeature):
     def update_conditions(self, conditions):
@@ -453,32 +338,6 @@ class Moon(BaseConditionsFeature):
                         'moonPhase': conditions['moonPhase'],
                         'moonRA': conditions['moonRA'],
                         'moonDec': conditions['moonDec']}
-
-
-class Current_mjd(BaseConditionsFeature):
-    def __init__(self):
-        self.feature = -1
-
-    def update_conditions(self, conditions):
-        self.feature = conditions['mjd']
-
-
-class Current_lmst(BaseConditionsFeature):
-    def __init__(self):
-        self.feature = -1
-
-    def update_conditions(self, conditions):
-        # XXX--mother fuck, what are the units?
-        # Pretty sure this is in hours
-        self.feature = conditions['lmst']
-
-
-class Current_night(BaseConditionsFeature):
-    def __init__(self):
-        self.feature = -1
-
-    def update_conditions(self, conditions):
-        self.feature = conditions['night']
 
 
 class CurrentNightBoundaries(BaseConditionsFeature):
