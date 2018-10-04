@@ -39,36 +39,6 @@ class BaseConditionsFeature(object):
         raise NotImplementedError
 
 
-class AltAzFeature(BaseConditionsFeature):
-    """Compute the alt and az of all the pixels
-    """
-    def __init__(self, nside=default_nside, lat=None, lon=None):
-        """
-        Parameters
-        ----------
-        nside : int (32)
-            The nside of the healpixel map to use
-        """
-        if nside is None:
-            nside = utils.set_default_nside()
-
-        self.ra, self.dec = utils.ra_dec_hp_map(nside)
-        if lat is None:
-            site = Site(name='LSST')
-            self.lat = site.latitude_rad
-            self.lon = site.longitude_rad
-        else:
-            self.lat = lat
-            self.lon = lon
-
-    def update_conditions(self, conditions, *kwargs):
-        self.feature = {}
-        alt, az = _approx_RaDec2AltAz(self.ra, self.dec,
-                                      self.lat, self.lon, conditions['mjd'])
-        self.feature['alt'] = alt
-        self.feature['az'] = az
-
-
 class BulkCloudCover(BaseConditionsFeature):
 
     def __init__(self):
