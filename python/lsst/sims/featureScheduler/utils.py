@@ -864,9 +864,16 @@ def run_info_table(observatory):
 
 
 def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3.,
-               filename=None, delete_past=True, n_visit_limit=None):
+               filename=None, delete_past=True, n_visit_limit=None, step_none=15.):
     """
     run a simulation
+
+    Parameters
+    ----------
+    survey_length : float (3.)
+        The length of the survey ot run (days)
+    step_none : float (15)
+        The amount of time to advance if the scheduler fails to return a target (minutes).
     """
 
     if mjd_start is None:
@@ -884,7 +891,7 @@ def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3.,
     observations = []
     mjd_track = mjd + 0
     step = 1./24.
-    step_none = 1./60./24.  # 1 minute in days
+    step_none = step_none/60./24.  # to days
     mjd_run = end_mjd-mjd_start
     nskip = 0
 
@@ -893,7 +900,7 @@ def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3.,
         if desired_obs is None:
             # No observation. Just step into the future and try again.
             warnings.warn('No observation. Step into the future and trying again.')
-            observatory.mjd += step_none
+            observatory.set_mjd(observatory.mjd + step_none)
             scheduler.update_conditions(observatory.return_status())
             nskip += 1
             continue

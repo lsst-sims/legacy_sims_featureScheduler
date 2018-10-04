@@ -32,7 +32,7 @@ class BaseSurvey(object):
 
     def __init__(self, basis_functions, basis_weights, extra_features=None,
                  extra_basis_functions=None, smoothing_kernel=None,
-                 ignore_obs='dummy', nside=default_nside):
+                 ignore_obs='dummy', survey_name='', nside=default_nside):
         """
         Parameters
         ----------
@@ -68,7 +68,7 @@ class BaseSurvey(object):
         self.fields = self.fields_init.copy()
         self.hp2fields = np.array([])
         self._hp2fieldsetup(self.fields['RA'], self.fields['dec'])
-
+        self.survey_name = survey_name
         self.nside = nside
         self.ignore_obs = ignore_obs
         self.basis_functions = basis_functions
@@ -674,7 +674,7 @@ class Greedy_survey_fields(BaseSurvey):
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None, filtername='r',
                  block_size=25, smoothing_kernel=None, nside=default_nside,
-                 dither=False, seed=42, ignore_obs='ack',
+                 dither=False, seed=42, ignore_obs='ack', survey_name='',
                  tag_fields=False, tag_map=None, tag_names=None, extra_basis_functions=None):
         if extra_features is None:
             extra_features = {}
@@ -689,7 +689,8 @@ class Greedy_survey_fields(BaseSurvey):
                                                    smoothing_kernel=smoothing_kernel,
                                                    ignore_obs=ignore_obs,
                                                    nside=nside,
-                                                   extra_basis_functions=extra_basis_functions)
+                                                   extra_basis_functions=extra_basis_functions,
+                                                   survey_name=survey_name)
         self.filtername = filtername
         # Load the OpSim field tessellation
         self.fields_init = read_fields()
@@ -836,6 +837,7 @@ class Greedy_survey_fields(BaseSurvey):
                 obs['nexp'] = 2.  # FIXME: hardcoded
                 obs['exptime'] = 30.  # FIXME: hardcoded
                 obs['field_id'] = -1
+                obs['note'] = self.survey_name
                 if self.tag_fields:
                     obs['survey_id'] = np.unique(self.tag_map[np.where(self.hp2fields == field)])[0]
                 else:
@@ -968,7 +970,7 @@ class Blob_survey(Greedy_survey_fields):
             # We can take the remaining time and try to do 1,2, or 3 blocks.
             possible_times = available_time / np.arange(1, 4)
             diff = np.abs(self.ideal_pair_time-possible_times)
-            best_block_time = possible_times[np.where(diff == np.min(diff))]
+            best_block_time = np.max(possible_times[np.where(diff == np.min(diff))])
             self.nvisit_block = int(np.floor(best_block_time*60. / (self.slew_approx + self.exptime +
                                                                     self.read_approx*(self.nexp - 1))))
 
