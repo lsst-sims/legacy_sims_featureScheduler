@@ -5,13 +5,13 @@ import numpy as np
 from importlib import import_module
 import importlib.util
 
-from lsst.sims.utils import _hpid2RaDec, _raDec2Hpid, Site, calcLmstLast, m5_flat_sed
+from lsst.sims.utils import _hpid2RaDec, _raDec2Hpid, Site, calcLmstLast, m5_flat_sed, _approx_RaDec2AltAz
 from lsst.sims.seeingModel import SeeingModel
 
 from lsst.sims.featureScheduler.driver.constants import CONFIG_NAME
 
 from lsst.ts.observatory.model import Target
-from lsst.sims.featureScheduler import stupidFast_RaDec2AltAz, obs_to_fbsobs
+from lsst.sims.featureScheduler import obs_to_fbsobs
 from lsst.ts.dateloc import DateProfile
 from lsst.ts.scheduler import Driver
 
@@ -534,12 +534,12 @@ class FeatureSchedulerDriver(Driver):
         # There are other features that balance the filter change cost, separately.
         # (this filter aspect may be something to revisit in the future?)
         # Note that these slewtimes are -1 where the telescope is not allowed to point.
-        alt, az = stupidFast_RaDec2AltAz(self.scheduler.ra_grid_rad,
-                                         self.scheduler.dec_grid_rad,
-                                         self.observatoryModel.location.latitude_rad,
-                                         self.observatoryModel.location.longitude_rad,
-                                         self.observatoryModel.dateprofile.mjd,
-                                         self.observatoryModel.dateprofile.lst_rad * 12. / np.pi % 24.)
+        alt, az = _approx_RaDec2AltAz(self.scheduler.ra_grid_rad,
+                                      self.scheduler.dec_grid_rad,
+                                      self.observatoryModel.location.latitude_rad,
+                                      self.observatoryModel.location.longitude_rad,
+                                      self.observatoryModel.dateprofile.mjd,
+                                      self.observatoryModel.dateprofile.lst_rad * 12. / np.pi % 24.)
         current_filter = self.observatoryModel.current_state.filter
 
         lax_dome = self.observatoryModel.params.domaz_free_range > 0.

@@ -2,11 +2,12 @@ from __future__ import absolute_import
 from builtins import zip
 from builtins import object
 import numpy as np
-from .utils import (empty_observation, set_default_nside, hp_in_lsst_fov, read_fields, stupidFast_altAz2RaDec,
-                    raster_sort, stupidFast_RaDec2AltAz, gnomonic_project_toxy, haversine, int_binned_stat,
+from .utils import (empty_observation, set_default_nside, hp_in_lsst_fov, read_fields,
+                    raster_sort, gnomonic_project_toxy, haversine, int_binned_stat,
                     max_reject)
 from lsst.sims.utils import (_hpid2RaDec, _raDec2Hpid, Site, _angularSeparation,
-                             _altAzPaFromRaDec, _xyz_from_ra_dec, _healbin)
+                             _altAzPaFromRaDec, _xyz_from_ra_dec, _healbin,
+                             _approx_RaDec2AltAz, _approx_altAz2RaDec)
 import healpy as hp
 from . import features
 from . import dithering
@@ -28,6 +29,7 @@ log = logging.getLogger(__name__)
 
 
 class BaseSurvey(object):
+
     def __init__(self, basis_functions, basis_weights, extra_features=None,
                  extra_basis_functions=None, smoothing_kernel=None,
                  ignore_obs='dummy', nside=default_nside):
@@ -414,10 +416,10 @@ class Marching_army_survey(BaseSurvey):
             self.reward = self.calc_reward_function()
 
         unmasked = np.where(self.reward != hp.UNSEEN)
-        reward_alt, reward_az = stupidFast_RaDec2AltAz(self.reward_ra[unmasked],
-                                                       self.reward_dec[unmasked],
-                                                       self.lat_rad, self.lon_rad,
-                                                       self.extra_features['mjd'].feature)
+        reward_alt, reward_az = _approx_RaDec2AltAz(self.reward_ra[unmasked],
+                                                    self.reward_dec[unmasked],
+                                                    self.lat_rad, self.lon_rad,
+                                                    self.extra_features['mjd'].feature)
         x, y, z = _xyz_from_ra_dec(reward_az, reward_alt)
 
         # map the healpixels to field pointings
@@ -442,9 +444,9 @@ class Marching_army_survey(BaseSurvey):
         final_alt = unmasked_alt[final_indx]
         final_az = unmasked_az[final_indx]
 
-        final_ra, final_dec = stupidFast_altAz2RaDec(final_alt, final_az,
-                                                     self.lat_rad, self.lon_rad,
-                                                     self.extra_features['mjd'].feature)
+        final_ra, final_dec = _approx_altAz2RaDec(final_alt, final_az,
+                                                  self.lat_rad, self.lon_rad,
+                                                  self.extra_features['mjd'].feature)
         # Only want to send RA,Dec positions to the observatory
         # Now to sort the positions so that we raster in altitude, then az
         # if we have wrap-aroud, just project at az=0, because median will pull it the wrong way
@@ -1057,11 +1059,11 @@ class Blob_survey(Greedy_survey_fields):
             self.reward = self.calc_reward_function()
 
         # Let's find the alt, az coords of the points (right now, hopefully doesn't change much in time block)
-        pointing_alt, pointing_az = stupidFast_RaDec2AltAz(self.fields['RA'][self.best_fields],
-                                                           self.fields['dec'][self.best_fields],
-                                                           self.lat, self.lon,
-                                                           self.extra_features['mjd'].feature,
-                                                           lmst=self.extra_features['lmst'].feature)
+        pointing_alt, pointing_az = _approx_RaDec2AltAz(self.fields['RA'][self.best_fields],
+                                                        self.fields['dec'][self.best_fields],
+                                                        self.lat, self.lon,
+                                                        self.extra_features['mjd'].feature,
+                                                        lmst=self.extra_features['lmst'].feature)
         # Let's find a good spot to project the points to a plane
         mid_alt = (np.max(pointing_alt) - np.min(pointing_alt))/2.
 
@@ -1360,11 +1362,11 @@ class Block_survey(Greedy_survey_fields):
             self.reward = self.calc_reward_function()
 
         # Let's find the alt, az coords of the points (right now, hopefully doesn't change much in time block)
-        pointing_alt, pointing_az = stupidFast_RaDec2AltAz(self.fields['RA'][self.best_fields],
-                                                           self.fields['dec'][self.best_fields],
-                                                           self.lat, self.lon,
-                                                           self.extra_features['mjd'].feature,
-                                                           lmst=self.extra_features['lmst'].feature)
+        pointing_alt, pointing_az = _approx_RaDec2AltAz(self.fields['RA'][self.best_fields],
+                                                        self.fields['dec'][self.best_fields],
+                                                        self.lat, self.lon,
+                                                        self.extra_features['mjd'].feature,
+                                                        lmst=self.extra_features['lmst'].feature)
         # Let's find a good spot to project the points to a plane
         mid_alt = (np.max(pointing_alt) - np.min(pointing_alt))/2.
 
@@ -2018,10 +2020,10 @@ class Pairs_survey_scripted(Scripted_survey):
         result = False
         # Just do a fast ra,dec to alt,az conversion. Can use LMST from a feature.
 
-        alt, az = stupidFast_RaDec2AltAz(observation['RA'], observation['dec'],
-                                         self.lat, None,
-                                         self.extra_features['current_mjd'].feature,
-                                         lmst=self.extra_features['current_lmst'].feature)
+        alt, az = _approx_RaDec2AltAz(observation['RA'], observation['dec'],
+                                      self.lat, None,
+                                      self.extra_features['current_mjd'].feature,
+                                      lmst=self.extra_features['current_lmst'].feature)
         in_range = np.where((alt < self.max_alt) & (alt > self.min_alt))[0]
         if np.size(in_range) > 0:
             result = True
@@ -2502,11 +2504,11 @@ class Vary_expt_survey(Greedy_survey_fields):
             self.reward = self.calc_reward_function()
 
         # Let's find the alt, az coords of the points (right now, hopefully doesn't change much in time block)
-        pointing_alt, pointing_az = stupidFast_RaDec2AltAz(self.fields['RA'][self.best_fields],
-                                                           self.fields['dec'][self.best_fields],
-                                                           self.lat, self.lon,
-                                                           self.extra_features['mjd'].feature,
-                                                           lmst=self.extra_features['lmst'].feature)
+        pointing_alt, pointing_az = _approx_RaDec2AltAz(self.fields['RA'][self.best_fields],
+                                                        self.fields['dec'][self.best_fields],
+                                                        self.lat, self.lon,
+                                                        self.extra_features['mjd'].feature,
+                                                        lmst=self.extra_features['lmst'].feature)
         # Let's find a good spot to project the points to a plane
         mid_alt = (np.max(pointing_alt) - np.min(pointing_alt))/2.
 

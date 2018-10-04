@@ -3,6 +3,7 @@ import unittest
 import lsst.sims.featureScheduler as fs
 import lsst.utils.tests
 import matplotlib.pylab as plt
+from lsst.sims.utils import calcLmstLast
 
 
 class TestBasis(unittest.TestCase):
@@ -47,7 +48,7 @@ class TestBasis(unittest.TestCase):
         altaz_feature = fs.AltAzFeature()
 
         site = fs.Site(name='LSST')
-        lmst, last = fs.calcLmstLast(mjd, site.longitude_rad)
+        lmst, last = calcLmstLast(mjd, site.longitude)
         lmst_feature = fs.Current_lmst()
         conditions = {'altaz': altaz_feature,
                       'lmst': lmst,
@@ -75,7 +76,7 @@ class TestBasis(unittest.TestCase):
         altaz_feature = fs.AltAzFeature()
 
         site = fs.Site(name='LSST')
-        lmst, last = fs.calcLmstLast(mjd, site.longitude_rad)
+        lmst, last = calcLmstLast(mjd, site.longitude)
         lmst_feature = fs.Current_lmst()
         conditions = {'altaz': altaz_feature,
                       'lmst': lmst,

@@ -4,7 +4,7 @@ import numpy as np
 import numpy.ma as ma
 import healpy as hp
 from . import utils
-from lsst.sims.utils import m5_flat_sed, raDec2Hpid, Site, _hpid2RaDec
+from lsst.sims.utils import m5_flat_sed, Site, _hpid2RaDec, _approx_RaDec2AltAz
 
 
 default_nside = None
@@ -63,8 +63,8 @@ class AltAzFeature(BaseConditionsFeature):
 
     def update_conditions(self, conditions, *kwargs):
         self.feature = {}
-        alt, az = utils.stupidFast_RaDec2AltAz(self.ra, self.dec,
-                                               self.lat, self.lon, conditions['mjd'])
+        alt, az = _approx_RaDec2AltAz(self.ra, self.dec,
+                                      self.lat, self.lon, conditions['mjd'])
         self.feature['alt'] = alt
         self.feature['az'] = az
 
