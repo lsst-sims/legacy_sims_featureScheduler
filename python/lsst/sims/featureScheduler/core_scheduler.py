@@ -123,7 +123,7 @@ class Core_scheduler(object):
             else:
                 return observation
 
-    def save_warmstart_snapshot(self):
+    def save_warmstart_snapshot(self, filepath=None):
         """
         save the state of core scheduler's surveys so we can resume after warmstart
         """
@@ -134,13 +134,16 @@ class Core_scheduler(object):
                 inner_list.append(s.save_warmstart_snapshot())
             sl.append(inner_list)
         
-        f = open("snapshot", 'wb')
+        if filepath:
+            f = open(filepath)
+        else:
+            f = open("warmstartsnapshot", 'wb')
         pickle.dump(sl, f)
         f.close()
 
 
 
-    def load_warmstart_snapshot(self, file):
+    def load_warmstart_snapshot(self, filepath = none):
         """
         load the state of core scheduler's surveys from a file
         """

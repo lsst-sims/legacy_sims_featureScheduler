@@ -36,8 +36,7 @@ class Base_basis_function(object):
         returns a copy of this basis function that has been stripped of condition features
         for use in warm start. 
         """
-        cp = copy.copy(self)
-        cp.condition_features = {}
+        cp = copy.deepcopy(self)
         return cp
 
     def add_observation(self, observation, indx=None):

@@ -125,13 +125,9 @@ class BaseSurvey(object):
 
     def save_warmstart_snapshot(self):
         """
-        returns a copy of this survey wherein basis functions have been
-        stripped of condition features.
+        returns a copy of this survey
         """
-        cp = copy.deepcopy(self)
-        for i, bf in enumerate(cp.basis_functions):
-            cp.basis_functions[i] = bf.copy_without_condition_feats()
-        return cp
+        return copy.deepcopy(self)
 
 
     def _check_feasability(self):
