@@ -44,8 +44,10 @@ class Core_scheduler(object):
         self.log = logging.getLogger("Core_scheduler")
         # initialize a queue of observations to request
         self.queue = []
+        # Are the observations in the queue part of a sequence.
         self.is_sequence = False
-        self.survey_index = [0, 0]
+        # The indices of the survey that provided the last additions to the queue
+        self.survey_index = [None, None]
 
         # If we have a list of survey objects, convert to list-of-lists
         if isinstance(surveys[0], list):
@@ -117,7 +119,6 @@ class Core_scheduler(object):
 
         if len(self.queue) == 0:
             self.log.warning('Failed to fill queue')
-            # self._fill_queue()
             return None
         else:
             observation = self.queue.pop(0)

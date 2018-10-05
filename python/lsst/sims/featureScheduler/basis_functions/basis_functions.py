@@ -5,10 +5,9 @@ import numpy.ma as ma
 from lsst.sims.featureScheduler import features
 from lsst.sims.featureScheduler import utils
 import healpy as hp
-from lsst.sims.utils import _hpid2RaDec, Site, _angularSeparation
+from lsst.sims.utils import _angularSeparation
 from lsst.sims.skybrightness_pre import M5percentiles
 import matplotlib.pylab as plt
-
 
 
 class Base_basis_function(object):
@@ -46,6 +45,7 @@ class Base_basis_function(object):
         self.recalc = False
 
     def __eq__(self):
+        # XXX--to work on if we need to make a registry of basis functions.
         pass
 
     def __ne__(self):
@@ -338,12 +338,6 @@ class Goal_Strict_filter_basis_function(Base_basis_function):
         self.proportion = proportion
         self.aways_available = aways_available
 
-        if condition_features is None:
-            self.condition_features = {}
-            self.condition_features['Current_filter'] = features.Current_filter()
-            self.condition_features['Mounted_filter'] = features.Mounted_filters()
-            self.condition_features['Sun_moon_alts'] = features.Sun_moon_alts()
-            self.condition_features['Current_mjd'] = features.Current_mjd()
         if survey_features is None:
             self.survey_features = {}
             self.survey_features['Last_observation'] = features.Last_observation()
@@ -351,9 +345,6 @@ class Goal_Strict_filter_basis_function(Base_basis_function):
             self.survey_features['N_obs_all'] = features.N_obs_count(filtername=None)
             self.survey_features['N_obs'] = features.N_obs_count(filtername=filtername,
                                                                  tag=tag)
-
-        super(Goal_Strict_filter_basis_function, self).__init__(survey_features=self.survey_features,
-                                                           condition_features=self.condition_features)
 
     def filter_change_bonus(self, time):
 
@@ -383,7 +374,7 @@ class Goal_Strict_filter_basis_function(Base_basis_function):
 
         return bonus * need
 
-    def check_feasibility(self):
+    def check_feasibility(self, conditions):
         """
         This method makes a pre-check of the feasibility of this basis function. If a basis function return False
         on the feasibility check, it won't computed at all.
@@ -395,65 +386,63 @@ class Goal_Strict_filter_basis_function(Base_basis_function):
         # is parked and we could, in principle, switch to any filter. If this basis function computes reward for
         # the current filter, then it is also feasible. At last we check for an "aways_available" flag. Meaning, we
         # force this basis function to be aways be computed.
-        if self.condition_features['Current_filter'].feature is None or \
-                self.condition_features['Current_filter'].feature == self.filtername or self.aways_available:
+        if conditions.current_filter is None or conditions.current_filter == self.filtername or self.aways_available:
             return True
 
         # If we arrive here, we make some extra checks to make sure this bf is feasible and should be computed.
 
         # Did the moon set or rise since last observation?
-        moon_changed = self.condition_features['Sun_moon_alts'].feature['moonAlt'] * \
-                       self.survey_features['Last_observation'].feature['moonAlt'] < 0
+        moon_changed = conditions.moonAlt * self.survey_features['Last_observation'].feature['moonAlt'] < 0
 
         # Are we already in the filter (or at start of night)?
-        not_in_filter = (self.condition_features['Current_filter'].feature != self.filtername)
+        not_in_filter = (conditions.current_filter != self.filtername)
 
         # Has enough time past?
-        lag = self.condition_features['Current_mjd'].feature - self.survey_features['Last_filter_change'].feature['mjd']
+        lag = conditions.mjd - self.survey_features['Last_filter_change'].feature['mjd']
         time_past = lag > self.time_lag_min
 
         # Did twilight start/end?
-        twi_changed = (self.condition_features['Sun_moon_alts'].feature['sunAlt'] - self.twi_change) * \
+        twi_changed = (conditions.sunAlt - self.twi_change) * \
                       (self.survey_features['Last_observation'].feature['sunAlt'] - self.twi_change) < 0
 
         # Did we just finish a DD sequence
         wasDD = self.survey_features['Last_observation'].feature['note'] == 'DD'
 
         # Is the filter mounted?
-        mounted = self.filtername in self.condition_features['Mounted_filter'].feature
+        mounted = self.filtername in conditions.mounted_filters
 
         if (moon_changed | time_past | twi_changed | wasDD) & mounted & not_in_filter:
             return True
         else:
             return False
 
-    def __call__(self, **kwargs):
+    def __call__(self, conditions, **kwargs):
 
-        if self.condition_features['Current_filter'].feature is None:
+        if conditions.current_filter is None:
             return 0.  # no bonus if no filter is mounted
         # elif self.condition_features['Current_filter'].feature == self.filtername:
         #     return 0.  # no bonus if on the filter already
 
         # Did the moon set or rise since last observation?
-        moon_changed = self.condition_features['Sun_moon_alts'].feature['moonAlt'] * \
+        moon_changed = conditions.moonAlt * \
                        self.survey_features['Last_observation'].feature['moonAlt'] < 0
 
         # Are we already in the filter (or at start of night)?
         # not_in_filter = (self.condition_features['Current_filter'].feature != self.filtername)
 
         # Has enough time past?
-        lag = self.condition_features['Current_mjd'].feature - self.survey_features['Last_filter_change'].feature['mjd']
+        lag = conditions.mjd - self.survey_features['Last_filter_change'].feature['mjd']
         time_past = lag > self.time_lag_min
 
         # Did twilight start/end?
-        twi_changed = (self.condition_features['Sun_moon_alts'].feature['sunAlt'] - self.twi_change) * (
+        twi_changed = (conditions.sunAlt - self.twi_change) * (
                     self.survey_features['Last_observation'].feature['sunAlt'] - self.twi_change) < 0
 
         # Did we just finish a DD sequence
         wasDD = self.survey_features['Last_observation'].feature['note'] == 'DD'
 
         # Is the filter mounted?
-        mounted = self.filtername in self.condition_features['Mounted_filter'].feature
+        mounted = self.filtername in conditions.mounted_filters
 
         if (moon_changed | time_past | twi_changed | wasDD) & mounted:
             result = self.filter_change_bonus(lag) if time_past else 0.
@@ -467,18 +456,12 @@ class Filter_change_basis_function(Base_basis_function):
     """
     Reward staying in the current filter.
     """
-    def __init__(self, survey_features=None, condition_features=None, filtername='r'):
+    def __init__(self, filtername='r'):
         self.filtername = filtername
-        if condition_features is None:
-            self.condition_features = {}
-            self.condition_features['Current_filter'] = features.Current_filter()
-        super(Filter_change_basis_function, self).__init__(survey_features=survey_features,
-                                                           condition_features=self.condition_features)
 
-    def __call__(self, **kwargs):
-        # XXX--Note here my speed observatory says None when it's parked,
-        # so should be easy to start any filter. Maybe None should be reserved for no filter instead?
-        if (self.condition_features['Current_filter'].feature == self.filtername) | (self.condition_features['Current_filter'].feature is None):
+    def __call__(self, conditions, **kwargs):
+
+        if (conditions.current_filter == self.filtername) | (conditions.current_filter is None):
             result = 1.
         else:
             result = 0.
@@ -488,33 +471,27 @@ class Filter_change_basis_function(Base_basis_function):
 class Slewtime_basis_function(Base_basis_function):
     """Reward slews that take little time
     """
-    def __init__(self, survey_features=None, condition_features=None,
-                 max_time=135., filtername='r', nside=None):
+    def __init__(self, max_time=135., filtername='r', nside=None):
         if nside is None:
             nside = utils.set_default_nside()
 
         self.maxtime = max_time
         self.nside = nside
         self.filtername = filtername
-        if condition_features is None:
-            self.condition_features = {}
-            self.condition_features['Current_filter'] = features.Current_filter()
-            self.condition_features['slewtime'] = features.SlewtimeFeature(nside=nside)
-        super(Slewtime_basis_function, self).__init__(survey_features=survey_features,
-                                                      condition_features=self.condition_features)
+        self.result = np.zeros(hp.nside2npix(nside), dtype=float)
 
-    def __call__(self, indx=None):
+    def __call__(self, conditions, indx=None):
         # If we are in a different filter, the Filter_change_basis_function will take it
-        if self.condition_features['Current_filter'].feature != self.filtername:
-            result = 1.
+        if conditions.current_filter != self.filtername:
+            result = 0.
         else:
             # Need to make sure smaller slewtime is larger reward.
-            if np.size(self.condition_features['slewtime'].feature) > 1:
-                result = np.zeros(np.size(self.condition_features['slewtime'].feature), dtype=float)
-                good = np.where(self.condition_features['slewtime'].feature != hp.UNSEEN)
-                result[good] = (self.maxtime - self.condition_features['slewtime'].feature[good])/self.maxtime
+            if np.size(conditions.slewtime) > 1:
+                result = self.result.copy()
+                good = np.where(conditions.slewtime != hp.UNSEEN)
+                result[good] = (self.maxtime - conditions.slewtime[good])/self.maxtime
             else:
-                result = (self.maxtime - self.condition_features['slewtime'].feature)/self.maxtime
+                result = (self.maxtime - conditions.slewtime)/self.maxtime
         return result
 
 
@@ -525,8 +502,7 @@ class Aggressive_Slewtime_basis_function(Base_basis_function):
     Looks like it's checking the slewtime to the field position rather than the healpix maybe?
     """
 
-    def __init__(self, survey_features=None, condition_features=None,
-                 max_time=135., order=1., hard_max=None, filtername='r', nside=None):
+    def __init__(self, max_time=135., order=1., hard_max=None, filtername='r', nside=None):
         if nside is None:
             nside = utils.set_default_nside()
 
@@ -535,37 +511,31 @@ class Aggressive_Slewtime_basis_function(Base_basis_function):
         self.order = order
         self.nside = nside
         self.filtername = filtername
-        if condition_features is None:
-            self.condition_features = {}
-            self.condition_features['Current_filter'] = features.Current_filter()
-            self.condition_features['hp2fields'] = features.HP2Fields()
-            self.condition_features['slewtime'] = features.SlewtimeFeature(nside=nside)
-        super(Aggressive_Slewtime_basis_function, self).__init__(survey_features=survey_features,
-                                                                 condition_features=self.condition_features)
+        self.result = np.zeros(hp.nside2npix(nside), dtype=float)
 
-    def __call__(self, indx=None):
+    def __call__(self, conditions, indx=None):
         # If we are in a different filter, the Filter_change_basis_function will take it
-        if self.condition_features['Current_filter'].feature != self.filtername:
+        if conditions.current_filter != self.filtername:
             result = 0.
         else:
             # Need to make sure smaller slewtime is larger reward.
             if np.size(self.condition_features['slewtime'].feature) > 1:
-                result = np.empty(np.size(self.condition_features['slewtime'].feature), dtype=float)
+                result = self.result.copy()
                 result.fill(hp.UNSEEN)
 
-                good = np.where(np.bitwise_and(self.condition_features['slewtime'].feature > 0.,
-                                               self.condition_features['slewtime'].feature < self.maxtime))
-                result[good] = ((self.maxtime - self.condition_features['slewtime'].feature[good]) /
+                good = np.where(np.bitwise_and(conditions.slewtime > 0.,
+                                               conditions.slewtime < self.maxtime))
+                result[good] = ((self.maxtime - conditions.slewtime[good]) /
                                 self.maxtime) ** self.order
                 if self.hard_max is not None:
-                    not_so_good = np.where(self.condition_features['slewtime'].feature > self.hard_max)
+                    not_so_good = np.where(conditions.slewtime > self.hard_max)
                     result[not_so_good] -= 10.
-                fields = np.unique(self.condition_features['hp2fields'].feature[good])
+                fields = np.unique(conditions.hp2fields[good])
                 for field in fields:
-                    hp_indx = np.where(self.condition_features['hp2fields'].feature == field)
+                    hp_indx = np.where(conditions.hp2fields == field)
                     result[hp_indx] = np.min(result[hp_indx])
             else:
-                result = (self.maxtime - self.condition_features['slewtime'].feature) / self.maxtime
+                result = (self.maxtime - conditions.slewtime) / self.maxtime
         return result
 
 
@@ -575,8 +545,7 @@ class Bulk_cloud_basis_function(Base_basis_function):
 
     """
 
-    def __init__(self, nside=None, max_cloud_map=None,
-                 survey_features=None, condition_features=None, out_of_bounds_val=-10.):
+    def __init__(self, nside=None, max_cloud_map=None, out_of_bounds_val=-10.):
         """
         Parameters
         ----------
@@ -584,27 +553,12 @@ class Bulk_cloud_basis_function(Base_basis_function):
             The healpix resolution.
         max_cloud_map : numpy array (None)
             A healpix map showing the maximum allowed cloud values for all points on the sky
-        survey_features : dict, opt
-        condition_features : dict, opt
         out_of_bounds_val : float (10.)
             Point value to give regions where there are no observations requested
         """
         if nside is None:
             nside = utils.set_default_nside()
 
-        if survey_features is None:
-            self.survey_features = dict()
-        else:
-            self.survey_features = survey_features
-
-        if condition_features is None:
-            self.condition_features = dict()
-            self.condition_features['bulk_cloud'] = features.BulkCloudCover()
-        else:
-            self.condition_features = condition_features
-
-        super(Bulk_cloud_basis_function, self).__init__(survey_features=self.survey_features,
-                                                        condition_features=self.condition_features)
         self.nside = nside
         if max_cloud_map is None:
             self.max_cloud_map = np.ones(hp.nside2npix(nside), dtype=float)
@@ -612,8 +566,9 @@ class Bulk_cloud_basis_function(Base_basis_function):
             self.max_cloud_map = max_cloud_map
         self.out_of_bounds_area = np.where(self.max_cloud_map > 1.)[0]
         self.out_of_bounds_val = out_of_bounds_val
+        self.result = np.ones(hp.nside2npix(self.nside))
 
-    def __call__(self, indx=None):
+    def __call__(self, conditions, indx=None):
         """
         Parameters
         ----------
@@ -625,9 +580,9 @@ class Bulk_cloud_basis_function(Base_basis_function):
         value are marked as unseen.
         """
 
-        result = np.ones(hp.nside2npix(self.nside))
+        result = self.result.copy()
 
-        clouded = np.where(self.max_cloud_map < self.condition_features['bulk_cloud'].feature)
+        clouded = np.where(conditions.bulk_cloud > self.max_cloud_map)
         result[clouded] = hp.UNSEEN
 
         return result
@@ -637,8 +592,7 @@ class Moon_avoidance_basis_function(Base_basis_function):
     """Mark regions that are closer than a certain .
 
     """
-    def __init__(self, nside=None, condition_features=None, survey_features=None,
-                 moon_distance=30.):
+    def __init__(self, nside=None, moon_distance=30.):
         """
         Parameters
         moon_distance: float (30.)
@@ -646,27 +600,16 @@ class Moon_avoidance_basis_function(Base_basis_function):
         """
         if nside is None:
             nside = utils.set_default_nside()
-
         self.nside = nside
-        if survey_features is None:
-            self.survey_features = {}
-        if condition_features is None:
-            self.condition_features = {}
-            self.condition_features['altaz'] = features.AltAzFeature(nside=nside)
-            self.condition_features['lmst'] = features.Current_lmst()
-            self.condition_features['moon'] = features.Moon()
-
         self.moon_distance = np.radians(moon_distance)
+        self.result = np.ones(hp.nside2npix(self.nside), dtype=float)
 
-    def __call__(self, indx=None):
-        result = np.ones(hp.nside2npix(self.nside), dtype=float)
+    def __call__(self, conditions, indx=None):
+        result = self.result.copy()
 
-        alt = self.condition_features['altaz'].feature['alt']
-        az = self.condition_features['altaz'].feature['az']
-
-        angular_distance = _angularSeparation(az, alt,
-                                              self.condition_features['moon'].feature['moonAz'],
-                                              self.condition_features['moon'].feature['moonAlt'])
+        angular_distance = _angularSeparation(conditions.az, conditions.alt,
+                                              conditions.moonAz,
+                                              conditions.moonAlt)
 
         result[angular_distance < self.moon_distance] = hp.UNSEEN
 
@@ -677,8 +620,7 @@ class Skybrightness_limit_basis_function(Base_basis_function):
     """Mark regions that are closer than a certain .
 
     """
-    def __init__(self, nside=None, condition_features=None, survey_features=None,
-                 filtername='r', min=20., max=30.):
+    def __init__(self, nside=None, filtername='r', min=20., max=30.):
         """
         Parameters
         moon_distance: float (30.)
@@ -690,18 +632,14 @@ class Skybrightness_limit_basis_function(Base_basis_function):
         self.min = min
         self.max = max
         self.nside = nside
-        if survey_features is None:
-            self.survey_features = {}
-        if condition_features is None:
-            self.condition_features = dict()
-            self.condition_features['skybrightness'] = features.SkyBrightness(filtername=filtername, nside=nside)
+        self.filtername = filtername
+        self.result = np.empty(hp.nside2npix(self.nside), dtype=float).fill(hp.UNSEEN)
 
-    def __call__(self, indx=None):
-        result = np.empty(hp.nside2npix(self.nside), dtype=float)
-        result.fill(hp.UNSEEN)
+    def __call__(self, conditions, indx=None):
+        result = self.result.copy()
 
-        good = np.where(np.bitwise_and(self.condition_features['skybrightness'].feature > self.min,
-                                       self.condition_features['skybrightness'].feature < self.max))
+        good = np.where(np.bitwise_and(conditions.skybrightness[self.filtername] > self.min,
+                                       conditions.skybrightness[self.filtername]  < self.max))
         result[good] = 1.0
 
         return result
@@ -710,8 +648,8 @@ class Skybrightness_limit_basis_function(Base_basis_function):
 class CableWrap_unwrap_basis_function(Base_basis_function):
     """
     """
-    def __init__(self, nside=None, condition_features=None, minAz=-270., maxAz=270., minAlt=20., maxAlt=82.,
-                 activate_tol=20., delta_unwrap=1.2, unwrap_until=70., max_duration=30., survey_features=None):
+    def __init__(self, nside=None, minAz=-270., maxAz=270., minAlt=20., maxAlt=82.,
+                 activate_tol=20., delta_unwrap=1.2, unwrap_until=70., max_duration=30.):
         """
         Parameters
         ----------
@@ -724,14 +662,6 @@ class CableWrap_unwrap_basis_function(Base_basis_function):
         """
         if nside is None:
             nside = utils.set_default_nside()
-
-        if survey_features is None:
-            self.survey_features = {}
-        if condition_features is None:
-            self.condition_features = {}
-            self.condition_features['altaz'] = features.AltAzFeature()
-            self.condition_features['current_pointing'] = features.Current_pointing()
-            self.condition_features['mjd'] = features.Current_mjd()
 
         self.minAz = np.radians(minAz)
         self.maxAz = np.radians(maxAz)
@@ -748,14 +678,15 @@ class CableWrap_unwrap_basis_function(Base_basis_function):
         self.unwrap_direction = 0.  # either -1., 0., 1.
         self.max_duration = max_duration/60./24.  # Convert to days
         self.activation_time = None
+        self.result = np.zeros(hp.nside2npix(self.nside), dtype=float)
 
-    def __call__(self, indx=None):
+    def __call__(self, conditions, indx=None):
 
-        result = np.zeros(hp.nside2npix(self.nside), dtype=float)
-        alt = self.condition_features['altaz'].feature['alt']
-        current_abs_rad = np.radians(self.condition_features['current_pointing'].feature['az'])
-        unseen = np.where(np.bitwise_or(alt < self.minAlt,
-                                        alt > self.maxAlt))
+        result = self.result.copy()
+
+        current_abs_rad = np.radians(conditions.az)
+        unseen = np.where(np.bitwise_or(conditions.alt < self.minAlt,
+                                        conditions.alt > self.maxAlt))
         result[unseen] = hp.UNSEEN
 
         if (self.minAz + self.activate_tol < current_abs_rad < self.maxAz - self.activate_tol) and not self.active:
@@ -771,16 +702,14 @@ class CableWrap_unwrap_basis_function(Base_basis_function):
             self.activation_time = None
             return result
         elif (self.activation_time is not None and
-              self.condition_features['mjd'].feature - self.activation_time > self.max_duration):
+              conditions.mjd - self.activation_time > self.max_duration):
             self.active = False
             self.unwrap_direction = 0.
             self.activation_time = None
             return result
 
-        az_rad = self.condition_features['altaz'].feature['az']
-
         if not self.active:
-            self.activation_time = self.condition_features['mjd'].feature
+            self.activation_time = conditions.mjd
             if current_abs_rad < 0.:
                 self.unwrap_direction = 1  # clock-wise unwrap
             else:
@@ -794,7 +723,7 @@ class CableWrap_unwrap_basis_function(Base_basis_function):
         TWOPI = 2.*np.pi
 
         # Compute distance and accumulated az.
-        norm_az_rad = np.divmod(az_rad - min_abs_rad, TWOPI)[1] + min_abs_rad
+        norm_az_rad = np.divmod(conditions.az - min_abs_rad, TWOPI)[1] + min_abs_rad
         distance_rad = divmod(norm_az_rad - current_abs_rad, TWOPI)[1]
         get_shorter = np.where(distance_rad > np.pi)
         distance_rad[get_shorter] -= TWOPI
@@ -832,8 +761,7 @@ class Cadence_enhance_basis_function(Base_basis_function):
     def __init__(self, filtername='gri', nside=None,
                  supress_window=[0, 1.8], supress_val=-0.5,
                  enhance_window=[2.1, 3.2], enhance_val=1.,
-                 apply_area=None,
-                 survey_features=None, condition_features=None):
+                 apply_area=None):
         """
         Parameters
         ----------
@@ -852,15 +780,9 @@ class Cadence_enhance_basis_function(Base_basis_function):
         self.enhance_window = np.sort(enhance_window)
         self.enhance_val = enhance_val
 
-        if survey_features is None:
-            survey_features = {}
-            survey_features['last_observed'] = features.Last_observed(filtername=filtername)
-        if condition_features is None:
-            condition_features = {}
-            condition_features['Current_mjd'] = features.Current_mjd()
+        survey_features = {}
+        survey_features['last_observed'] = features.Last_observed(filtername=filtername)
 
-        super(Cadence_enhance_basis_function, self).__init__(survey_features=survey_features,
-                                                             condition_features=condition_features)
         self.empty = np.zeros(hp.nside2npix(self.nside), dtype=float)
         # No map, try to drive the whole area
         if apply_area is None:
@@ -868,9 +790,9 @@ class Cadence_enhance_basis_function(Base_basis_function):
         else:
             self.apply_indx = np.where(apply_area != 0)[0]
 
-    def __call__(self, indx=None):
+    def __call__(self, conditions, indx=None):
         # copy an empty array
-        result = self.empty + 0
+        result = self.empty.copy()
         if indx is not None:
             ind = np.intersect1d(indx, self.apply_indx)
         else:
@@ -878,7 +800,7 @@ class Cadence_enhance_basis_function(Base_basis_function):
         if np.size(ind) == 0:
             result = 0
         else:
-            mjd_diff = self.condition_features['Current_mjd'].feature - self.survey_features['last_observed'].feature[ind]
+            mjd_diff = conditions.mjd - self.survey_features['last_observed'].feature[ind]
             to_supress = np.where((mjd_diff > self.supress_window[0]) & (mjd_diff < self.supress_window[1]))
             result[ind[to_supress]] = self.supress_val
             to_enhance = np.where((mjd_diff > self.enhance_window[0]) & (mjd_diff < self.enhance_window[1]))

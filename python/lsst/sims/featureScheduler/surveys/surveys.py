@@ -118,16 +118,6 @@ class BaseSurvey(object):
                 bf.add_observation(observation, **kwargs)
             self.reward_checked = False
 
-    def update_conditions(self, conditions, **kwargs):
-        for bf in self.basis_functions:
-            bf.update_conditions(conditions, **kwargs)
-        for feature in self.extra_features:
-            if hasattr(self.extra_features[feature], 'update_conditions'):
-                self.extra_features[feature].update_conditions(conditions, **kwargs)
-        for bf in self.extra_basis_functions:
-            bf.update_conditions(conditions, **kwargs)
-        self.reward_checked = False
-
     def _check_feasability(self):
         """
         Check if the survey is feasable in the current conditions

@@ -49,7 +49,7 @@ class Conditions(object):
         self.current_filter = None
         self.mounted_filters = None
         self.night = None
-        self.lmst = None
+        self._lmst = None
         # Should be a dict with filtername keys
         self._skybrightness = {}
         self._FWHMeff = {}
@@ -80,6 +80,35 @@ class Conditions(object):
         self.telRA = None
         self.telDec = None
 
+        self._bulk_cloud = None
+        self._HA = None
+
+    @property
+    def lmst(self):
+        return self._lmst
+    @lmst.setter
+    def lmst(self, value):
+        self._lmst = value
+        self._HA = None
+
+    @property
+    def HA(self):
+        if self._HA is None:
+            self.calc_HA()
+        return self._HA
+    
+    def calc_HA(self):
+        self._HA = np.radians(self._lmst*360./24.) - self.ra
+        self._HA[np.where(self._HA < 0)] += 2.*np.pi
+
+    @property
+    def bulk_cloud(self):
+        return self._bulk_cloud
+
+    @bulk_cloud.setter
+    def bulk_cloud(self, value):
+        self._bulk_cloud = hp.ud_grade(value, nside_out=self.nside)
+
     @property
     def slewtime(self):
         return self._slewtime
@@ -101,7 +130,7 @@ class Conditions(object):
     def alt(self):
         if self._alt is None:
             self.calc_altAz()
-        return self._altAz
+        return self._alt
 
     @property
     def az(self):
