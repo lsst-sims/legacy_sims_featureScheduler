@@ -10,6 +10,9 @@ __all__ = ['Conditions']
 class Conditions(object):
     """
     Class to hold telemetry information
+
+    If the incoming value is a healpix map, we use a setter to ensure the
+    resolution matches.
     """
     def __init__(self, nside, site='LSST', expTime=30.):
         """
@@ -17,20 +20,29 @@ class Conditions(object):
         ----------
         expTime : float (30)
             The exposure time to assume when computing the 5-sigma limiting depth
+
+        All angles stored as radians. LMST as hours.
+
+        Attributes are all one of:
+        * Float or int
+        * healpix map
+        * dicts of healpix maps keyed by filtername
         """
 
         self.nside = nside
         self.site = Site(site)
         self.expTime = expTime
         hpids = np.arange(hp.nside2npix(nside))
+        # Generate an empty map so we can copy when we need a new map
         self.zeros_map = np.zeros(hp.nside2npix(nside), dtype=float)
         # The RA, Dec grid we are using
-        self.ra_rad, self.dec_rad = _hpid2RaDec(nside, hpids)
+        self.ra, self.dec = _hpid2RaDec(nside, hpids)
 
         # Modified Julian Date (day)
         self._mjd = None
         # Altitude and azimuth. Dict with degrees and radians
-        self._altAz = None
+        self._alt = None
+        self._az = None
         # The cloud level. Fraction, but could upgrade to transparency map
         self.clouds = None
         self._slewtime = None
@@ -42,7 +54,31 @@ class Conditions(object):
         self._skybrightness = {}
         self._FWHMeff = {}
         self._M5Depth = None
-        self._airmass
+        self._airmass = None
+
+        # Attribute to hold the current observing queue
+        self.queue = None
+
+        self._HP2Fields = None
+
+        # Moon
+        self.moonAlt = None
+        self.moonAz = None
+        self.moonRA = None
+        self.moonDec = None
+        self.moonPhase = None
+
+        # Sun
+        self.sunAlt = None
+        self.sunAz = None
+
+        self.night = None
+        self.last_twilight_end = None
+        self.next_twilight_start = None
+
+        # Current telescope pointing
+        self.telRA = None
+        self.telDec = None
 
     @property
     def slewtime(self):
@@ -59,19 +95,24 @@ class Conditions(object):
     @airmass.setter
     def airmass(self, value):
         self._airmass = hp.ud_grade(value, nside_out=self.nside)
+        self._M5Depth = None
 
     @property
-    def altAz(self):
-        if self._azAlt is None:
+    def alt(self):
+        if self._alt is None:
             self.calc_altAz()
         return self._altAz
 
-    def calc_altAz(self):
-        alt, az = _approx_RaDec2AltAz(self.ra_rad, self.dec_rad,
-                                      self.site.latitude_rad,
-                                      self.longitude_rad, self._mjd)
-        self._altAz = {'alt_rad': alt, 'az_rad': az}
+    @property
+    def az(self):
+        if self._az is None:
+            self.calc_altAz()
+        return self._az
 
+    def calc_altAz(self):
+        self._alt, self._az = _approx_RaDec2AltAz(self.ra, self.dec,
+                                                  self.site.latitude_rad,
+                                                  self.site.longitude_rad, self._mjd)
     @property
     def mjd(self):
         return self._mjd
@@ -80,7 +121,8 @@ class Conditions(object):
     def mjd(self, value):
         self._mjd = value
         # Set things that need to be recalculated to None
-        self._azAlt = None
+        self._az = None
+        self._alt = None
 
     @property
     def skybrightness(self):
@@ -91,6 +133,16 @@ class Conditions(object):
         for key in indict:
             self._skybrightness[key] = hp.ud_grade(indict[key], nside_out=self.nside)
         # If sky brightness changes, need to recalc M5 depth.
+        self._M5Depth = None
+
+    @property
+    def FWHMeff(self):
+        return self._FWHMeff
+
+    @FWHMeff.setter
+    def FWHMeff(self, indict):
+        for key in indict:
+            self._FWHMeff[key] = indict[key]
         self._M5Depth = None
 
     @property
@@ -111,4 +163,10 @@ class Conditions(object):
                                                           self._airmass[good])
             self._M5Depth[filtername] = ma.masked_values(self._M5Depth[filtername], hp.UNSEEN)
 
+    @property
+    def HP2Fields(self):
+        # XXX--not sure what this one is
+        return self._HP2Fields
+
+    
 

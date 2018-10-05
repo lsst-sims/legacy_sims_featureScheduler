@@ -16,7 +16,7 @@ import sqlite3 as db
 import matplotlib.pylab as plt
 import time
 import datetime
-from . import version
+from lsst.sims.featureScheduler import version
 import warnings
 
 log = logging.getLogger(__name__)
