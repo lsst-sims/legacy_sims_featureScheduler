@@ -2,6 +2,8 @@ import numpy as np
 from lsst.sims.featureScheduler.utils import (empty_observation, set_default_nside,
                                               hp_in_lsst_fov, read_fields)
 import healpy as hp
+from lsst.sims.featureScheduler.thomson import xyz2thetaphi, thetaphi2xyz
+
 
 __all__ = ['BaseSurvey', 'BaseMarkovDF_survey']
 
@@ -122,13 +124,13 @@ def rotx(theta, x, y, z):
     return xp, yp, zp
 
 
-
 def BaseMarkovDF_survey(BaseSurvey):
     """ A Markov Decision Function survey object
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None,
                  extra_basis_functions=None, smoothing_kernel=None,
-                 ignore_obs='dummy', survey_name='', nside=None):
+                 ignore_obs='dummy', survey_name='', nside=None, seed=42,
+                 dither=True, tag_fields=False, tag_map=None, tag_names=None,):
 
         super(BaseMarkovDF_survey, self).__init__(extra_features=extra_features,
                                                   extra_basis_functions=extra_basis_functions,
@@ -150,6 +152,24 @@ def BaseMarkovDF_survey(BaseSurvey):
             self.smoothing_kernel = np.radians(smoothing_kernel)
         else:
             self.smoothing_kernel = None
+
+        # Start tracking the night
+        self.night = -1
+
+        # Set the seed
+        np.random.seed(seed)
+        self.dither = dither
+
+        # Tagging fields
+        if tag_fields:
+            tags = np.unique(tag_map[tag_map > 0])
+            for tag in tags:
+                inside_tag = np.where(tag_map == tag)
+                fields_id = np.unique(self.hp2fields[inside_tag])
+                self.fields['tag'][fields_id] = tag
+        else:
+            for i in range(len(self.fields)):
+                self.fields['tag'][i] = 1
 
     def add_observation(self, observation, **kwargs):
         """
@@ -255,7 +275,6 @@ def BaseMarkovDF_survey(BaseSurvey):
             # inf reward means it trumps everything.
             if np.any(np.isinf(self.reward)):
                 self.reward = np.inf
-
         else:
             # If not feasable, negative infinity reward
             self.reward = -np.inf
@@ -264,3 +283,15 @@ def BaseMarkovDF_survey(BaseSurvey):
             return self.reward_smooth
         else:
             return self.reward
+
+    def __call__(self, conditions):
+
+        self.reward = self.calc_reward_function(conditions)
+
+        # Check if we need to spin the tesselation
+        if self.dither & (conditions.night != self.night):
+            self._spin_fields()
+            self.night = conditions.night.copy()
+
+        # XXX Use self.reward to decide what to observe.
+        return None
