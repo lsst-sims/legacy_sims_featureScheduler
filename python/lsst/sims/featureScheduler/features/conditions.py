@@ -201,11 +201,3 @@ class Conditions(object):
                                                           self._airmass[good])
 
             self._M5Depth[filtername] = ma.masked_values(self._M5Depth[filtername], hp.UNSEEN)
-
-    #@property
-    #def HP2Fields(self):
-    #    # XXX--not sure what this one is
-    #    return self._HP2Fields
-
-    
-
