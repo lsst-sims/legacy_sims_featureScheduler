@@ -79,7 +79,7 @@ class Target_map_basis_function(Base_basis_function):
     """Normalize the maps first to make things smoother
     """
     def __init__(self, filtername='r', nside=None, target_map=None,
-                 survey_features=None, condition_features=None, norm_factor=0.00010519,
+                 norm_factor=0.00010519,
                  out_of_bounds_val=-10.):
         """
         Parameters
@@ -97,16 +97,20 @@ class Target_map_basis_function(Base_basis_function):
         out_of_bounds_val : float (-10.)
             Point value to give regions where there are no observations requested
         """
+
+        self.update_on_newobs = True
+        self.update_on_mjd = True
+
         if nside is None:
             nside = utils.set_default_nside()
 
         self.norm_factor = norm_factor
-        if survey_features is None:
-            self.survey_features = {}
-            # Map of the number of observations in filter
-            self.survey_features['N_obs'] = features.N_observations(filtername=filtername)
-            # Count of all the observations
-            self.survey_features['N_obs_count_all'] = features.N_obs_count(filtername=None)
+
+        self.survey_features = {}
+        # Map of the number of observations in filter
+        self.survey_features['N_obs'] = features.N_observations(filtername=filtername)
+        # Count of all the observations
+        self.survey_features['N_obs_count_all'] = features.N_obs_count(filtername=None)
         self.nside = nside
         if target_map is None:
             self.target_map = utils.generate_goal_map(filtername=filtername)
@@ -268,6 +272,9 @@ class Strict_filter_basis_function(Base_basis_function):
         twi_change : float (-18.)
             The sun altitude to consider twilight starting/ending
         """
+        self.update_on_newobs = False
+        self.update_on_mjd =True
+
         self.time_lag = time_lag/60./24.  # Convert to days
         self.twi_change = np.radians(twi_change)
         self.filtername = filtername
@@ -311,7 +318,7 @@ class Goal_Strict_filter_basis_function(Base_basis_function):
 
     """
 
-    def __init__(self, survey_features=None, condition_features=None, time_lag_min=10., time_lag_max=30.,
+    def __init__(self, time_lag_min=10., time_lag_max=30.,
                  time_lag_boost=60., boost_gain=2.0, unseen_before_lag=False,
                  filtername='r', tag=None, twi_change=-18., proportion=1.0, aways_available=False):
         """
@@ -342,13 +349,12 @@ class Goal_Strict_filter_basis_function(Base_basis_function):
         self.proportion = proportion
         self.aways_available = aways_available
 
-        if survey_features is None:
-            self.survey_features = {}
-            self.survey_features['Last_observation'] = features.Last_observation()
-            self.survey_features['Last_filter_change'] = features.LastFilterChange()
-            self.survey_features['N_obs_all'] = features.N_obs_count(filtername=None)
-            self.survey_features['N_obs'] = features.N_obs_count(filtername=filtername,
-                                                                 tag=tag)
+        self.survey_features = {}
+        self.survey_features['Last_observation'] = features.Last_observation()
+        self.survey_features['Last_filter_change'] = features.LastFilterChange()
+        self.survey_features['N_obs_all'] = features.N_obs_count(filtername=None)
+        self.survey_features['N_obs'] = features.N_obs_count(filtername=filtername,
+                                                             tag=tag)
 
     def filter_change_bonus(self, time):
 
@@ -483,6 +489,10 @@ class Slewtime_basis_function(Base_basis_function):
         self.nside = nside
         self.filtername = filtername
         self.result = np.zeros(hp.nside2npix(nside), dtype=float)
+
+    def add_observation(self, observation, indx=None):
+        # No tracking of observations in this basis function. Purely based on conditions.
+        pass
 
     def __call__(self, conditions, indx=None):
         # If we are in a different filter, the Filter_change_basis_function will take it

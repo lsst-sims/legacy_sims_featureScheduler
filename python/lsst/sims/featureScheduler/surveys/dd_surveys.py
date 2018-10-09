@@ -188,7 +188,7 @@ class Deep_drilling_survey(BaseSurvey):
         time_left = (conditions.next_twilight_start - conditions.mjd) * 24.*60.*60.  # convert to seconds
 
         seq_time = 42.  # Make sure there is enough time for an extra visit after the DD sequence
-        current_filter = self.extra_features['current_filter'].feature
+        current_filter = conditions.current_filter
         for obs in self.sequence:
             for o in obs:
                 if current_filter != o['filter']:
@@ -224,15 +224,15 @@ class Deep_drilling_survey(BaseSurvey):
 
         # Check moon distance
         if self.moon_up is not None:
-            moon_separation = _angularSeparation(self.extra_features['moon'].feature['moonRA'],
-                                                 self.extra_features['moon'].feature['moonDec'],
+            moon_separation = _angularSeparation(conditions.moonRA,
+                                                 conditions.moonDec,
                                                  observation['RA'],
                                                  observation['dec'])
             if moon_separation < self.moon_distance:
                 return False
 
         # Check clouds
-        if self.extra_features['bulk_cloud'].feature > self.max_clouds:
+        if conditions.bulk_cloud > self.max_clouds:
             return False
 
         # If we made it this far, good to go

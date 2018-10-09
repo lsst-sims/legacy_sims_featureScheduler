@@ -121,7 +121,7 @@ class Core_scheduler(object):
         else:
             observation = self.queue.pop(0)
             if self.is_sequence:
-                if self.survey_lists[self.survey_index[0]][self.survey_index[1]].check_feasibility(observation):
+                if self.survey_lists[self.survey_index[0]][self.survey_index[1]].check_feasibility(observation, self.conditions):
                     return observation
                 else:
                     self.log.warning('Sequence interrupted! Cleaning queue!')

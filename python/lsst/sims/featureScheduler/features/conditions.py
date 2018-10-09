@@ -82,7 +82,10 @@ class Conditions(object):
         self.telRA = None
         self.telDec = None
 
+        # Just a scalar describing clouds
         self._bulk_cloud = None
+        # Full sky cloud map
+        self._cloud_map = None
         self._HA = None
 
     @property
@@ -104,12 +107,12 @@ class Conditions(object):
         self._HA[np.where(self._HA < 0)] += 2.*np.pi
 
     @property
-    def bulk_cloud(self):
-        return self._bulk_cloud
+    def cloud_map(self):
+        return self._cloud_map
 
-    @bulk_cloud.setter
-    def bulk_cloud(self, value):
-        self._bulk_cloud = hp.ud_grade(value, nside_out=self.nside)
+    @cloud_map.setter
+    def cloud_map(self, value):
+        self._cloud_map = hp.ud_grade(value, nside_out=self.nside)
 
     @property
     def slewtime(self):
@@ -117,7 +120,11 @@ class Conditions(object):
 
     @slewtime.setter
     def slewtime(self, value):
-        self._slewtime = hp.ud_grade(value, nside_out=self.nside)
+        # Using 0 for start of night
+        if np.size(value) == 1:
+            self._slewtime = value
+        else:
+            self._slewtime = hp.ud_grade(value, nside_out=self.nside)
 
     @property
     def airmass(self):
@@ -195,10 +202,10 @@ class Conditions(object):
 
             self._M5Depth[filtername] = ma.masked_values(self._M5Depth[filtername], hp.UNSEEN)
 
-    @property
-    def HP2Fields(self):
-        # XXX--not sure what this one is
-        return self._HP2Fields
+    #@property
+    #def HP2Fields(self):
+    #    # XXX--not sure what this one is
+    #    return self._HP2Fields
 
     
 
