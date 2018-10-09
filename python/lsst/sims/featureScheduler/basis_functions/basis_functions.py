@@ -239,6 +239,10 @@ class M5_diff_basis_function(Base_basis_function):
         m5p = M5percentiles()
         self.dark_map = m5p.dark_map(filtername=filtername, nside_out=self.nside)
 
+    def add_observation(self, observation, indx=None):
+        # No tracking of observations in this basis function. Purely based on conditions.
+        pass
+
     def __call__(self, conditions, indx=None):
         # No way to get the sign on this right the first time.
         result = conditions.M5Depth[self.filtername] - self.dark_map

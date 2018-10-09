@@ -33,6 +33,8 @@ class BaseSurvey(object):
             ignore it because 'mysurvey2' is a substring of 'mysurvey23'.
         """
 
+        # XXX--nside shouldn't be in BaseSurvey. But the DDFs need it for 
+        # tagging observations. TODO-take that out.
         if nside is None:
             nside = set_default_nside()
 
@@ -124,7 +126,7 @@ def rotx(theta, x, y, z):
     return xp, yp, zp
 
 
-def BaseMarkovDF_survey(BaseSurvey):
+class BaseMarkovDF_survey(BaseSurvey):
     """ A Markov Decision Function survey object
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None,
@@ -161,6 +163,7 @@ def BaseMarkovDF_survey(BaseSurvey):
         self.dither = dither
 
         # Tagging fields
+        self.tag_fields = tag_fields
         if tag_fields:
             tags = np.unique(tag_map[tag_map > 0])
             for tag in tags:
@@ -236,11 +239,6 @@ def BaseMarkovDF_survey(BaseSurvey):
         # Rebuild the kdtree with the new positions
         # XXX-may be doing some ra,dec to conversions xyz more than needed.
         self._hp2fieldsetup(ra, dec)
-        for bf in self.basis_functions:
-            if 'hp2fields' in bf.condition_features:
-                bf.condition_features['hp2fields'].update_conditions({'hp2fields': self.hp2fields})
-
-        # self.update_conditions({'hp2fields': self.hp2fields})
 
     def smooth_reward(self):
         """If we want to smooth the reward function.
@@ -255,7 +253,7 @@ def BaseMarkovDF_survey(BaseSurvey):
 
     def calc_reward_function(self, conditions):
         self.reward_checked = True
-        if self._check_feasability():
+        if self._check_feasability(conditions):
             self.reward = 0
             indx = np.arange(hp.nside2npix(self.nside))
             # keep track of masked pixels

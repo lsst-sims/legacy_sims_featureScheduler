@@ -14,7 +14,7 @@ class Conditions(object):
     If the incoming value is a healpix map, we use a setter to ensure the
     resolution matches.
     """
-    def __init__(self, nside, site='LSST', expTime=30.):
+    def __init__(self, nside, site='LSST', exptime=30.):
         """
         Parameters
         ----------
@@ -31,10 +31,12 @@ class Conditions(object):
 
         self.nside = nside
         self.site = Site(site)
-        self.expTime = expTime
+        self.exptime = exptime
         hpids = np.arange(hp.nside2npix(nside))
         # Generate an empty map so we can copy when we need a new map
         self.zeros_map = np.zeros(hp.nside2npix(nside), dtype=float)
+        self.unseen_map = np.zeros(hp.nside2npix(nside), dtype=float)
+        self.unseen_map.fill(hp.UNSEEN)
         # The RA, Dec grid we are using
         self.ra, self.dec = _hpid2RaDec(nside, hpids)
 
@@ -184,12 +186,13 @@ class Conditions(object):
         self._M5Depth = {}
         for filtername in self._skybrightness:
             good = np.where(self._skybrightness[filtername] != hp.UNSEEN)
-            self._M5Depth[filtername] = self.zeros_map.copy().fill(hp.UNSEEN)
-            self._M5Depth[filtername][good] = m5_flat_sed(self.filtername,
+            self._M5Depth[filtername] = self.unseen_map.copy()
+            self._M5Depth[filtername][good] = m5_flat_sed(filtername,
                                                           self._skybrightness[filtername][good],
                                                           self._FWHMeff[filtername][good],
-                                                          self.expTime,
+                                                          self.exptime,
                                                           self._airmass[good])
+
             self._M5Depth[filtername] = ma.masked_values(self._M5Depth[filtername], hp.UNSEEN)
 
     @property

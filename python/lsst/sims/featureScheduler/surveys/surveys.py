@@ -3,8 +3,11 @@ from lsst.sims.featureScheduler.utils import (empty_observation, set_default_nsi
                                               hp_in_lsst_fov, read_fields)
 import healpy as hp
 import lsst.sims.featureScheduler.features as features
-from lsst.sims.featureScheduler.surveys import BaseSurvey, BaseMarkovDF_survey
+from lsst.sims.featureScheduler.surveys import BaseMarkovDF_survey
+from lsst.sims.featureScheduler.utils import (int_binned_stat, max_reject,
+                                              gnomonic_project_toxy, tsp_convex)
 import copy
+from lsst.sims.utils import _angularSeparation, Site, _hpid2RaDec, _approx_RaDec2AltAz
 
 
 __all__ = ['Greedy_survey']
@@ -14,15 +17,17 @@ class Greedy_survey(BaseMarkovDF_survey):
     """
     Use a field tessellation and assign each healpix to a field.
     """
-    def __init__(self, basis_functions, basis_weights, extra_features=None, filtername='r',
+    def __init__(self, basis_functions, basis_weights, filtername='r',
                  block_size=25, smoothing_kernel=None, nside=None,
                  dither=False, seed=42, ignore_obs='ack', survey_name='',
                  nexp=2, exptime=30.,
                  tag_fields=False, tag_map=None, tag_names=None, extra_basis_functions=None):
 
-        if tag_fields and tag_names is not None:
+        extra_features = {}
+        if tag_fields:
             extra_features['proposals'] = features.SurveyProposals(ids=tag_names.keys(),
                                                                    names=tag_names.values())
+
         super(Greedy_survey, self).__init__(basis_functions=basis_functions,
                                             basis_weights=basis_weights,
                                             extra_features=extra_features,
@@ -30,7 +35,8 @@ class Greedy_survey(BaseMarkovDF_survey):
                                             ignore_obs=ignore_obs,
                                             nside=nside,
                                             extra_basis_functions=extra_basis_functions,
-                                            survey_name=survey_name)
+                                            survey_name=survey_name, tag_fields=tag_fields,
+                                            tag_map=tag_map, tag_names=tag_names)
         self.filtername = filtername
         self.block_size = block_size
         self.nexp = nexp
@@ -98,16 +104,16 @@ class Greedy_survey(BaseMarkovDF_survey):
         return observations
 
 
-class Blob_survey(Greedy_survey_fields):
+class Blob_survey(Greedy_survey):
     """Select observations in large, mostly contiuguous, blobs.
     """
     def __init__(self, basis_functions, basis_weights,
-                 extra_features=None, filtername='r', filter2='g',
+                 filtername1='r', filtername2='g',
                  slew_approx=7.5, filter_change_approx=140.,
                  read_approx=2., exptime=30., nexp=2,
                  ideal_pair_time=22., min_pair_time=15.,
                  search_radius =30., alt_max = 85., az_range=90.,
-                 smoothing_kernel=None, nside=default_nside,
+                 smoothing_kernel=None, nside=None,
                  dither=True, seed=42, ignore_obs='ack',
                  tag_fields=False, tag_map=None, tag_names=None,
                  sun_alt_limit=-19., survey_note='blob',
@@ -115,9 +121,9 @@ class Blob_survey(Greedy_survey_fields):
         """
         Parameters
         ----------
-        filtername : str ('r')
+        filtername1 : str ('r')
             The filter to observe in.
-        filter2 : str ('g')
+        filtername2 : str ('g')
             The filter to pair with the first observation. If set to None, no pair
             will be observed.
         slew_approx : float (7.5)
@@ -142,21 +148,9 @@ class Blob_survey(Greedy_survey_fields):
         if nside is None:
             nside = set_default_nside()
 
-        if extra_features is None:
-            extra_features = {}
-            extra_features['night'] = features.Current_night()
-            extra_features['mounted_filters'] = features.Mounted_filters()
-            extra_features['mjd'] = features.Current_mjd()
-            extra_features['night_boundaries'] = features.CurrentNightBoundaries()
-            extra_features['sun_moon_alt'] = features.Sun_moon_alts()
-            extra_features['lmst'] = features.Current_lmst()  # Pretty sure in hours
-            extra_features['current_filter'] = features.Current_filter()
-            extra_features['altaz'] = features.AltAzFeature()
-
         super(Blob_survey, self).__init__(basis_functions=basis_functions,
                                           basis_weights=basis_weights,
-                                          extra_features=extra_features,
-                                          filtername=filtername,
+                                          filtername=None,
                                           block_size=0, smoothing_kernel=smoothing_kernel,
                                           dither=dither, seed=seed, ignore_obs=ignore_obs,
                                           tag_fields=tag_fields, tag_map=tag_map,
@@ -168,18 +162,18 @@ class Blob_survey(Greedy_survey_fields):
         self.read_approx = read_approx
         self.hpids = np.arange(hp.nside2npix(self.nside))
         # If we are taking pairs in same filter, no need to add filter change time.
-        if filtername == filter2:
+        if filtername1 == filtername2:
             filter_change_approx = 0
         # Compute the minimum time needed to observe a blob (or observe, then repeat.)
-        if filter2 is not None:
+        if filtername2 is not None:
             self.time_needed = (min_pair_time*60.*2. + exptime + read_approx + filter_change_approx)/24./3600.  # Days
         else:
             self.time_needed = (min_pair_time*60. + exptime + read_approx)/24./3600.  # Days
-        self.filter_set = set(filtername)
-        if filter2 is None:
+        self.filter_set = set(filtername1)
+        if filtername2 is None:
             self.filter2_set = self.filter_set
         else:
-            self.filter2_set = set(filter2)
+            self.filter2_set = set(filtername2)
         self.sun_alt_limit = np.radians(sun_alt_limit)
 
         self.ra, self.dec = _hpid2RaDec(self.nside, self.hpids)
@@ -191,20 +185,19 @@ class Blob_survey(Greedy_survey_fields):
         self.lon = site.longitude_rad
         self.survey_note = survey_note
         self.counter = 1  # start at 1, because 0 is default in empty observation
-        self.filter2 = filter2
+        self.filtername2 = filtername2
         self.search_radius = np.radians(search_radius)
         self.az_range = np.radians(az_range)
         self.alt_max = np.radians(alt_max)
         self.min_pair_time = min_pair_time
         self.ideal_pair_time = ideal_pair_time
 
-    def _set_block_size(self):
+    def _set_block_size(self, conditions):
         """
         Update the block size if it's getting near the end of the night.
         """
 
-        available_time = self.extra_features['night_boundaries'].feature['next_twilight_start'] -\
-                         self.extra_features['mjd'].feature
+        available_time = conditions.next_twilight_start - conditions.mjd
         available_time *= 24.*60.  # to minutes
 
         n_ideal_blocks = available_time / self.ideal_pair_time
@@ -220,18 +213,18 @@ class Blob_survey(Greedy_survey_fields):
             self.nvisit_block = int(np.floor(best_block_time*60. / (self.slew_approx + self.exptime +
                                                                     self.read_approx*(self.nexp - 1))))
 
-    def _check_feasability(self):
+    def _check_feasability(self, conditions):
         # Check if filters are loaded
-        filters_mounted = self.filter_set.issubset(set(self.extra_features['mounted_filters'].feature))
-        if self.filter2 is not None:
-            second_fitler_mounted = self.filter2_set.issubset(set(self.extra_features['mounted_filters'].feature))
+        filters_mounted = self.filter_set.issubset(set(conditions.mounted_filters))
+        if self.filtername2 is not None:
+            second_fitler_mounted = self.filter2_set.issubset(set(conditions.mounted_filters))
             filters_mounted = filters_mounted & second_fitler_mounted
 
-        available_time = self.extra_features['night_boundaries'].feature['next_twilight_start'] - self.extra_features['mjd'].feature
+        available_time = conditions.next_twilight_start - conditions.mjd
         if not filters_mounted:
             return False
         # Check we are not in twilight
-        elif self.extra_features['sun_moon_alt'].feature['sunAlt'] > self.sun_alt_limit:
+        elif conditions.sunAlt > self.sun_alt_limit:
             return False
         # We have enough time before twilight starts
         elif available_time < self.time_needed:
@@ -239,14 +232,14 @@ class Blob_survey(Greedy_survey_fields):
         else:
             return True
 
-    def calc_reward_function(self):
+    def calc_reward_function(self, conditions):
         """
         
         """
         # Set the number of observations we are going to try and take
-        self._set_block_size()
+        self._set_block_size(conditions)
         #  Computing reward like usual with basis functions and weights
-        if self._check_feasability():
+        if self._check_feasability(conditions):
             self.reward = 0
             indx = np.arange(hp.nside2npix(self.nside))
             # keep track of masked pixels
@@ -268,19 +261,19 @@ class Blob_survey(Greedy_survey_fields):
                 self.smooth_reward()
 
             # Apply max altitude cut
-            too_high = np.where(self.extra_features['altaz'].feature['alt'] > self.alt_max)
+            too_high = np.where(conditions.alt > self.alt_max)
             self.reward[too_high] = hp.UNSEEN
 
             # Select healpixels within some radius of the max
             # This is probably faster with a kd-tree.
             peak_reward = np.min(np.where(self.reward == np.max(self.reward))[0])
             # Apply radius selection
-            dists = haversine(self.ra[peak_reward], self.dec[peak_reward], self.ra, self.dec)
+            dists = _angularSeparation(self.ra[peak_reward], self.dec[peak_reward], self.ra, self.dec)
             out_hp = np.where(dists > self.search_radius)
             self.reward[out_hp] = hp.UNSEEN
 
             # Apply az cut
-            az_centered = self.extra_features['altaz'].feature['az'] - self.extra_features['altaz'].feature['az'][peak_reward]
+            az_centered = conditions.az - conditions.az[peak_reward]
             az_centered[np.where(az_centered < 0)] += 2.*np.pi
 
             az_out = np.where((az_centered > self.az_range/2.) & (az_centered < 2.*np.pi-self.az_range/2.))
@@ -298,13 +291,13 @@ class Blob_survey(Greedy_survey_fields):
         self.reward_checked = True
         return self.reward
 
-    def __call__(self):
+    def __call__(self, conditions):
         """
         Find a good block of observations.
         """
         if not self.reward_checked:
             # This should set self.best_fields
-            self.reward = self.calc_reward_function()
+            self.reward = self.calc_reward_function(conditions)
 
         # Let's find the alt, az coords of the points (right now, hopefully doesn't change much in time block)
         pointing_alt, pointing_az = _approx_RaDec2AltAz(self.fields['RA'][self.best_fields],
@@ -363,18 +356,18 @@ class Blob_survey(Greedy_survey_fields):
             counter2 += 1
 
         # If we only want one filter block
-        if self.filter2 is None:
+        if self.filtername2 is None:
             result = observations
         else:
             # Double the list to get a pair.
             observations_paired = []
             for observation in observations:
                 obs = copy.copy(observation)
-                obs['filter'] = self.filter2
+                obs['filter'] = self.filtername2
                 observations_paired.append(obs)
 
             # Check loaded filter here to decide which goes first
-            if self.extra_features['current_filter'].feature == self.filter2:
+            if conditions.current_filter == self.filtername2:
                 result = observations_paired + observations
             else:
                 result = observations + observations_paired
@@ -385,10 +378,4 @@ class Blob_survey(Greedy_survey_fields):
             for i in range(int(np.size(result)/2), np.size(result), 1):
                 result[i]['note'] = '%s, b' % (self.survey_note)
 
-        # XXX--note, we could run this like the DD surveys and keep the queue locally,
-        # then we can control how to recover if interupted, cut a sequence short if needed, etc.
-        # But that is a lot of code for what should be a minor improvement.
-
-        # Keep track of which block we're on. Nice for debugging.
-        self.counter += 1
         return result

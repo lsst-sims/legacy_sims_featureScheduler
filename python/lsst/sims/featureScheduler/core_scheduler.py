@@ -57,7 +57,6 @@ class Core_scheduler(object):
         self.nside = nside
         hpid = np.arange(hp.nside2npix(nside))
         self.ra_grid_rad, self.dec_grid_rad = _hpid2RaDec(nside, hpid)
-        self.conditions = None
         # Should just make camera a class that takes a pointing and returns healpix indices
         if camera == 'LSST':
             self.pointing2hpindx = hp_in_lsst_fov(nside=nside)
@@ -101,7 +100,6 @@ class Core_scheduler(object):
         """
         # Add the current queue and scheduled queue to the conditions
         self.conditions.queue = self.queue
-
         # Update the conditions
         for key in conditions_in:
             setattr(self.conditions, key, conditions_in[key])
@@ -142,7 +140,7 @@ class Core_scheduler(object):
         for ns, surveys in enumerate(self.survey_lists):
             rewards = np.zeros(len(surveys))
             for i, survey in enumerate(surveys):
-                rewards[i] = np.max(survey.calc_reward_function())
+                rewards[i] = np.max(survey.calc_reward_function(self.conditions))
             # If we have a good reward, break out of the loop
             if np.nanmax(rewards) > -np.inf and np.nanmax(rewards) != hp.UNSEEN:
                 self.survey_index[0] = ns
@@ -161,7 +159,7 @@ class Core_scheduler(object):
                 self.survey_index[1] = np.min(np.where(rewards == np.max(rewards)))
 
                 # Survey return list of observations
-                result = self.survey_lists[self.survey_index[0]][self.survey_index[1]]()
+                result = self.survey_lists[self.survey_index[0]][self.survey_index[1]](self.conditions)
                 self.queue = result
                 self.is_sequence = self.survey_lists[self.survey_index[0]][self.survey_index[1]].sequence
             except ValueError as e:

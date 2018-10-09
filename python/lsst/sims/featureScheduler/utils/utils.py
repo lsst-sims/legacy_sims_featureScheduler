@@ -50,17 +50,6 @@ def set_default_nside(nside=None):
     return set_default_nside.nside
 
 
-def haversine(long1, lat1, long2, lat2):
-    """sims.utils turned off numpy broadcasting for some reason?
-    """
-    t1 = np.sin(lat2/2.0 - lat1/2.0)**2
-    t2 = np.cos(lat1)*np.cos(lat2)*np.sin(long2/2.0 - long1/2.0)**2
-    _sum = t1 + t2
-    _sum = np.where(_sum < 0.0, 0.0, _sum)
-
-    return 2.0*np.arcsin(np.sqrt(_sum))
-
-
 def sum_reject(inarr, reject_val=hp.UNSEEN):
     """
     compute the sum of an array but retrun -inf if reject_val present
@@ -289,7 +278,7 @@ def read_fields():
 def read_fields_from_localfile():
     names = ['RA', 'dec']
     types = [float, float]
-    data_dir = os.path.join(getPackageDir('sims_featureScheduler'), 'python/lsst/sims/featureScheduler/')
+    data_dir = os.path.join(getPackageDir('sims_featureScheduler'), 'python/lsst/sims/featureScheduler/utils')
     filepath = os.path.join(data_dir, 'fieldID.lis')
     field_coords = np.loadtxt(filepath, dtype=list(zip(names, types)))
 

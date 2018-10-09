@@ -1,17 +1,27 @@
 import numpy as np
-from lsst.sims.featureSceduler.surveys import BaseSurvey
+from lsst.sims.featureScheduler.surveys import BaseSurvey
+import copy
+import lsst.sims.featureScheduler.features as features
+from lsst.sims.featureScheduler.utils import empty_observation, hp_in_lsst_fov, read_fields
+from lsst.sims.utils import _angularSeparation, _raDec2Hpid
+import logging
+import healpy as hp
+
+
+log = logging.getLogger(__name__)
+
 
 class Deep_drilling_survey(BaseSurvey):
     """A survey class for running deep drilling fields
     """
     # XXX--maybe should switch back to taking basis functions and weights to
     # make it easier to put in masks for moon and limits for seeing?
-    def __init__(self, RA, dec, extra_features=None, sequence='rgizy',
+    def __init__(self, RA, dec, sequence='rgizy',
                  nvis=[20, 10, 20, 26, 20],
                  exptime=30.,
                  nexp=2, ignore_obs='dummy', survey_name='DD', fraction_limit=0.01,
                  ha_limits=([0., 1.5], [21.0, 24.]), reward_value=101., moon_up=True, readtime=2.,
-                 avoid_same_day=False,
+                 avoid_same_day=False, filter_change_time = 120.,
                  day_space=2., max_clouds=0.7, moon_distance=30., filter_goals=None, nside=None):
         """
         Parameters
@@ -20,8 +30,6 @@ class Deep_drilling_survey(BaseSurvey):
             The RA of the field (degrees)
         dec : float
             The dec of the field to observe (degrees)
-        extra_features : list of feature objects (None)
-            The features to track, will construct automatically if None.
         sequence : list of observation objects or str (rgizy)
             The sequence of observations to take. Can be a string of list of obs objects.
         nvis : list of ints
@@ -44,9 +52,9 @@ class Deep_drilling_survey(BaseSurvey):
         max_clouds : float (0.7)
             Maximum allowed cloud value for an observation.
         """
-        # No basis functions for this survey
-        basis_functions = []
-        basis_weights = []
+
+        super(Deep_drilling_survey, self).__init__(nside=nside)
+
         self.ra = np.radians(RA)
         self.ra_hours = RA/360.*24.
         self.dec = np.radians(dec)
@@ -58,7 +66,6 @@ class Deep_drilling_survey(BaseSurvey):
         self.fraction_limit = fraction_limit
         self.day_space = day_space
         self.survey_id = 5
-        self.nside = nside
         self.filter_list = []
         self.max_clouds = max_clouds
         self.moon_distance = np.radians(moon_distance)
@@ -66,54 +73,23 @@ class Deep_drilling_survey(BaseSurvey):
         self.avoid_same_day = avoid_same_day
         self.filter_goals = filter_goals
 
-        if extra_features is None:
-            self.extra_features = {}
-            # Current filter
-            self.extra_features['current_filter'] = features.Current_filter()
-            # Available filters
-            self.extra_features['mounted_filters'] = features.Mounted_filters()
-            # Observatory information
-            self.extra_features['observatory'] = features.Observatory({'readtime': readtime,
-                                                                       'filter_change_time': 120.}
-                                                                      )  # FIXME:
-            self.extra_features['night'] = features.Current_night()
-            # The total number of observations
-            self.extra_features['N_obs'] = features.N_obs_count()
-            # The number of observations for this survey
-            self.extra_features['N_obs_self'] = features.N_obs_survey(note=survey_name)
-            # The current LMST. Pretty sure in hours
-            self.extra_features['lmst'] = features.Current_lmst()
-            # Moon altitude
-            self.extra_features['sun_moon_alt'] = features.Sun_moon_alts()
-            # Moon altitude
-            self.extra_features['moon'] = features.Moon()
+        self.extra_features = {}
 
-            # Time to next moon rise
+        # The total number of observations
+        self.extra_features['N_obs'] = features.N_obs_count()
+        # The number of observations for this survey
+        self.extra_features['N_obs_self'] = features.N_obs_survey(note=survey_name)
 
-            # Time to twilight
+        # Time to next moon rise
 
-            # last time this survey was observed (in case we want to force a cadence)
-            self.extra_features['last_obs_self'] = features.Last_observation(survey_name=self.survey_name)
-            # last time a sequence observation
-            self.extra_features['last_seq_obs'] = features.LastSequence_observation(sequence_ids=[self.survey_id])
+        # Time to twilight
 
-            # Current MJD
-            self.extra_features['mjd'] = features.Current_mjd()
-            # Observable time. This includes altitude and night limits
-            # Fixme: add proper altitude limit from ha limits
-            self.extra_features['night_boundaries'] = features.CurrentNightBoundaries()
-            # Proposal information
-            self.extra_features['proposals'] = features.SurveyProposals(ids=(self.survey_id,),
-                                                                        names=(self.survey_name,))
-            # Cloud cover information
-            self.extra_features['bulk_cloud'] = features.BulkCloudCover()
-        else:
-            self.extra_features = extra_features
-
-        super(Deep_drilling_survey, self).__init__(basis_functions=basis_functions,
-                                                   basis_weights=basis_weights,
-                                                   extra_features=self.extra_features,
-                                                   nside=nside)
+        # last time this survey was observed (in case we want to force a cadence)
+        self.extra_features['last_obs_self'] = features.Last_observation(survey_name=self.survey_name)
+        # last time a sequence observation
+        self.extra_features['last_seq_obs'] = features.LastSequence_observation(sequence_ids=[self.survey_id])
+        self.extra_features['proposals'] = features.SurveyProposals(ids=(self.survey_id,),
+                                                                    names=(self.survey_name,))
 
         if type(sequence) == str:
             opsim_fields = read_fields()
@@ -160,26 +136,27 @@ class Deep_drilling_survey(BaseSurvey):
             self.extra_features['N_obs_%s' % filtername] = features.N_obs_count(filtername=filtername)
 
         self.approx_time = np.sum([(o['exptime']+readtime)*o['nexp'] for o in obs])
+        self.filter_change_time = filter_change_time
+        self.readtime = readtime
 
         # Construct list of all the filters that need to be loaded to execute sequence
         self.filter_set = set(self.filter_list)
 
-    def _check_feasability(self):
+    def _check_feasability(self, conditions):
         # Check that all filters are available
-        result = self.filter_set.issubset(set(self.extra_features['mounted_filters'].feature))
+        result = self.filter_set.issubset(set(conditions.mounted_filters))
         if not result:
             return False
 
         if (self.avoid_same_day and
-                (self.extra_features['last_seq_obs'].feature['night'] == self.extra_features['night'].feature)):
+                (self.extra_features['last_seq_obs'].feature['night'] == conditions.night)):
             return False
-        # Check if the LMST is in range
-        HA = self.extra_features['lmst'].feature - self.ra_hours
-        HA = HA % 24.
+
+        target_HA = (conditions.lmst - self.ra_hours) % 24
 
         result = False
         for limit in self.HA_limits:
-            lres = limit[0] <= HA < limit[1]
+            lres = limit[0] <= target_HA < limit[1]
             result = result or lres
 
         if not result:
@@ -187,18 +164,18 @@ class Deep_drilling_survey(BaseSurvey):
         # Check moon alt
         if self.moon_up is not None:
             if self.moon_up:
-                if self.extra_features['sun_moon_alt'].feature['moonAlt'] < 0.:
+                if conditions.moonAlt < 0.:
                     return False
             else:
-                if self.extra_features['sun_moon_alt'].feature['moonAlt'] > 0.:
+                if conditions.moonAlt > 0.:
                     return False
 
         # Make sure twilight hasn't started
-        if self.extra_features['sun_moon_alt'].feature['sunAlt'] > np.radians(-18.):
+        if conditions.sunAlt > np.radians(-18.):
             return False
 
         # Check that it's been long enough since last sequence
-        if self.extra_features['mjd'].feature - self.extra_features['last_obs_self'].feature['mjd'] < self.day_space:
+        if conditions.mjd - self.extra_features['last_obs_self'].feature['mjd'] < self.day_space:
             return False
 
         # TODO: Check if the moon will come up. Compare next moonrise time to self.apporox time
@@ -208,17 +185,16 @@ class Deep_drilling_survey(BaseSurvey):
         # TODO: Make sure it is possible to complete the sequence of observations. Hit any limit?
 
         # Check if there's still enough time to complete the observation
-        time_left = (self.extra_features['night_boundaries'].feature['next_twilight_start'] -
-                     self.extra_features['mjd'].feature) * 24.*60.*60.  # convert to seconds
+        time_left = (conditions.next_twilight_start - conditions.mjd) * 24.*60.*60.  # convert to seconds
 
         seq_time = 42.  # Make sure there is enough time for an extra visit after the DD sequence
         current_filter = self.extra_features['current_filter'].feature
         for obs in self.sequence:
             for o in obs:
                 if current_filter != o['filter']:
-                    seq_time += self.extra_features['observatory'].feature['filter_change_time']
+                    seq_time += self.filter_change_time
                     current_filter = o['filter']
-                seq_time += o['exptime']+self.extra_features['observatory'].feature['readtime']*o['nexp']
+                seq_time += o['exptime']+self.readtime*o['nexp']
 
         # log.debug('Time left: %.2f | Approx. time: %.2f' % (time_left, seq_time))
         if time_left < seq_time:
@@ -232,13 +208,13 @@ class Deep_drilling_survey(BaseSurvey):
             return False
 
         # Check clouds
-        if self.extra_features['bulk_cloud'].feature > self.max_clouds:
+        if conditions.bulk_cloud > self.max_clouds:
             return False
 
         # If we made it this far, good to go
         return result
 
-    def check_feasibility(self, observation):
+    def check_feasibility(self, observation, conditions):
         '''
         This method enables external calls to check if a given observations that belongs to this survey is
         feasible or not. This is called once a sequence has started to make sure it can continue.
@@ -312,16 +288,15 @@ class Deep_drilling_survey(BaseSurvey):
                 self.sequence.append(observation)
         return self.sequence
 
-
-    def calc_reward_function(self):
+    def calc_reward_function(self, conditions):
         result = -np.inf
-        if self._check_feasability():
+        if self._check_feasability(conditions):
             result = self.reward_value
         return result
 
-    def __call__(self):
+    def __call__(self, conditions):
         result = []
-        if self._check_feasability():
+        if self._check_feasability(conditions):
             result = copy.deepcopy(self.get_sequence())
             # Note, could check here what the current filter is and re-order the result
         return result
