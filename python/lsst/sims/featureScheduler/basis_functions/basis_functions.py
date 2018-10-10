@@ -5,7 +5,6 @@ import numpy.ma as ma
 from lsst.sims.featureScheduler import features
 from lsst.sims.featureScheduler import utils
 import healpy as hp
-from lsst.sims.utils import _angularSeparation
 from lsst.sims.skybrightness_pre import M5percentiles
 import matplotlib.pylab as plt
 
@@ -108,17 +107,18 @@ class Target_map_basis_function(Base_basis_function):
 
         self.survey_features = {}
         # Map of the number of observations in filter
-        self.survey_features['N_obs'] = features.N_observations(filtername=filtername)
+        self.survey_features['N_obs'] = features.N_observations(filtername=filtername, nside=nside)
         # Count of all the observations
         self.survey_features['N_obs_count_all'] = features.N_obs_count(filtername=None)
         self.nside = nside
         if target_map is None:
-            self.target_map = utils.generate_goal_map(filtername=filtername)
+            self.target_map = utils.generate_goal_map(filtername=filtername, nside=nside)
         else:
             self.target_map = target_map
         self.out_of_bounds_area = np.where(self.target_map == 0)[0]
         self.out_of_bounds_val = out_of_bounds_val
         self.result = np.zeros(hp.nside2npix(self.nside), dtype=float)
+        self.all_indx = np.arange(self.result.size)
 
     def __call__(self, conditions, indx=None):
         """
@@ -133,7 +133,7 @@ class Target_map_basis_function(Base_basis_function):
         # Should probably update this to be as masked array.
         result = self.result.copy()
         if indx is None:
-            indx = np.arange(result.size)
+            indx = self.all_indx
 
         # Find out how many observations we want now at those points
         goal_N = self.target_map[indx] * self.survey_features['N_obs_count_all'].feature * self.norm_factor
@@ -169,7 +169,7 @@ class Avoid_Fast_Revists(Base_basis_function):
         self.nside = nside
 
         self.survey_features = dict()
-        self.survey_features['Last_observed'] = features.Last_observed(filtername=filtername)
+        self.survey_features['Last_observed'] = features.Last_observed(filtername=filtername, nside=nside)
 
     def __call__(self, conditions, indx=None):
         result = np.ones(hp.nside2npix(self.nside), dtype=float)
@@ -210,10 +210,12 @@ class Visit_repeat_basis_function(Base_basis_function):
         self.survey_features = {}
         # Track the number of pairs that have been taken in a night
         self.survey_features['Pair_in_night'] = features.Pair_in_night(filtername=filtername,
-                                                                       gap_min=gap_min, gap_max=gap_max)
+                                                                       gap_min=gap_min, gap_max=gap_max,
+                                                                       nside=nside)
         # When was it last observed
         # XXX--since this feature is also in Pair_in_night, I should just access that one!
-        self.survey_features['Last_observed'] = features.Last_observed(filtername=filtername)
+        self.survey_features['Last_observed'] = features.Last_observed(filtername=filtername,
+                                                                       nside=nside)
 
     def __call__(self, conditions, indx=None):
         result = np.zeros(hp.nside2npix(self.nside), dtype=float)
@@ -598,34 +600,6 @@ class Bulk_cloud_basis_function(Base_basis_function):
 
         clouded = np.where(conditions.bulk_cloud > self.max_cloud_map)
         result[clouded] = hp.UNSEEN
-
-        return result
-
-
-class Moon_avoidance_basis_function(Base_basis_function):
-    """Mark regions that are closer than a certain .
-
-    """
-    def __init__(self, nside=None, moon_distance=30.):
-        """
-        Parameters
-        moon_distance: float (30.)
-            Minimum allowed moon distance. (degrees)
-        """
-        if nside is None:
-            nside = utils.set_default_nside()
-        self.nside = nside
-        self.moon_distance = np.radians(moon_distance)
-        self.result = np.ones(hp.nside2npix(self.nside), dtype=float)
-
-    def __call__(self, conditions, indx=None):
-        result = self.result.copy()
-
-        angular_distance = _angularSeparation(conditions.az, conditions.alt,
-                                              conditions.moonAz,
-                                              conditions.moonAlt)
-
-        result[angular_distance < self.moon_distance] = hp.UNSEEN
 
         return result
 

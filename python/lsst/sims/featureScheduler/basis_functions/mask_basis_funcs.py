@@ -4,12 +4,13 @@ import numpy as np
 import numpy.ma as ma
 import healpy as hp
 from lsst.sims.featureScheduler import utils
-from lsst.sims.utils import _hpid2RaDec, Site
+from lsst.sims.utils import _hpid2RaDec, Site, _angularSeparation
 import matplotlib.pylab as plt
 from lsst.sims.featureScheduler.basis_functions import Base_basis_function
 
 
-__all__ = ['Zenith_mask_basis_function', 'Zenith_shadow_mask_basis_function']
+__all__ = ['Zenith_mask_basis_function', 'Zenith_shadow_mask_basis_function',
+           'Moon_avoidance_basis_function']
 
 
 class Zenith_mask_basis_function(Base_basis_function):
@@ -25,6 +26,10 @@ class Zenith_mask_basis_function(Base_basis_function):
         self.min_alt = np.radians(min_alt)
         self.max_alt = np.radians(max_alt)
         self.result = np.empty(hp.nside2npix(self.nside), dtype=float).fill(self.penalty)
+
+    def add_observation(self, observation, **kwargs):
+        # Only using conditions
+        pass
 
     def __call__(self, conditions, indx=None):
 
@@ -68,7 +73,12 @@ class Zenith_shadow_mask_basis_function(Base_basis_function):
         self.decband[np.where((self.dec < (self.lat_rad+self.zenith_radius)) &
                               (self.dec > (self.lat_rad-self.zenith_radius)))] = 1
 
-        self.result = np.empty(hp.nside2npix(self.nside), dtype=float).fill(self.penalty)
+        self.result = np.empty(hp.nside2npix(self.nside), dtype=float)
+        self.result.fill(self.penalty)
+
+    def add_observation(self, observation, **kwargs):
+        # Only using conditions
+        pass
 
     def __call__(self, conditions, indx=None):
 
@@ -79,4 +89,36 @@ class Zenith_shadow_mask_basis_function(Base_basis_function):
         to_mask = np.where((conditions.HA > (2.*np.pi-self.shadow_minutes-self.zenith_radius)) &
                            (self.decband == 1))
         result[to_mask] = hp.UNSEEN
+        return result
+
+
+class Moon_avoidance_basis_function(Base_basis_function):
+    """Mark regions that are closer than a certain .
+
+    """
+    def __init__(self, nside=None, moon_distance=30.):
+        """
+        Parameters
+        moon_distance: float (30.)
+            Minimum allowed moon distance. (degrees)
+        """
+        if nside is None:
+            nside = utils.set_default_nside()
+        self.nside = nside
+        self.moon_distance = np.radians(moon_distance)
+        self.result = np.ones(hp.nside2npix(self.nside), dtype=float)
+
+    def add_observation(self, observation, **kwargs):
+        # Only using conditions
+        pass
+
+    def __call__(self, conditions, indx=None):
+        result = self.result.copy()
+
+        angular_distance = _angularSeparation(conditions.az, conditions.alt,
+                                              conditions.moonAz,
+                                              conditions.moonAlt)
+
+        result[angular_distance < self.moon_distance] = hp.UNSEEN
+
         return result
