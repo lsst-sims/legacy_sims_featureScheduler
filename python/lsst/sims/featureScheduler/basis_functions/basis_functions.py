@@ -555,55 +555,6 @@ class Aggressive_Slewtime_basis_function(Base_basis_function):
         return result
 
 
-class Bulk_cloud_basis_function(Base_basis_function):
-    """Mark healpixels on a map as unseen if their cloud values are greater than
-    the same healpixels on a maximum cloud map.
-
-    """
-
-    def __init__(self, nside=None, max_cloud_map=None, out_of_bounds_val=-10.):
-        """
-        Parameters
-        ----------
-        nside: int (default_nside)
-            The healpix resolution.
-        max_cloud_map : numpy array (None)
-            A healpix map showing the maximum allowed cloud values for all points on the sky
-        out_of_bounds_val : float (10.)
-            Point value to give regions where there are no observations requested
-        """
-        if nside is None:
-            nside = utils.set_default_nside()
-
-        self.nside = nside
-        if max_cloud_map is None:
-            self.max_cloud_map = np.ones(hp.nside2npix(nside), dtype=float)
-        else:
-            self.max_cloud_map = max_cloud_map
-        self.out_of_bounds_area = np.where(self.max_cloud_map > 1.)[0]
-        self.out_of_bounds_val = out_of_bounds_val
-        self.result = np.ones(hp.nside2npix(self.nside))
-
-    def __call__(self, conditions, indx=None):
-        """
-        Parameters
-        ----------
-        indx : list (None)
-            Index values to compute, if None, full map is computed
-        Returns
-        -------
-        Healpix map where pixels with a cloud value greater than the max_cloud_map
-        value are marked as unseen.
-        """
-
-        result = self.result.copy()
-
-        clouded = np.where(conditions.bulk_cloud > self.max_cloud_map)
-        result[clouded] = hp.UNSEEN
-
-        return result
-
-
 class Skybrightness_limit_basis_function(Base_basis_function):
     """Mark regions that are closer than a certain .
 
