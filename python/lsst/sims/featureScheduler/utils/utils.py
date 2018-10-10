@@ -43,7 +43,7 @@ def set_default_nside(nside=None):
     """
     if not hasattr(set_default_nside, 'nside'):
         if nside is None:
-            nside = 64
+            nside = 32
         set_default_nside.nside = nside
     if nside is not None:
         set_default_nside.nside = nside
@@ -91,7 +91,6 @@ def int_binned_stat(ids, values, statistic=np.mean):
         stat_results.append(statistic(ordered_values[le:ri]))
 
     return uids, np.array(stat_results)
-
 
 
 def gnomonic_project_toxy(RA1, Dec1, RAcen, Deccen):

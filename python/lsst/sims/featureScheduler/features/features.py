@@ -7,8 +7,6 @@ from lsst.sims.featureScheduler import utils
 from lsst.sims.utils import m5_flat_sed
 
 
-default_nside = None
-
 
 class BaseFeature(object):
     """
@@ -151,7 +149,7 @@ class N_observations(BaseSurveyFeature):
     """
     Track the number of observations that have been made accross the sky.
     """
-    def __init__(self, filtername=None, nside=default_nside, mask_indx=None):
+    def __init__(self, filtername=None, nside=None, mask_indx=None):
         """
         Parameters
         ----------
@@ -189,7 +187,7 @@ class N_observations(BaseSurveyFeature):
 
 
 class Coadded_depth(BaseSurveyFeature):
-    def __init__(self, filtername='r', nside=default_nside):
+    def __init__(self, filtername='r', nside=None):
         """
         Track the co-added depth that has been reached accross the sky
         Parameters
@@ -215,7 +213,7 @@ class Last_observed(BaseSurveyFeature):
     Track when a pixel was last observed. Assumes observations are added in chronological
     order.
     """
-    def __init__(self, filtername='r', nside=default_nside):
+    def __init__(self, filtername='r', nside=None):
         if nside is None:
             nside = utils.set_default_nside()
 
@@ -234,7 +232,7 @@ class N_obs_night(BaseSurveyFeature):
     Track how many times something has been observed in a night
     (Note, even if there are two, it might not be a good pair.)
     """
-    def __init__(self, filtername='r', nside=default_nside):
+    def __init__(self, filtername='r', nside=None):
         """
         Parameters
         ----------
@@ -262,7 +260,7 @@ class Pair_in_night(BaseSurveyFeature):
     """
     Track how many pairs have been observed within a night
     """
-    def __init__(self, filtername='r', nside=default_nside, gap_min=25., gap_max=45.):
+    def __init__(self, filtername='r', nside=None, gap_min=25., gap_max=45.):
         """
         Parameters
         ----------
@@ -313,20 +311,12 @@ class Pair_in_night(BaseSurveyFeature):
             self.feature[indx[matches]] += 1
 
 
-class Observatory(BaseFeature):
-    """Hosts informations regarding the observatory parameters.
-
-    """
-    def __init__(self, config):
-        self.feature = config
-
-
 class Rotator_angle(BaseSurveyFeature):
     """
     Track what rotation angles things are observed with.
     XXX-under construction
     """
-    def __init__(self, filtername='r', binsize=10., nside=default_nside):
+    def __init__(self, filtername='r', binsize=10., nside=None):
         """
 
         """
@@ -342,31 +332,3 @@ class Rotator_angle(BaseSurveyFeature):
         if observation['filter'][0] == self.filtername:
             # I think this is how to broadcast things properly.
             self.feature[indx, :] += np.histogram(observation.rotSkyPos, bins=self.bins)[0]
-
-
-class SurveyProposals(BaseSurveyFeature):
-    """
-    Track the proposals which are part of this survey
-    """
-
-    def __init__(self, ids=(0,), names=('',)):
-        """
-        Parameters
-        ----------
-        filtername : string ('r')
-            Filter to track.
-        nside : int (32)
-            Scale of the healpix map
-        """
-
-        self.id = dict(zip(ids, names))
-        self.id_to_index = dict(zip(ids, range(len(ids))))
-        self.feature = np.zeros(len(self.id))
-
-    def add_observation(self, observation, indx=None):
-        try:
-            if observation['survey_id'][0] in self.id.keys():
-                self.feature[self.id_to_index[observation['survey_id'][0]]] += 1
-        except IndexError:
-            if observation['survey_id'] in self.id.keys():
-                self.feature[self.id_to_index[observation['survey_id']]] += 1

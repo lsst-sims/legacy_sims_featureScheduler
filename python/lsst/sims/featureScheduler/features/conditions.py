@@ -27,6 +27,8 @@ class Conditions(object):
         * Float or int
         * healpix map
         * dicts of healpix maps keyed by filtername
+        * list of str (mounted filters)
+        * str (current filter)
         """
 
         self.nside = nside

@@ -88,8 +88,6 @@ class Deep_drilling_survey(BaseSurvey):
         self.extra_features['last_obs_self'] = features.Last_observation(survey_name=self.survey_name)
         # last time a sequence observation
         self.extra_features['last_seq_obs'] = features.LastSequence_observation(sequence_ids=[self.survey_id])
-        self.extra_features['proposals'] = features.SurveyProposals(ids=(self.survey_id,),
-                                                                    names=(self.survey_name,))
 
         if type(sequence) == str:
             opsim_fields = read_fields()
