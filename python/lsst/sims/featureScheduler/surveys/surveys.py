@@ -15,10 +15,10 @@ __all__ = ['Greedy_survey', 'Blob_survey']
 
 class Greedy_survey(BaseMarkovDF_survey):
     """
-    Use a field tessellation and assign each healpix to a field.
+    Select pointings in a greedy way using a Markov Decision Process.
     """
     def __init__(self, basis_functions, basis_weights, filtername='r',
-                 block_size=25, smoothing_kernel=None, nside=None,
+                 block_size=1, smoothing_kernel=None, nside=None,
                  dither=False, seed=42, ignore_obs='ack', survey_name='',
                  nexp=2, exptime=30.,
                  tag_fields=False, tag_map=None, tag_names=None, extra_basis_functions=None):

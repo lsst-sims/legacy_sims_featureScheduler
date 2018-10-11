@@ -18,17 +18,63 @@ class Conditions(object):
         """
         Parameters
         ----------
+        nside : int
+            The healpixel nside to set the resolution of attributes.
+        site : str ('LSST')
+            A site name used to create a sims.utils.Site object. For looking up
+            observatory paramteres like latitude and longitude.
         expTime : float (30)
             The exposure time to assume when computing the 5-sigma limiting depth
 
-        All angles stored as radians. LMST as hours.
-
-        Attributes are all one of:
-        * Float or int
-        * healpix map
-        * dicts of healpix maps keyed by filtername
-        * list of str (mounted filters)
-        * str (current filter)
+        Attributes
+        ----------
+        nside : int
+            Healpix resolution
+        site : lsst.sims.Site object
+            Contains static site-specific data (lat, lon, altitude, etc)
+        ra : np.array
+            A healpix array with the RA of each healpixel center (radians).
+        dec : np.array
+            A healpix array with the Dec of each healpixel center (radians).
+        mjd : float
+            Modified Julian Date (days)
+        alt : np.array
+            Altitude of each healpixel (radians). Recaclulated if mjd is updated.
+        az : np.array
+            Azimuth of each healpixel (radians). Recaclulated if mjd is updated.
+        clouds : float
+            The fraction of sky covered by clouds. (In the future might update to transparency map)
+        slewtime : np.array
+            Healpix showing the slewtime to each healpixel center (seconds)
+        current_filter : str
+            The name of the current filter. (expect one of u, g, r, i, z, y).
+        mounted_filters : list of str
+            The filters that are currently mounted and thu available (expect 5 of u, g, r, i, z, y)
+        night : int
+            The current night number (days). Probably starts at 1.
+        lmst : float
+            The local mean sidearal time (hours). Updates is mjd is changed.
+        skybrightness : dict of np.array
+            Dictionary keyed by filtername. Values are healpix arrays with the sky brightness at each
+            healpix center (mag/acsec^2)
+        FWHMeff : dict of np.array
+            Dictionary keyed by filtername. Values are the effective seeing FWHM at each healpix
+            center (arcseconds)
+        M5Depth : 
+        queue : 
+        moonAlt
+        moonAz
+        moonRA
+        moonDec
+        moonPhase
+        sunAlt
+        sunAz
+        last_twilight_end
+        next_twilight_start
+        telRA
+        telDec
+        cloud_map
+        HA
         """
 
         self.nside = nside
@@ -63,8 +109,6 @@ class Conditions(object):
         # Attribute to hold the current observing queue
         self.queue = None
 
-        self._HP2Fields = None
-
         # Moon
         self.moonAlt = None
         self.moonAz = None
@@ -76,7 +120,6 @@ class Conditions(object):
         self.sunAlt = None
         self.sunAz = None
 
-        self.night = None
         self.last_twilight_end = None
         self.next_twilight_start = None
 
@@ -84,8 +127,6 @@ class Conditions(object):
         self.telRA = None
         self.telDec = None
 
-        # Just a scalar describing clouds
-        self._bulk_cloud = None
         # Full sky cloud map
         self._cloud_map = None
         self._HA = None
@@ -182,7 +223,7 @@ class Conditions(object):
     @FWHMeff.setter
     def FWHMeff(self, indict):
         for key in indict:
-            self._FWHMeff[key] = indict[key]
+            self._FWHMeff[key] = hp.ud_grade(indict[key], nside_out=self.nside)
         self._M5Depth = None
 
     @property
