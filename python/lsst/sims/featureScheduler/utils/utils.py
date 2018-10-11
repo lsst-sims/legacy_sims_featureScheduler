@@ -892,7 +892,6 @@ def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3.,
             scheduler.update_conditions(observatory.return_status())
             nskip += 1
             continue
-
         attempted_obs = observatory.attempt_observe(desired_obs)
         if attempted_obs is not None:
             scheduler.add_observation(attempted_obs[0])

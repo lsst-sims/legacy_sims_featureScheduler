@@ -185,12 +185,17 @@ class Blob_survey(Greedy_survey):
         self.lon = site.longitude_rad
         self.survey_note = survey_note
         self.counter = 1  # start at 1, because 0 is default in empty observation
+        self.filtername1 = filtername1
         self.filtername2 = filtername2
         self.search_radius = np.radians(search_radius)
         self.az_range = np.radians(az_range)
         self.alt_max = np.radians(alt_max)
         self.min_pair_time = min_pair_time
         self.ideal_pair_time = ideal_pair_time
+
+        # If we are only using one filter, this could be useful
+        if (self.filtername2 is None) | (self.filtername1 == self.filtername2):
+            self.filtername = self.filtername1
 
     def _set_block_size(self, conditions):
         """
@@ -245,7 +250,7 @@ class Blob_survey(Greedy_survey):
             # keep track of masked pixels
             mask = np.zeros(indx.size, dtype=bool)
             for bf, weight in zip(self.basis_functions, self.basis_weights):
-                basis_value = bf(indx=indx)
+                basis_value = bf(conditions, indx=indx)
                 mask[np.where(basis_value == hp.UNSEEN)] = True
                 if hasattr(basis_value, 'mask'):
                     mask[np.where(basis_value.mask == True)] = True
@@ -303,8 +308,8 @@ class Blob_survey(Greedy_survey):
         pointing_alt, pointing_az = _approx_RaDec2AltAz(self.fields['RA'][self.best_fields],
                                                         self.fields['dec'][self.best_fields],
                                                         self.lat, self.lon,
-                                                        self.extra_features['mjd'].feature,
-                                                        lmst=self.extra_features['lmst'].feature)
+                                                        conditions.mjd,
+                                                        lmst=conditions.lmst)
         # Let's find a good spot to project the points to a plane
         mid_alt = (np.max(pointing_alt) - np.min(pointing_alt))/2.
 
@@ -342,7 +347,7 @@ class Blob_survey(Greedy_survey):
             obs['RA'] = self.fields['RA'][field]
             obs['dec'] = self.fields['dec'][field]
             obs['rotSkyPos'] = 0.
-            obs['filter'] = self.filtername
+            obs['filter'] = self.filtername1
             obs['nexp'] = self.nexp
             obs['exptime'] = self.exptime
             obs['field_id'] = -1
