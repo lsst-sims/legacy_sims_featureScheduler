@@ -721,7 +721,7 @@ class Greedy_survey_fields(BaseSurvey):
         """
         Check if the survey is feasible in the current conditions
         """
-        if len(self.extra_features['observe_queue'].feature) > 0:
+        if 'observe_queue' in self.extra_features and len(self.extra_features['observe_queue'].feature) > 0:
             return False
 
         feasibility = self.filtername in self.extra_features['mounted_filters'].feature
