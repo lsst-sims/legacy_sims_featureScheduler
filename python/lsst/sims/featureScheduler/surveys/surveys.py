@@ -10,7 +10,7 @@ import copy
 from lsst.sims.utils import _angularSeparation, Site, _hpid2RaDec, _approx_RaDec2AltAz
 
 
-__all__ = ['Greedy_survey']
+__all__ = ['Greedy_survey', 'Blob_survey']
 
 
 class Greedy_survey(BaseMarkovDF_survey):

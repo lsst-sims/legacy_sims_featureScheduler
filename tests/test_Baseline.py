@@ -3,7 +3,7 @@ import unittest
 #import lsst.sims.featureScheduler as fs
 import lsst.sims.featureScheduler.basis_functions as bf
 from lsst.sims.featureScheduler.utils import standard_goals, sim_runner
-from lsst.sims.featureScheduler.surveys import generate_dd_surveys, Greedy_survey
+from lsst.sims.featureScheduler.surveys import generate_dd_surveys, Greedy_survey, Pairs_survey_scripted
 from lsst.sims.featureScheduler import Core_scheduler
 import lsst.utils.tests
 import healpy as hp
@@ -22,7 +22,7 @@ class TestFeatures(unittest.TestCase):
 
         # Define what we want the final visit ratio map to look like
         target_map = standard_goals(nside=nside)
-        filters = ['u', 'g', 'r', 'i', 'z', 'y']
+        filters = ['g', 'r', 'i', 'z', 'y']
         surveys = []
 
         for filtername in filters:
@@ -40,8 +40,7 @@ class TestFeatures(unittest.TestCase):
             surveys.append(Greedy_survey(bfs, weights, block_size=1, filtername=filtername,
                                          dither=True, nside=nside))
 
-        # XXX--haven't ported pairs yet
-        #surveys.append(bf.Pairs_survey_scripted([], [], ignore_obs='DD'))
+        surveys.append(Pairs_survey_scripted(ignore_obs='DD'))
 
         # Set up the DD
         dd_surveys = generate_dd_surveys(nside=nside)
@@ -54,8 +53,7 @@ class TestFeatures(unittest.TestCase):
                                                           filename=None)
 
         # Check that a second part of a pair was taken
-        #assert('pair(scripted)' in observations['note'])
-        
+        assert('pair(scripted)' in observations['note'])
         # Check that the COSMOS DD was observed
         assert('DD:ECDFS' in observations['note'])
         # And the u-band
