@@ -14,11 +14,14 @@ class Base_basis_function(object):
     Class that takes features and computes a reward function when called.
     """
 
-    def __init__(self, update_on_newobs=True, update_on_mjd=True, **kwargs):
+    def __init__(self, **kwargs):
         """
         """
-        self.update_on_newobs = update_on_newobs
-        self.update_on_mjd = update_on_mjd
+
+        # Set if basis function needs to be recalculated if there is a new observation
+        self.update_on_newobs = True
+        # Set if basis function needs to be recalculated if conditions change
+        self.update_on_mjd = True
         # Dict to hold all the features we want to track
         self.survey_features = {}
         # Keep track of the last time the basis function was called. If mjd doesn't change, use cached value
@@ -26,15 +29,26 @@ class Base_basis_function(object):
         self.value = None
         # list the attributes to compare to check if basis functions are equal.
         self.attrs_to_compare = []
+        # Do we need to recalculate the basis function
         self.recalc = True
 
     def add_observation(self, observation, indx=None):
+        """
+        Parameters
+        ----------
+        observation : np.array
+            An array with information about the input observation
+        indx : np.array
+            The indices of the healpix map that the observation overlaps with
+        """
         for feature in self.survey_features:
             self.survey_features[feature].add_observation(observation, indx=indx)
         if self.update_on_newobs:
             self.recalc = True
 
     def check_feasibility(self, conditions):
+        """XXX--might not need this here since surveys can check feasibility?
+        """
         return True
 
     def _calc_value(self, conditions, **kwarge):
@@ -55,7 +69,7 @@ class Base_basis_function(object):
         Parameters
         ----------
         conditions : lsst.sims.featureScheduler.features.conditions object
-             Object that has attributes for 
+             Object that has attributes for all the current conditions.
 
         Return a reward healpix map or a reward scalar.
         """
@@ -75,7 +89,7 @@ class Constant_basis_function(Base_basis_function):
 
 
 class Target_map_basis_function(Base_basis_function):
-    """Normalize the maps first to make things smoother
+    """Basis function that tracks number of observations and tries to match a specified spatial distribution
     """
     def __init__(self, filtername='r', nside=None, target_map=None,
                  norm_factor=0.00010519,

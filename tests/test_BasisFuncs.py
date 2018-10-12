@@ -37,62 +37,7 @@ class TestBasis(unittest.TestCase):
         bf.update_conditions(conditions)
         self.assertEqual(np.max(bf()), 0.)
 
-    def testHADecAltAzPatchBasisFunction(self):
-        """Basic test for the HADecAltAzPatchBasisFunction. Just make sure the default parameter returns a mask
-        with observable regions.
-        """
-
-        bf = fs.HADecAltAzPatchBasisFunction()
-
-        mjd = 59000.
-        altaz_feature = fs.AltAzFeature()
-
-        site = fs.Site(name='LSST')
-        lmst, last = calcLmstLast(mjd, site.longitude)
-        lmst_feature = fs.Current_lmst()
-        conditions = {'altaz': altaz_feature,
-                      'lmst': lmst,
-                      'mjd': mjd}
-
-        lmst_feature.update_conditions(conditions)
-        altaz_feature.update_conditions(conditions=conditions)
-
-        bf.update_conditions(conditions)
-
-        mask = bf()
-
-        # Just check that the default mask has valid values. In the future could add a mask here and make sure they
-        # are the same.
-        self.assertTrue(np.any(mask == 1.))
-
-    def testMeridianStripeBasisFunction(self):
-        """Basic test for the MeridianStripeBasisFunction. Just make sure the default parameter returns a mask
-        with observable regions.
-        """
-
-        bf = fs.MeridianStripeBasisFunction()
-
-        mjd = 59000.
-        altaz_feature = fs.AltAzFeature()
-
-        site = fs.Site(name='LSST')
-        lmst, last = calcLmstLast(mjd, site.longitude)
-        lmst_feature = fs.Current_lmst()
-        conditions = {'altaz': altaz_feature,
-                      'lmst': lmst,
-                      'mjd': mjd}
-
-        lmst_feature.update_conditions(conditions)
-        altaz_feature.update_conditions(conditions=conditions)
-
-        bf.update_conditions(conditions)
-
-        mask = bf()
-
-        # Just check that the default mask has valid values. In the future could add a mask here and make sure they
-        # are the same.
-        self.assertTrue(np.any(mask == 1.))
-
+    
 
 class TestMemory(lsst.utils.tests.MemoryTestCase):
     pass

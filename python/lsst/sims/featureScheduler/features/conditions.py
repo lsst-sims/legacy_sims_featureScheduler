@@ -60,21 +60,39 @@ class Conditions(object):
         FWHMeff : dict of np.array
             Dictionary keyed by filtername. Values are the effective seeing FWHM at each healpix
             center (arcseconds)
-        M5Depth : 
-        queue : 
-        moonAlt
-        moonAz
-        moonRA
-        moonDec
-        moonPhase
-        sunAlt
-        sunAz
-        last_twilight_end
-        next_twilight_start
-        telRA
-        telDec
-        cloud_map
-        HA
+        M5Depth : dict of np.array
+            the 5-sigma limiting depth healpix maps, keyed by filtername (mags). Will be recalculated
+            if the skybrightness, seeing, or airmass are updated.
+        queue : list of observation objects
+            The current queue of observations waiting to be executed.
+        moonAlt : float
+            The altitude of the Moon (radians)
+        moonAz : float
+            The Azimuth of the moon (radians)
+        moonRA : float
+            RA of the moon (radians)
+        moonDec : float
+            Declination of the moon (radians)
+        moonPhase : float
+            The Phase of the moon. (fraction, 0=new moon, 1=full moon)
+        sunAlt : float
+            The altitude of the sun (radians).
+        sunAz : float
+            The Azimuth of the sun (radians).
+        last_twilight_end : float
+            The MJD when the last twilight ended. (days)
+        next_twilight_start : float
+            The MJD when the next twilight will start. (days) XXX--need to look up how this twilight is defined! For speedObservatory it's sunAlt of -18 degrees
+        telRA : float
+            The current telescope RA pointing (radians).
+        telDec : float
+            The current telescope Declination
+        cloud_map : np.array
+            A healpix map with the cloud coverage. XXX-expand, is this bool map? Transparency map?
+        HA : np.array
+            Healpix map of the hour angle of each healpixel (radians).
+
+        XXX -- todo, rotTelPos, rotSkyPos
         """
 
         self.nside = nside

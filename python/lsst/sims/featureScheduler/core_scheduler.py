@@ -46,7 +46,7 @@ class Core_scheduler(object):
         self.queue = []
         # Are the observations in the queue part of a sequence.
         self.is_sequence = False
-        # The indices of the survey that provided the last additions to the queue
+        # The indices of the survey that provided the last addition(s) to the queue
         self.survey_index = [None, None]
 
         # If we have a list of survey objects, convert to list-of-lists
@@ -70,6 +70,8 @@ class Core_scheduler(object):
         Like it sounds, clear any currently queued desired observations.
         """
         self.queue = []
+        self.is_sequence = False
+        self.survey_index = [None, None]
 
     def add_observation(self, observation):
         """
@@ -149,7 +151,7 @@ class Core_scheduler(object):
         if np.all(np.bitwise_or(np.bitwise_or(np.isnan(rewards),
                                               np.isneginf(rewards)), rewards == hp.UNSEEN)):
             # All values are invalid
-            self._clean_queue()
+            self.flush_queue()
         else:
             try:
                 to_fix = np.where(np.isnan(rewards))
@@ -164,72 +166,4 @@ class Core_scheduler(object):
                 self.is_sequence = self.survey_lists[self.survey_index[0]][self.survey_index[1]].sequence
             except ValueError as e:
                 self.log.exception(e)
-                self._clean_queue()
-
-    def _clean_queue(self):
-        """
-        Clean queue.
-        """
-        self.queue = []
-        self.is_sequence = False
-        self.survey_index = [0, 0]
-
-
-class Core_scheduler_parallel(Core_scheduler):
-    """Execute survey methods in parallel
-    """
-    def __init__(self, surveys, nside=None, camera='LSST'):
-        """
-        Before running, start ipyparallel engines at the command line with something like:
-        > ipcluster start -n 7
-        where the final number is the number of surveys you will be running
-        """
-        super(Core_scheduler_parallel, self).__init__(surveys, nside=nside, camera=camera)
-        # Hide import here in case ipyparallel is not part of standard install
-        import ipyparallel as ipp
-        # Set up the connection to the ipython engines
-        self.rc = ipp.Client()
-        self.dview = self.rc[:]
-        # We always want blocking execution
-        self.dview.block=False
-        # Check that we have enough engines for surveys
-        if len(self.surveys) > len(self.rc):
-            raise ValueError('Not enough ipcluster engines. Trying to run %i surveys on %i engines' % (len(self.surveys), len(self.rc)))
-
-        # Make sure the engines have numpy. Note, "as np" is ignored on engines.
-        with self.dview.sync_imports():
-            import numpy as np
-
-        # Put one survey on each engine
-        for i, survey in enumerate(surveys):
-            self.rc[i].push({'survey': survey})
-    #XXX--need a method to pull all the survey objects back into self.surveys
-
-    def add_observation(self, observation):
-        indx = self.pointing2hpindx(observation['RA'], observation['dec'])
-        self.dview.push({'indx': indx})
-        self.dview.push({'observation': observation})
-        result = self.dview.execute('survey.add_observation(observation, indx=indx)')
-
-    def update_conditions(self, conditions):
-        # Add the current queue and scheduled queue to the conditions
-        conditions['queue'] = self.queue
-        self.dview.push({'conditions': conditions})
-        result = self.dview.execute('survey.update_conditions(conditions)')
-        self.conditions = conditions
-
-    def _fill_queue(self):
-        """
-        Compute reward function for each survey and fill the observing queue with the
-        observations from the highest reward survey.
-        """
-        self.dview.execute('reward = numpy.max(survey.calc_reward_function())')
-        rewards = self.dview['reward']
-        # Take a min here, so the surveys will be executed in the order they are
-        # entered if there is a tie.
-        good = int(np.min(np.where(rewards == np.max(rewards))))
-        # Survey return list of observations
-        result = self.rc[good].execute('result = survey()')
-        result = self.rc[good]['result']
-        self.queue = result
-
+                self.flush_queue()

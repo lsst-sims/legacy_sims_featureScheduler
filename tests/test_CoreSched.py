@@ -1,23 +1,27 @@
 import numpy as np
 import unittest
 import lsst.sims.featureScheduler as fs
+import lsst.sims.featureScheduler.basis_functions as basis_functions
+import lsst.sims.featureScheduler.surveys as surveys
 import lsst.utils.tests
 from lsst.sims.speedObservatory import Speed_observatory
+from lsst.sims.featureScheduler.utils import standard_goals
 
 
 class TestCoreSched(unittest.TestCase):
 
     def testsched(self):
-        target_map = fs.standard_goals()['r']
+        target_map = standard_goals()['r']
 
         bfs = []
-        bfs.append(fs.M5_diff_basis_function())
-        bfs.append(fs.Target_map_basis_function(target_map=target_map))
+        bfs.append(basis_functions.M5_diff_basis_function())
+        bfs.append(basis_functions.Target_map_basis_function(target_map=target_map))
         weights = np.array([1., 1])
-        survey = fs.Simple_greedy_survey_fields(bfs, weights)
+        survey = surveys.Greedy_survey(bfs, weights)
         scheduler = fs.Core_scheduler([survey])
 
         observatory = Speed_observatory()
+        
         # Check that we can update conditions
         scheduler.update_conditions(observatory.return_status())
 
