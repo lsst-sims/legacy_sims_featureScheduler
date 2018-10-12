@@ -679,6 +679,7 @@ class Greedy_survey_fields(BaseSurvey):
             extra_features = {}
             extra_features['night'] = features.Current_night()
             extra_features['mounted_filters'] = features.Mounted_filters()
+            extra_features['current_filter'] = features.Current_filter()
         if tag_fields and tag_names is not None:
             extra_features['proposals'] = features.SurveyProposals(ids=tag_names.keys(),
                                                                    names=tag_names.values())
@@ -722,7 +723,9 @@ class Greedy_survey_fields(BaseSurvey):
         """
         Check if the survey is feasible in the current conditions
         """
-        if 'observe_queue' in self.extra_features and len(self.extra_features['observe_queue'].feature) > 0:
+        if 'observe_queue' in self.extra_features and \
+                len(self.extra_features['observe_queue'].feature) > 0\
+                and self.filtername != self.extra_features['current_filter'].feature:
             return False
 
         feasibility = self.filtername in self.extra_features['mounted_filters'].feature
@@ -1000,7 +1003,7 @@ class Blob_survey(Greedy_survey_fields):
 
     def calc_reward_function(self):
         """
-        
+
         """
         # Set the number of observations we are going to try and take
         self._set_block_size()
@@ -1971,6 +1974,7 @@ class Pairs_survey_scripted(Scripted_survey):
         # make ignore_obs a list
         if type(self.ignore_obs) is str:
             self.ignore_obs = [self.ignore_obs]
+        self.ignore_obs.append(self.note)
 
     def add_observation(self, observation, indx=None, **kwargs):
         """Add an observed observation
@@ -2144,16 +2148,17 @@ class Pairs_survey_scripted(Scripted_survey):
         result = []
         # if len(self.observing_queue) > 0:
         log.debug('Pair - call')
-        for indx in range(len(self.observing_queue)):
-
-            check = self._check_observation(self.observing_queue[indx])
+        # for indx in range(len(self.observing_queue)):
+        while len(self.observing_queue) > 0:
+            result = self.observing_queue.pop(0)
+            check = self._check_observation(result)
 
             if check[4]:
-                result = self.observing_queue.pop(indx)
                 note_id = int(result['note'][0].split('-')[1])
                 result['note'] = 'pair(%s[%i]) - %i' % (self.note, len(self.observing_queue), note_id)
                 # Make sure we don't change filter if we don't have to.
-                if self.extra_features['current_filter'].feature is not None:
+                if self.extra_features['current_filter'].feature is not None \
+                        and self.extra_features['current_filter'].feature in self.filt_to_pair:
                     result['filter'] = self.extra_features['current_filter'].feature
                 # Make sure it is observable!
                 # if self._check_mask(result):
