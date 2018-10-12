@@ -14,7 +14,7 @@ class Base_basis_function(object):
     Class that takes features and computes a reward function when called.
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, nside=None, filtername=None, **kwargs):
         """
         """
 
@@ -31,6 +31,13 @@ class Base_basis_function(object):
         self.attrs_to_compare = []
         # Do we need to recalculate the basis function
         self.recalc = True
+        # Basis functions don't technically all need an nside, but so many do might as well set it here
+        if nside is None:
+            self.nside = utils.set_default_nside()
+        else:
+            self.nside = nside
+
+        self.filtername = filtername
 
     def add_observation(self, observation, indx=None):
         """
@@ -74,10 +81,10 @@ class Base_basis_function(object):
         Return a reward healpix map or a reward scalar.
         """
         if self.recalc:
-            self._calc_value(conditions)
+            self.value = self._calc_value(conditions, **kwargs)
         if self.update_on_mjd:
             if conditions.mjd != self.mjd_last:
-                self._calc_value(conditions)
+                self.value = self._calc_value(conditions, **kwargs)
         return self.value
 
 
@@ -111,22 +118,17 @@ class Target_map_basis_function(Base_basis_function):
             Point value to give regions where there are no observations requested
         """
 
-        self.update_on_newobs = True
-        self.update_on_mjd = True
-
-        if nside is None:
-            nside = utils.set_default_nside()
+        super(Target_map_basis_function, self).__init__(nside=nside, filtername=filtername)
 
         self.norm_factor = norm_factor
 
         self.survey_features = {}
         # Map of the number of observations in filter
-        self.survey_features['N_obs'] = features.N_observations(filtername=filtername, nside=nside)
+        self.survey_features['N_obs'] = features.N_observations(filtername=filtername, nside=self.nside)
         # Count of all the observations
         self.survey_features['N_obs_count_all'] = features.N_obs_count(filtername=None)
-        self.nside = nside
         if target_map is None:
-            self.target_map = utils.generate_goal_map(filtername=filtername, nside=nside)
+            self.target_map = utils.generate_goal_map(filtername=filtername, nside=self.nside)
         else:
             self.target_map = target_map
         self.out_of_bounds_area = np.where(self.target_map == 0)[0]
@@ -134,7 +136,7 @@ class Target_map_basis_function(Base_basis_function):
         self.result = np.zeros(hp.nside2npix(self.nside), dtype=float)
         self.all_indx = np.arange(self.result.size)
 
-    def __call__(self, conditions, indx=None):
+    def _calc_value(self, conditions, indx=None):
         """
         Parameters
         ----------
@@ -173,8 +175,7 @@ class Avoid_Fast_Revists(Base_basis_function):
         nside: int (default_nside)
             The healpix resolution.
         """
-        if nside is None:
-            nside = utils.set_default_nside()
+        super(Avoid_Fast_Revists, self).__init__(nside=nside, filtername=filtername)
 
         self.filtername = filtername
         self.penalty_val = penalty_val
@@ -185,7 +186,7 @@ class Avoid_Fast_Revists(Base_basis_function):
         self.survey_features = dict()
         self.survey_features['Last_observed'] = features.Last_observed(filtername=filtername, nside=nside)
 
-    def __call__(self, conditions, indx=None):
+    def _calc_value(self, conditions, indx=None):
         result = np.ones(hp.nside2npix(self.nside), dtype=float)
         if indx is None:
             indx = np.arange(result.size)
@@ -213,13 +214,11 @@ class Visit_repeat_basis_function(Base_basis_function):
         npairs : int (1)
             The number of pairs of observations to attempt to gather
         """
-        if nside is None:
-            nside = utils.set_default_nside()
+        super(Visit_repeat_basis_function, self).__init__(nside=nside, filtername=filtername)
 
         self.gap_min = gap_min/60./24.
         self.gap_max = gap_max/60./24.
         self.npairs = npairs
-        self.nside = nside
 
         self.survey_features = {}
         # Track the number of pairs that have been taken in a night
@@ -231,7 +230,7 @@ class Visit_repeat_basis_function(Base_basis_function):
         self.survey_features['Last_observed'] = features.Last_observed(filtername=filtername,
                                                                        nside=nside)
 
-    def __call__(self, conditions, indx=None):
+    def _calc_value(self, conditions, indx=None):
         result = np.zeros(hp.nside2npix(self.nside), dtype=float)
         if indx is None:
             indx = np.arange(result.size)
@@ -249,12 +248,7 @@ class M5_diff_basis_function(Base_basis_function):
     def __init__(self, filtername='r', nside=None):
         """
         """
-        if nside is None:
-            nside = utils.set_default_nside()
-
-        self.filtername = filtername
-        self.nside = nside
-
+        super(M5_diff_basis_function, self).__init__(nside=nside, filtername=filtername)
         # Need to look up the deepest m5 values for all the healpixels
         m5p = M5percentiles()
         self.dark_map = m5p.dark_map(filtername=filtername, nside_out=self.nside)
@@ -263,7 +257,7 @@ class M5_diff_basis_function(Base_basis_function):
         # No tracking of observations in this basis function. Purely based on conditions.
         pass
 
-    def __call__(self, conditions, indx=None):
+    def _calc_value(self, conditions, indx=None):
         # No way to get the sign on this right the first time.
         result = conditions.M5Depth[self.filtername] - self.dark_map
         mask = np.where(conditions.M5Depth[self.filtername].filled() == hp.UNSEEN)
@@ -288,17 +282,15 @@ class Strict_filter_basis_function(Base_basis_function):
         twi_change : float (-18.)
             The sun altitude to consider twilight starting/ending
         """
-        self.update_on_newobs = False
-        self.update_on_mjd =True
+        super(Strict_filter_basis_function, self).__init__(filtername=filtername)
 
         self.time_lag = time_lag/60./24.  # Convert to days
         self.twi_change = np.radians(twi_change)
-        self.filtername = filtername
 
         self.survey_features = {}
         self.survey_features['Last_observation'] = features.Last_observation()
 
-    def __call__(self, conditions, **kwargs):
+    def _calc_value(self, conditions, **kwargs):
         # Did the moon set or rise since last observation?
         moon_changed = conditions.moonAlt * self.survey_features['Last_observation'].feature['moonAlt'] < 0
 
@@ -354,6 +346,8 @@ class Goal_Strict_filter_basis_function(Base_basis_function):
             False a more detailed feasibility check is performed. When set to False, it may speed up the computation
             process by avoiding to compute the reward functions paired with this bf, when observation is not feasible.
         """
+        super(Goal_Strict_filter_basis_function, self).__init__(filtername=filtername)
+
         self.time_lag_min = time_lag_min / 60. / 24.  # Convert to days
         self.time_lag_max = time_lag_max / 60. / 24.  # Convert to days
         self.time_lag_boost = time_lag_boost / 60. / 24.
@@ -361,7 +355,6 @@ class Goal_Strict_filter_basis_function(Base_basis_function):
         self.unseen_before_lag = unseen_before_lag
 
         self.twi_change = np.radians(twi_change)
-        self.filtername = filtername
         self.proportion = proportion
         self.aways_available = aways_available
 
@@ -442,7 +435,7 @@ class Goal_Strict_filter_basis_function(Base_basis_function):
         else:
             return False
 
-    def __call__(self, conditions, **kwargs):
+    def _calc_value(self, conditions, **kwargs):
 
         if conditions.current_filter is None:
             return 0.  # no bonus if no filter is mounted
@@ -483,9 +476,9 @@ class Filter_change_basis_function(Base_basis_function):
     Reward staying in the current filter.
     """
     def __init__(self, filtername='r'):
-        self.filtername = filtername
+        super(Filter_change_basis_function, self).__init__(filtername=filtername)
 
-    def __call__(self, conditions, **kwargs):
+    def _calc_value(self, conditions, **kwargs):
 
         if (conditions.current_filter == self.filtername) | (conditions.current_filter is None):
             result = 1.
@@ -498,8 +491,7 @@ class Slewtime_basis_function(Base_basis_function):
     """Reward slews that take little time
     """
     def __init__(self, max_time=135., filtername='r', nside=None):
-        if nside is None:
-            nside = utils.set_default_nside()
+        super(Slewtime_basis_function, self).__init__(nside=nside, filtername=filtername)
 
         self.maxtime = max_time
         self.nside = nside
@@ -510,7 +502,7 @@ class Slewtime_basis_function(Base_basis_function):
         # No tracking of observations in this basis function. Purely based on conditions.
         pass
 
-    def __call__(self, conditions, indx=None):
+    def _calc_value(self, conditions, indx=None):
         # If we are in a different filter, the Filter_change_basis_function will take it
         if conditions.current_filter != self.filtername:
             result = 0.
@@ -533,17 +525,14 @@ class Aggressive_Slewtime_basis_function(Base_basis_function):
     """
 
     def __init__(self, max_time=135., order=1., hard_max=None, filtername='r', nside=None):
-        if nside is None:
-            nside = utils.set_default_nside()
+        super(Aggressive_Slewtime_basis_function, self).__init__(nside=nside, filtername=filtername)
 
         self.maxtime = max_time
         self.hard_max = hard_max
         self.order = order
-        self.nside = nside
-        self.filtername = filtername
         self.result = np.zeros(hp.nside2npix(nside), dtype=float)
 
-    def __call__(self, conditions, indx=None):
+    def _calc_value(self, conditions, indx=None):
         # If we are in a different filter, the Filter_change_basis_function will take it
         if conditions.current_filter != self.filtername:
             result = 0.
@@ -570,7 +559,7 @@ class Aggressive_Slewtime_basis_function(Base_basis_function):
 
 
 class Skybrightness_limit_basis_function(Base_basis_function):
-    """Mark regions that are closer than a certain .
+    """mask regions that are outside a sky brightness limit
 
     """
     def __init__(self, nside=None, filtername='r', min=20., max=30.):
@@ -579,20 +568,18 @@ class Skybrightness_limit_basis_function(Base_basis_function):
         moon_distance: float (30.)
             Minimum allowed moon distance. (degrees)
         """
-        if nside is None:
-            nside = utils.set_default_nside()
+        super(Skybrightness_limit_basis_function, self).__init__(nside=nside, filtername=filtername)
 
         self.min = min
         self.max = max
-        self.nside = nside
-        self.filtername = filtername
-        self.result = np.empty(hp.nside2npix(self.nside), dtype=float).fill(hp.UNSEEN)
+        self.result = np.empty(hp.nside2npix(self.nside), dtype=float)
+        self.result.fill(hp.UNSEEN)
 
-    def __call__(self, conditions, indx=None):
+    def _calc_value(self, conditions, indx=None):
         result = self.result.copy()
 
         good = np.where(np.bitwise_and(conditions.skybrightness[self.filtername] > self.min,
-                                       conditions.skybrightness[self.filtername]  < self.max))
+                                       conditions.skybrightness[self.filtername] < self.max))
         result[good] = 1.0
 
         return result
@@ -613,8 +600,7 @@ class CableWrap_unwrap_basis_function(Base_basis_function):
         unwrap_until: float (90.)
             The window in which the bf is activated (degrees)
         """
-        if nside is None:
-            nside = utils.set_default_nside()
+        super(CableWrap_unwrap_basis_function, self).__init__(nside=nside)
 
         self.minAz = np.radians(minAz)
         self.maxAz = np.radians(maxAz)
@@ -633,7 +619,7 @@ class CableWrap_unwrap_basis_function(Base_basis_function):
         self.activation_time = None
         self.result = np.zeros(hp.nside2npix(self.nside), dtype=float)
 
-    def __call__(self, conditions, indx=None):
+    def _calc_value(self, conditions, indx=None):
 
         result = self.result.copy()
 
@@ -726,7 +712,7 @@ class Cadence_enhance_basis_function(Base_basis_function):
             The area over which to try and drive the cadence. Good values as 1, no candece drive 0.
             Probably works as a bool array too.
         """
-        self.nside = nside
+        super(Cadence_enhance_basis_function, self).__init__(nside=nside, filtername=filtername)
 
         self.supress_window = np.sort(supress_window)
         self.supress_val = supress_val
@@ -743,7 +729,7 @@ class Cadence_enhance_basis_function(Base_basis_function):
         else:
             self.apply_indx = np.where(apply_area != 0)[0]
 
-    def __call__(self, conditions, indx=None):
+    def _calc_value(self, conditions, indx=None):
         # copy an empty array
         result = self.empty.copy()
         if indx is not None:

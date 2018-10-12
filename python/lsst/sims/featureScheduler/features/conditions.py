@@ -2,7 +2,7 @@ import numpy as np
 from lsst.sims.utils import _approx_RaDec2AltAz, Site, _hpid2RaDec, m5_flat_sed
 import healpy as hp
 import numpy.ma as ma
-
+from lsst.sims.featureScheduler.utils import set_default_nside
 
 __all__ = ['Conditions']
 
@@ -14,7 +14,7 @@ class Conditions(object):
     If the incoming value is a healpix map, we use a setter to ensure the
     resolution matches.
     """
-    def __init__(self, nside, site='LSST', exptime=30.):
+    def __init__(self, nside=None, site='LSST', exptime=30.):
         """
         Parameters
         ----------
@@ -94,7 +94,8 @@ class Conditions(object):
 
         XXX -- todo, rotTelPos, rotSkyPos
         """
-
+        if nside is None:
+            nside = set_default_nside()
         self.nside = nside
         self.site = Site(site)
         self.exptime = exptime

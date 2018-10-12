@@ -19,19 +19,15 @@ class Zenith_mask_basis_function(Base_basis_function):
     def __init__(self, nside=None, min_alt=20., max_alt=82., penalty=0.):
         """
         """
-        if nside is None:
-            nside = utils.set_default_nside()
+        super(Zenith_mask_basis_function, self).__init__(nside=nside)
+        self.update_on_newobs = False
+
         self.penalty = penalty
-        self.nside = nside
         self.min_alt = np.radians(min_alt)
         self.max_alt = np.radians(max_alt)
         self.result = np.empty(hp.nside2npix(self.nside), dtype=float).fill(self.penalty)
 
-    def add_observation(self, observation, **kwargs):
-        # Only using conditions
-        pass
-
-    def __call__(self, conditions, indx=None):
+    def _calc_value(self, conditions, indx=None):
 
         result = self.result.copy()
         alt_limit = np.where((conditions.alt > self.min_alt) &
@@ -55,10 +51,10 @@ class Zenith_shadow_mask_basis_function(Base_basis_function):
         shadow_minutes : float (40.)
             Mask anything that will pass through the max alt in the next shadow_minutes time. (minutes)
         """
-        if nside is None:
-            nside = utils.set_default_nside()
+        super(Zenith_shadow_mask_basis_function, self).__init__(nside=nside)
+        self.update_on_newobs = False
+
         self.penalty = penalty
-        self.nside = nside
 
         self.min_alt = np.radians(min_alt)
         self.max_alt = np.radians(max_alt)
@@ -76,11 +72,7 @@ class Zenith_shadow_mask_basis_function(Base_basis_function):
         self.result = np.empty(hp.nside2npix(self.nside), dtype=float)
         self.result.fill(self.penalty)
 
-    def add_observation(self, observation, **kwargs):
-        # Only using conditions
-        pass
-
-    def __call__(self, conditions, indx=None):
+    def _calc_value(self, conditions, indx=None):
 
         result = self.result.copy()
         alt_limit = np.where((conditions.alt > self.min_alt) &
@@ -102,17 +94,13 @@ class Moon_avoidance_basis_function(Base_basis_function):
         moon_distance: float (30.)
             Minimum allowed moon distance. (degrees)
         """
-        if nside is None:
-            nside = utils.set_default_nside()
-        self.nside = nside
+        super(Moon_avoidance_basis_function, self).__init__(nside=nside)
+        self.update_on_newobs = False
+
         self.moon_distance = np.radians(moon_distance)
         self.result = np.ones(hp.nside2npix(self.nside), dtype=float)
 
-    def add_observation(self, observation, **kwargs):
-        # Only using conditions
-        pass
-
-    def __call__(self, conditions, indx=None):
+    def _calc_value(self, conditions, indx=None):
         result = self.result.copy()
 
         angular_distance = _angularSeparation(conditions.az, conditions.alt,
@@ -142,10 +130,9 @@ class Bulk_cloud_basis_function(Base_basis_function):
         out_of_bounds_val : float (10.)
             Point value to give regions where there are no observations requested
         """
-        if nside is None:
-            nside = utils.set_default_nside()
+        super(Bulk_cloud_basis_function, self).__init__(nside=nside)
+        self.update_on_newobs = False
 
-        self.nside = nside
         if max_cloud_map is None:
             self.max_cloud_map = np.zeros(hp.nside2npix(nside), dtype=float) + max_val
         else:
@@ -154,11 +141,7 @@ class Bulk_cloud_basis_function(Base_basis_function):
         self.out_of_bounds_val = out_of_bounds_val
         self.result = np.ones(hp.nside2npix(self.nside))
 
-    def add_observation(self, observation, **kwargs):
-        # Only using conditions
-        pass
-
-    def __call__(self, conditions, indx=None):
+    def _calc_value(self, conditions, indx=None):
         """
         Parameters
         ----------
