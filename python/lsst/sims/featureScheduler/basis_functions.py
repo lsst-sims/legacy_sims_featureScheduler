@@ -988,13 +988,19 @@ class Goal_Strict_filter_basis_function(Base_basis_function):
 
         :return:
         """
+        # Is the filter mounted?
+        mounted = self.filtername in self.condition_features['Mounted_filter'].feature
+        if not mounted:
+            return False
 
         # Make a quick check about the feasibility of this basis function. If current filter is none, telescope
         # is parked and we could, in principle, switch to any filter. If this basis function computes reward for
         # the current filter, then it is also feasible. At last we check for an "aways_available" flag. Meaning, we
         # force this basis function to be aways be computed.
-        if self.condition_features['Current_filter'].feature is None or \
-                self.condition_features['Current_filter'].feature == self.filtername or self.aways_available:
+        is_current_none = self.condition_features['Current_filter'].feature is None
+        in_filter = self.condition_features['Current_filter'].feature == self.filtername
+
+        if is_current_none or in_filter or self.aways_available:
             return True
 
         # If we arrive here, we make some extra checks to make sure this bf is feasible and should be computed.
@@ -1002,9 +1008,6 @@ class Goal_Strict_filter_basis_function(Base_basis_function):
         # Did the moon set or rise since last observation?
         moon_changed = self.condition_features['Sun_moon_alts'].feature['moonAlt'] * \
                        self.survey_features['Last_observation'].feature['moonAlt'] < 0
-
-        # Are we already in the filter (or at start of night)?
-        not_in_filter = (self.condition_features['Current_filter'].feature != self.filtername)
 
         # Has enough time past?
         lag = self.condition_features['Current_mjd'].feature - self.survey_features['Last_filter_change'].feature['mjd']
@@ -1017,10 +1020,7 @@ class Goal_Strict_filter_basis_function(Base_basis_function):
         # Did we just finish a DD sequence
         wasDD = self.survey_features['Last_observation'].feature['note'] == 'DD'
 
-        # Is the filter mounted?
-        mounted = self.filtername in self.condition_features['Mounted_filter'].feature
-
-        if (moon_changed | time_past | twi_changed | wasDD) & mounted & not_in_filter:
+        if moon_changed or time_past or twi_changed or wasDD:
             return True
         else:
             return False

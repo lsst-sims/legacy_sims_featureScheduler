@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 from builtins import zip
 from builtins import object
+import collections
 import numpy as np
 from .utils import (empty_observation, set_default_nside, hp_in_lsst_fov, read_fields, stupidFast_altAz2RaDec,
                     raster_sort, stupidFast_RaDec2AltAz, gnomonic_project_toxy, haversine, int_binned_stat,
@@ -2063,7 +2064,11 @@ class Pairs_survey_scripted(Scripted_survey):
         else:
             skyval_arr = np.zeros(len(self.basis_functions))
             for i,bf in enumerate(self.basis_functions):
-                skyval_arr[i] = bf()[hpid]
+                result = bf()
+                if isinstance(result, collections.Iterable):
+                    skyval_arr[i] = result[hpid]
+                else:
+                    skyval_arr[i] = result
             skyval = np.min(skyval_arr)
 
         if skyval > 0:
