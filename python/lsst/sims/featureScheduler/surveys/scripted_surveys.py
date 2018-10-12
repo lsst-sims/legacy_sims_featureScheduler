@@ -132,7 +132,7 @@ class Scripted_survey(BaseSurvey):
         # observations can pile up nonstop. Should prob flush nightly or something
 
     def __call__(self, conditions):
-        observation = self._check_list()
+        observation = self._check_list(conditions)
         return [observation]
 
 
