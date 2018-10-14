@@ -19,7 +19,7 @@ class Greedy_survey(BaseMarkovDF_survey):
     """
     def __init__(self, basis_functions, basis_weights, filtername='r',
                  block_size=1, smoothing_kernel=None, nside=None,
-                 dither=False, seed=42, ignore_obs='ack', survey_name='',
+                 dither=True, seed=42, ignore_obs='ack', survey_name='',
                  nexp=2, exptime=30.,
                  tag_fields=False, tag_map=None, tag_names=None, extra_basis_functions=None):
 
@@ -35,7 +35,8 @@ class Greedy_survey(BaseMarkovDF_survey):
                                             ignore_obs=ignore_obs,
                                             nside=nside,
                                             extra_basis_functions=extra_basis_functions,
-                                            survey_name=survey_name, tag_fields=tag_fields,
+                                            survey_name=survey_name, dither=dither,
+                                            tag_fields=tag_fields,
                                             tag_map=tag_map, tag_names=tag_names)
         self.filtername = filtername
         self.block_size = block_size
@@ -303,6 +304,11 @@ class Blob_survey(Greedy_survey):
         if not self.reward_checked:
             # This should set self.best_fields
             self.reward = self.calc_reward_function(conditions)
+
+        # Check if we need to spin the tesselation
+        if self.dither & (conditions.night != self.night):
+            self._spin_fields()
+            self.night = conditions.night.copy()
 
         # Let's find the alt, az coords of the points (right now, hopefully doesn't change much in time block)
         pointing_alt, pointing_az = _approx_RaDec2AltAz(self.fields['RA'][self.best_fields],

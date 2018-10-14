@@ -127,7 +127,7 @@ class Core_scheduler(object):
                     return observation
                 else:
                     self.log.warning('Sequence interrupted! Cleaning queue!')
-                    self._clean_queue()
+                    self.flush_queue()
                     return None
             else:
                 return observation

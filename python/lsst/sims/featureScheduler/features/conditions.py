@@ -150,6 +150,9 @@ class Conditions(object):
         self._cloud_map = None
         self._HA = None
 
+        # XXX--document
+        self.bulk_cloud = None
+
     @property
     def lmst(self):
         return self._lmst
