@@ -60,7 +60,6 @@ class Greedy_survey(BaseMarkovDF_survey):
         """
         Just point at the highest reward healpix
         """
-
         self.reward = self.calc_reward_function(conditions)
 
         # Check if we need to spin the tesselation
@@ -114,7 +113,8 @@ class Blob_survey(Greedy_survey):
                  slew_approx=7.5, filter_change_approx=140.,
                  read_approx=2., exptime=30., nexp=2,
                  ideal_pair_time=22., min_pair_time=15.,
-                 search_radius =30., alt_max = 85., az_range=90.,
+                 search_radius=30., alt_max=85., az_range=90.,
+                 flush_time=30.,
                  smoothing_kernel=None, nside=None,
                  dither=True, seed=42, ignore_obs='ack',
                  tag_fields=False, tag_map=None, tag_names=None,
@@ -143,6 +143,9 @@ class Blob_survey(Greedy_survey):
             The maximum altitude to include (degrees).
         az_range : float (90.)
             The range of azimuths to consider around the peak reward value (degrees).
+        flush_time : float (30.)
+            The time past the final expected exposure to flush the queue. Keeps observations
+            from lingering past when they should be executed. (minutes)
         sitename : str ('LSST')
             The name of the site to lookup latitude and longitude.
         """
@@ -158,6 +161,7 @@ class Blob_survey(Greedy_survey):
                                           tag_fields=tag_fields, tag_map=tag_map,
                                           tag_names=tag_names,
                                           nside=nside)
+        self.flush_time = flush_time/60./24.  # convert to days
         self.nexp = nexp
         self.exptime = exptime
         self.slew_approx = slew_approx
@@ -344,6 +348,9 @@ class Blob_survey(Greedy_survey):
         # XXX-TODO: Could try to roll better_order to start at the nearest/fastest slew from current position.
         observations = []
         counter2 = 0
+        approx_end_time = np.size(better_order)*(self.slew_approx + self.exptime +
+                                                 self.read_approx*(self.nexp - 1))
+        flush_time = conditions.mjd + approx_end_time/3600./24. + self.flush_time
         for indx in better_order:
             field = self.best_fields[indx]
             if self.tag_fields:
@@ -366,6 +373,9 @@ class Blob_survey(Greedy_survey):
                 obs['survey_id'] = 1
             obs['note'] = '%s' % (self.survey_note)
             obs['block_id'] = self.counter
+            obs['flush_by_mjd'] = flush_time
+            # Add the mjd for debugging
+            obs['mjd'] = conditions.mjd
             observations.append(obs)
             counter2 += 1
 
