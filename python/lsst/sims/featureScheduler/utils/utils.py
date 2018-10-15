@@ -894,6 +894,8 @@ def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3.,
             continue
         attempted_obs = observatory.attempt_observe(desired_obs)
         if attempted_obs is not None:
+            if attempted_obs['alt'] < 0:
+                import pdb ; pdb.set_trace()
             scheduler.add_observation(attempted_obs[0])
             observations.append(attempted_obs)
         else:

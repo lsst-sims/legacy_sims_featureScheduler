@@ -60,6 +60,7 @@ class Greedy_survey(BaseMarkovDF_survey):
         """
         Just point at the highest reward healpix
         """
+
         self.reward = self.calc_reward_function(conditions)
 
         # Check if we need to spin the tesselation
@@ -284,14 +285,6 @@ class Blob_survey(Greedy_survey):
 
             az_out = np.where((az_centered > self.az_range/2.) & (az_centered < 2.*np.pi-self.az_range/2.))
             self.reward[az_out] = hp.UNSEEN
-            potential_hp = np.where(self.reward.filled() != hp.UNSEEN)
-            # Find the max reward for each potential pointing
-            ufields, reward_by_field = int_binned_stat(self.hp2fields[potential_hp],
-                                                       self.reward[potential_hp].filled(),
-                                                       statistic=max_reject)
-            order = np.argsort(reward_by_field)
-            ufields = ufields[order][::-1][0:self.nvisit_block]
-            self.best_fields = ufields
         else:
             self.reward = -np.inf
         self.reward_checked = True
@@ -301,14 +294,23 @@ class Blob_survey(Greedy_survey):
         """
         Find a good block of observations.
         """
-        if not self.reward_checked:
-            # This should set self.best_fields
-            self.reward = self.calc_reward_function(conditions)
+
+        self.reward = self.calc_reward_function(conditions)
 
         # Check if we need to spin the tesselation
         if self.dither & (conditions.night != self.night):
             self._spin_fields()
             self.night = conditions.night.copy()
+
+        # Now that we have the reward map,
+        potential_hp = np.where(self.reward.filled() != hp.UNSEEN)
+        # Find the max reward for each potential pointing
+        ufields, reward_by_field = int_binned_stat(self.hp2fields[potential_hp],
+                                                   self.reward[potential_hp].filled(),
+                                                   statistic=max_reject)
+        order = np.argsort(reward_by_field)
+        ufields = ufields[order][::-1][0:self.nvisit_block]
+        self.best_fields = ufields
 
         # Let's find the alt, az coords of the points (right now, hopefully doesn't change much in time block)
         pointing_alt, pointing_az = _approx_RaDec2AltAz(self.fields['RA'][self.best_fields],
@@ -316,6 +318,7 @@ class Blob_survey(Greedy_survey):
                                                         self.lat, self.lon,
                                                         conditions.mjd,
                                                         lmst=conditions.lmst)
+
         # Let's find a good spot to project the points to a plane
         mid_alt = (np.max(pointing_alt) - np.min(pointing_alt))/2.
 
