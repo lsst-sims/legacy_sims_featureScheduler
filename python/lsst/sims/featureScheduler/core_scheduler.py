@@ -118,6 +118,7 @@ class Core_scheduler(object):
             self._fill_queue()
 
         if len(self.queue) == 0:
+            import pdb ; pdb.set_trace()
             self.log.warning('Failed to fill queue')
             return None
         else:
