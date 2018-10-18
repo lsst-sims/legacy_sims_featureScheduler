@@ -118,6 +118,12 @@ class BaseSurvey(object):
                 bf.add_observation(observation, **kwargs)
             self.reward_checked = False
 
+    def save_warmstart_snapshot(self):
+        """
+        returns a copy of this survey
+        """
+        return copy.deepcopy(self)
+
     def update_conditions(self, conditions, **kwargs):
         for bf in self.basis_functions:
             bf.update_conditions(conditions, **kwargs)

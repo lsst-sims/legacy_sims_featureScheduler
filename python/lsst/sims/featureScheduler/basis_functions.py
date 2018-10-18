@@ -8,6 +8,7 @@ import healpy as hp
 from lsst.sims.utils import _hpid2RaDec, Site, _angularSeparation
 from lsst.sims.skybrightness_pre import M5percentiles
 import matplotlib.pylab as plt
+import copy
 
 default_nside = None
 
@@ -33,6 +34,14 @@ class Base_basis_function(object):
     def add_observation(self, observation, indx=None):
         for feature in self.survey_features:
             self.survey_features[feature].add_observation(observation, indx=indx)
+
+    def copy_without_condition_feats(self):
+        """
+        returns a copy of this basis function that has been stripped of condition features
+        for use in warm start. 
+        """
+        cp = copy.deepcopy(self)
+        return cp
 
     def update_conditions(self, conditions):
         for feature in self.condition_features:

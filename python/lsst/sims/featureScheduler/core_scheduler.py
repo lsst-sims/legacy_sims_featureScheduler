@@ -6,6 +6,7 @@ from lsst.sims.utils import _hpid2RaDec
 from .utils import hp_in_lsst_fov, set_default_nside, hp_in_comcam_fov
 import warnings
 import logging
+import pickle
 
 default_nside = None
 
@@ -79,6 +80,24 @@ class Core_scheduler(object):
         for surveys in self.survey_lists:
             for survey in surveys:
                 survey.add_observation(observation, indx=indx)
+
+    def save_warmstart_snapshot(self, filepath=None):
+        """
+        save the state of core scheduler's surveys so we can resume after warmstart
+        """
+        sl = []
+        for l in self.survey_lists:
+            inner_list = []
+            for s in l:
+                inner_list.append(s.save_warmstart_snapshot())
+            sl.append(inner_list)
+        
+        if filepath:
+            f = open(filepath)
+        else:
+            f = open("scheduler_warmstart_snapshot", 'wb')
+        pickle.dump(sl, f)
+        f.close()
 
     def update_conditions(self, conditions):
         """
