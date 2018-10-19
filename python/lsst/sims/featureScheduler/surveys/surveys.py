@@ -43,19 +43,6 @@ class Greedy_survey(BaseMarkovDF_survey):
         self.nexp = nexp
         self.exptime = exptime
 
-    def _check_feasability(self, conditions):
-        """
-        Check if the survey is feasible in the current conditions
-        """
-        feasibility = self.filtername in conditions.mounted_filters
-        # return feasibility
-        for bf in self.basis_functions:
-            feasibility = feasibility and bf.check_feasibility(conditions)
-            if not feasibility:
-                break
-
-        return feasibility
-
     def __call__(self, conditions):
         """
         Just point at the highest reward healpix
@@ -118,7 +105,7 @@ class Blob_survey(Greedy_survey):
                  smoothing_kernel=None, nside=None,
                  dither=True, seed=42, ignore_obs='ack',
                  tag_fields=False, tag_map=None, tag_names=None,
-                 sun_alt_limit=-19., survey_note='blob',
+                 survey_note='blob',
                  sitename='LSST'):
         """
         Parameters
@@ -180,15 +167,9 @@ class Blob_survey(Greedy_survey):
             self.filter2_set = self.filter_set
         else:
             self.filter2_set = set(filtername2)
-        self.sun_alt_limit = np.radians(sun_alt_limit)
 
         self.ra, self.dec = _hpid2RaDec(self.nside, self.hpids)
-        # Look up latitude and longitude for alt,az conversions later
-        # XXX: TODO: lat and lon should be in the Observatory feature. But that feature
-        # needs documentation on what's in it!
-        site = Site(name=sitename)
-        self.lat = site.latitude_rad
-        self.lon = site.longitude_rad
+
         self.survey_note = survey_note
         self.counter = 1  # start at 1, because 0 is default in empty observation
         self.filtername1 = filtername1
@@ -233,9 +214,6 @@ class Blob_survey(Greedy_survey):
 
         available_time = conditions.next_twilight_start - conditions.mjd
         if not filters_mounted:
-            return False
-        # Check we are not in twilight
-        elif conditions.sunAlt > self.sun_alt_limit:
             return False
         # We have enough time before twilight starts
         elif available_time < self.time_needed:
@@ -319,7 +297,8 @@ class Blob_survey(Greedy_survey):
         # Let's find the alt, az coords of the points (right now, hopefully doesn't change much in time block)
         pointing_alt, pointing_az = _approx_RaDec2AltAz(self.fields['RA'][self.best_fields],
                                                         self.fields['dec'][self.best_fields],
-                                                        self.lat, self.lon,
+                                                        conditions.site.latitude_rad,
+                                                        conditions.site.longitude_rad,
                                                         conditions.mjd,
                                                         lmst=conditions.lmst)
 

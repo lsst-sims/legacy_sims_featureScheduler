@@ -26,7 +26,7 @@ class Base_basis_function(object):
         self.survey_features = {}
         # Keep track of the last time the basis function was called. If mjd doesn't change, use cached value
         self.mjd_last = None
-        self.value = None
+        self.value = 0
         # list the attributes to compare to check if basis functions are equal.
         self.attrs_to_compare = []
         # Do we need to recalculate the basis function
@@ -54,15 +54,17 @@ class Base_basis_function(object):
             self.recalc = True
 
     def check_feasibility(self, conditions):
-        """XXX--might not need this here since surveys can check feasibility?
+        """If there is logic to decide if something is feasible (e.g., only if moon is down),
+        it can be calculated here. Helps prevent full __call__ from being called more than needed.
         """
         return True
 
     def _calc_value(self, conditions, **kwarge):
-        self.value = None
+        self.value = 0
         # Update the last time we had an mjd
         self.mjd_last = conditions.mjd + 0
         self.recalc = False
+        return self.value
 
     def __eq__(self):
         # XXX--to work on if we need to make a registry of basis functions.

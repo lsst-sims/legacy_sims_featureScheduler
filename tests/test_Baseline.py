@@ -26,8 +26,9 @@ def gen_greedy_surveys(nside):
                                                 out_of_bounds_val=hp.UNSEEN, nside=nside))
         bfs.append(bf.Slewtime_basis_function(filtername=filtername, nside=nside))
         bfs.append(bf.Strict_filter_basis_function(filtername=filtername))
+        bfs.append(bf.Filter_loaded_basis_function(filternames=filtername))
 
-        weights = np.array([3.0, 0.3, 3., 3.])
+        weights = np.array([3.0, 0.3, 3., 3., 0.])
         surveys.append(Greedy_survey(bfs, weights, block_size=1, filtername=filtername,
                                      dither=True, nside=nside))
         return surveys
@@ -41,8 +42,8 @@ def gen_blob_surveys(nside):
     norm_factor = calc_norm_factor(target_map)
     cloud_map = target_map['r'][0]*0 + 0.7
 
-    filter1s = ['u', 'g', 'r', 'i', 'z', 'y']
-    filter2s = [None, 'g', 'r', 'i', None, None]
+    filter1s = ['u', 'g']  # , 'r', 'i', 'z', 'y']
+    filter2s = [None, 'g']  # , 'r', 'i', None, None]
 
     pair_surveys = []
     for filtername, filtername2 in zip(filter1s, filter2s):
@@ -65,10 +66,15 @@ def gen_blob_surveys(nside):
         bfs.append(bf.Zenith_shadow_mask_basis_function(nside=nside, shadow_minutes=60., max_alt=76.))
         bfs.append(bf.Moon_avoidance_basis_function(nside=nside, moon_distance=40.))
         bfs.append(bf.Bulk_cloud_basis_function(max_cloud_map=cloud_map, nside=nside))
-        weights = np.array([3.0, 3.0, .3, .3, 3., 3., 0., 0., 0.])
+
+        bfs.append(bf.Filter_loaded_basis_function(filternames=[filtername, filtername2]))
+        bfs.append(bf.Time_to_twilight_basis_function())
+        bfs.append(bf.Not_twilight_basis_function())
+
+        weights = np.array([3.0, 3.0, .3, .3, 3., 3., 0., 0., 0., 0., 0., 0.])
         if filtername2 is None:
             # Need to scale weights up so filter balancing still works properly.
-            weights = np.array([6.0, 0.6, 3., 3., 0., 0., 0.])
+            weights = np.array([6.0, 0.6, 3., 3., 0., 0., 0., 0., 0., 0.])
         if filtername2 is None:
             survey_name = 'blob, %s' % filtername
         else:
