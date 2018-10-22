@@ -2,6 +2,7 @@ import numpy as np
 from lsst.sims.featureScheduler.surveys import BaseSurvey
 import copy
 import lsst.sims.featureScheduler.features as features
+import lsst.sims.featureScheduler.basis_functions as basis_functions
 from lsst.sims.featureScheduler.utils import empty_observation, hp_in_lsst_fov, read_fields
 from lsst.sims.utils import _angularSeparation, _raDec2Hpid
 import logging
@@ -310,12 +311,23 @@ def generate_dd_surveys(nside=None):
 
     bfs = []
     # ELAIS S1
+    survey_name='DD:ELAISS1'
+    bfs.append(basis_functions.Filter_loaded_basis_function(filternames=['r', 'g', 'i', 'z', 'y']))
+    bfs.append(basis_functions.Not_twilight_basis_function())
+    bfs.append(basis_functions.Time_to_twilight_basis_function(time_needed=62.))
+    bfs.append(basis_functions.Force_delay_basis_function(survey_name=survey_name))
+    # XXX--need a fraction limit basis function.
     surveys.append(Deep_drilling_survey(bfs, 9.45, -44., sequence='rgizy',
                                         nvis=[20, 10, 20, 26, 20],
-                                        survey_name='DD:ELAISS1', reward_value=100, moon_up=None,
+                                        survey_name=survey_name, reward_value=100,
                                         fraction_limit=0.0185, ha_limits=([0., 1.18], [21.82, 24.]),
                                         nside=nside))
-    surveys.append(Deep_drilling_survey(bfs,9.45, -44., sequence='u',
+
+    bfs = []
+    bfs.append(basis_functions.Filter_loaded_basis_function(filternames='u'))
+    bfs.append(basis_functions.Not_twilight_basis_function())
+    bfs.append(basis_functions.Time_to_twilight_basis_function(time_needed=6.))
+    surveys.append(Deep_drilling_survey(bfs, 9.45, -44., sequence='u',
                                         nvis=[7],
                                         survey_name='DD:u,ELAISS1', reward_value=100, moon_up=False,
                                         fraction_limit=0.0015, ha_limits=([0., 1.18], [21.82, 24.]),
