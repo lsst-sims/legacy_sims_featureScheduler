@@ -21,12 +21,9 @@ class Greedy_survey(BaseMarkovDF_survey):
                  block_size=1, smoothing_kernel=None, nside=None,
                  dither=True, seed=42, ignore_obs='ack', survey_name='',
                  nexp=2, exptime=30.,
-                 tag_fields=False, tag_map=None, tag_names=None, extra_basis_functions=None):
+                 extra_basis_functions=None):
 
         extra_features = {}
-        if tag_fields:
-            extra_features['proposals'] = features.SurveyProposals(ids=tag_names.keys(),
-                                                                   names=tag_names.values())
 
         super(Greedy_survey, self).__init__(basis_functions=basis_functions,
                                             basis_weights=basis_weights,
@@ -35,9 +32,7 @@ class Greedy_survey(BaseMarkovDF_survey):
                                             ignore_obs=ignore_obs,
                                             nside=nside,
                                             extra_basis_functions=extra_basis_functions,
-                                            survey_name=survey_name, dither=dither,
-                                            tag_fields=tag_fields,
-                                            tag_map=tag_map, tag_names=tag_names)
+                                            survey_name=survey_name, dither=dither)
         self.filtername = filtername
         self.block_size = block_size
         self.nexp = nexp
@@ -63,12 +58,6 @@ class Greedy_survey(BaseMarkovDF_survey):
             best_fields = np.unique(self.hp2fields[best_hp])
             observations = []
             for field in best_fields:
-                if self.tag_fields:
-                    tag = np.unique(self.tag_map[np.where(self.hp2fields == field)])[0]
-                else:
-                    tag = 1
-                if tag == 0:
-                    continue
                 obs = empty_observation()
                 obs['RA'] = self.fields['RA'][field]
                 obs['dec'] = self.fields['dec'][field]
@@ -78,10 +67,6 @@ class Greedy_survey(BaseMarkovDF_survey):
                 obs['exptime'] = self.exptime
                 obs['field_id'] = -1
                 obs['note'] = self.survey_name
-                if self.tag_fields:
-                    obs['survey_id'] = np.unique(self.tag_map[np.where(self.hp2fields == field)])[0]
-                else:
-                    obs['survey_id'] = 1
 
                 observations.append(obs)
                 break
@@ -104,7 +89,6 @@ class Blob_survey(Greedy_survey):
                  flush_time=30.,
                  smoothing_kernel=None, nside=None,
                  dither=True, seed=42, ignore_obs='ack',
-                 tag_fields=False, tag_map=None, tag_names=None,
                  survey_note='blob',
                  sitename='LSST'):
         """
@@ -145,8 +129,6 @@ class Blob_survey(Greedy_survey):
                                           filtername=None,
                                           block_size=0, smoothing_kernel=smoothing_kernel,
                                           dither=dither, seed=seed, ignore_obs=ignore_obs,
-                                          tag_fields=tag_fields, tag_map=tag_map,
-                                          tag_names=tag_names,
                                           nside=nside)
         self.flush_time = flush_time/60./24.  # convert to days
         self.nexp = nexp
@@ -332,12 +314,6 @@ class Blob_survey(Greedy_survey):
         flush_time = conditions.mjd + approx_end_time/3600./24. + self.flush_time
         for indx in better_order:
             field = self.best_fields[indx]
-            if self.tag_fields:
-                tag = np.unique(self.tag_map[np.where(self.hp2fields == field)])[0]
-            else:
-                tag = 1
-            if tag == 0:
-                continue
             obs = empty_observation()
             obs['RA'] = self.fields['RA'][field]
             obs['dec'] = self.fields['dec'][field]
@@ -346,10 +322,6 @@ class Blob_survey(Greedy_survey):
             obs['nexp'] = self.nexp
             obs['exptime'] = self.exptime
             obs['field_id'] = -1
-            if self.tag_fields:
-                obs['survey_id'] = np.unique(self.tag_map[np.where(self.hp2fields == field)])[0]
-            else:
-                obs['survey_id'] = 1
             obs['note'] = '%s' % (self.survey_note)
             obs['block_id'] = self.counter
             obs['flush_by_mjd'] = flush_time

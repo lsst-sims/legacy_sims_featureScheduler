@@ -15,7 +15,7 @@ class Scripted_survey(BaseSurvey):
     """
     Take a set of scheduled observations and serve them up.
     """
-    def __init__(self, reward=1e6, ignore_obs='dummy',
+    def __init__(self, basis_functions, reward=1e6, ignore_obs='dummy',
                  nside=None, min_alt=30., max_alt=85.):
         """
         min_alt : float (30.)
@@ -34,7 +34,8 @@ class Scripted_survey(BaseSurvey):
         self.nside = nside
         self.reward_val = reward
         self.reward = -reward
-        super(Scripted_survey, self).__init__(ignore_obs=ignore_obs, nside=nside)
+        super(Scripted_survey, self).__init__(basis_functions=basis_functions,
+                                              ignore_obs=ignore_obs, nside=nside)
 
     def add_observation(self, observation, indx=None, **kwargs):
         """Check if this matches a scripted observation
@@ -139,7 +140,7 @@ class Scripted_survey(BaseSurvey):
 class Pairs_survey_scripted(Scripted_survey):
     """Check if incoming observations will need a pair in 30 minutes. If so, add to the queue
     """
-    def __init__(self, filt_to_pair='griz',
+    def __init__(self, basis_functions, filt_to_pair='griz',
                  dt=40., ttol=10., reward_val=101., note='scripted', ignore_obs='ack',
                  min_alt=30., max_alt=85., lat=-30.2444, moon_distance=30., max_slew_to_pair=15.,
                  nside=None):
@@ -156,7 +157,8 @@ class Pairs_survey_scripted(Scripted_survey):
         if nside is None:
             nside = set_default_nside()
 
-        super(Pairs_survey_scripted, self).__init__(ignore_obs=ignore_obs, min_alt=min_alt,
+        super(Pairs_survey_scripted, self).__init__(basis_functions=basis_functions,
+                                                    ignore_obs=ignore_obs, min_alt=min_alt,
                                                     max_alt=max_alt, nside=nside)
 
         self.lat = np.radians(lat)

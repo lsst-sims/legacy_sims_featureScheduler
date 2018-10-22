@@ -31,7 +31,7 @@ def gen_greedy_surveys(nside):
         weights = np.array([3.0, 0.3, 3., 3., 0.])
         surveys.append(Greedy_survey(bfs, weights, block_size=1, filtername=filtername,
                                      dither=True, nside=nside))
-        return surveys
+    return surveys
 
 
 def gen_blob_surveys(nside):
@@ -44,6 +44,9 @@ def gen_blob_surveys(nside):
 
     filter1s = ['u', 'g']  # , 'r', 'i', 'z', 'y']
     filter2s = [None, 'g']  # , 'r', 'i', None, None]
+    filter1s = ['g']  # , 'r', 'i', 'z', 'y']
+    filter2s = ['g']  # , 'r', 'i', None, None]
+
 
     pair_surveys = []
     for filtername, filtername2 in zip(filter1s, filter2s):
@@ -68,7 +71,7 @@ def gen_blob_surveys(nside):
         bfs.append(bf.Bulk_cloud_basis_function(max_cloud_map=cloud_map, nside=nside))
 
         bfs.append(bf.Filter_loaded_basis_function(filternames=[filtername, filtername2]))
-        bfs.append(bf.Time_to_twilight_basis_function())
+        bfs.append(bf.Time_to_twilight_basis_function(time_needed=22.))
         bfs.append(bf.Not_twilight_basis_function())
 
         weights = np.array([3.0, 3.0, .3, .3, 3., 3., 0., 0., 0., 0., 0., 0.])
@@ -80,7 +83,7 @@ def gen_blob_surveys(nside):
         else:
             survey_name = 'blob, %s%s' % (filtername, filtername2)
         pair_surveys.append(Blob_survey(bfs, weights, filtername1=filtername, filtername2=filtername2,
-                                        survey_note=survey_name, ignore_obs='DD', tag_fields=False))
+                                        survey_note=survey_name, ignore_obs='DD'))
     return pair_surveys
 
 
@@ -94,8 +97,7 @@ class TestFeatures(unittest.TestCase):
         survey_length = 2.1  # days
 
         surveys = gen_greedy_surveys(nside)
-
-        surveys.append(Pairs_survey_scripted(ignore_obs='DD'))
+        surveys.append(Pairs_survey_scripted(None, ignore_obs='DD'))
 
         # Set up the DD
         dd_surveys = generate_dd_surveys(nside=nside)
@@ -117,6 +119,8 @@ class TestFeatures(unittest.TestCase):
         assert(len(np.unique(observations['filter'])) > 3)
         # Make sure lots of observations executed
         assert(observations.size > 1000)
+        # Make sure nothing tried to look through the earth
+        assert(np.min(observations['alt']) > 0)
 
     def testBlobs(self):
         """
@@ -125,12 +129,13 @@ class TestFeatures(unittest.TestCase):
         nside = 32
         survey_length = 2.1  # days
 
-        surveys = gen_blob_surveys(nside)
-        surveys.extend(gen_greedy_surveys(nside))
+        surveys = []
+        surveys.append(gen_blob_surveys(nside))
+        surveys.append(gen_greedy_surveys(nside))
 
         # Set up the DD
         dd_surveys = generate_dd_surveys(nside=nside)
-        surveys.extend(dd_surveys)
+        surveys.append(dd_surveys)
 
         scheduler = Core_scheduler(surveys, nside=nside)
         observatory = Speed_observatory(nside=nside)
@@ -141,7 +146,7 @@ class TestFeatures(unittest.TestCase):
         # Make sure some blobs executed
         assert('blob, gg, a' in observations['note'])
         assert('blob, gg, b' in observations['note'])
-        assert('blob, u' in observations['note'])
+        # assert('blob, u' in observations['note'])
 
         # Make sure some greedy executed
         assert('' in observations['note'])
@@ -153,6 +158,8 @@ class TestFeatures(unittest.TestCase):
         assert(len(np.unique(observations['filter'])) > 3)
         # Make sure lots of observations executed
         assert(observations.size > 1000)
+        # Make sure nothing tried to look through the earth
+        assert(np.min(observations['alt']) > 0)
 
 
 class TestMemory(lsst.utils.tests.MemoryTestCase):

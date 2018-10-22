@@ -14,9 +14,8 @@ log = logging.getLogger(__name__)
 class Deep_drilling_survey(BaseSurvey):
     """A survey class for running deep drilling fields
     """
-    # XXX--maybe should switch back to taking basis functions and weights to
-    # make it easier to put in masks for moon and limits for seeing?
-    def __init__(self, RA, dec, sequence='rgizy',
+
+    def __init__(self, basis_functions, RA, dec, sequence='rgizy',
                  nvis=[20, 10, 20, 26, 20],
                  exptime=30.,
                  nexp=2, ignore_obs='dummy', survey_name='DD', fraction_limit=0.01,
@@ -53,7 +52,7 @@ class Deep_drilling_survey(BaseSurvey):
             Maximum allowed cloud value for an observation.
         """
 
-        super(Deep_drilling_survey, self).__init__(nside=nside)
+        super(Deep_drilling_survey, self).__init__(nside=nside, basis_functions=basis_functions)
 
         self.ra = np.radians(RA)
         self.ra_hours = RA/360.*24.
@@ -308,48 +307,50 @@ def generate_dd_surveys(nside=None):
     """
 
     surveys = []
+
+    bfs = []
     # ELAIS S1
-    surveys.append(Deep_drilling_survey(9.45, -44., sequence='rgizy',
+    surveys.append(Deep_drilling_survey(bfs, 9.45, -44., sequence='rgizy',
                                         nvis=[20, 10, 20, 26, 20],
                                         survey_name='DD:ELAISS1', reward_value=100, moon_up=None,
                                         fraction_limit=0.0185, ha_limits=([0., 1.18], [21.82, 24.]),
                                         nside=nside))
-    surveys.append(Deep_drilling_survey(9.45, -44., sequence='u',
+    surveys.append(Deep_drilling_survey(bfs,9.45, -44., sequence='u',
                                         nvis=[7],
                                         survey_name='DD:u,ELAISS1', reward_value=100, moon_up=False,
                                         fraction_limit=0.0015, ha_limits=([0., 1.18], [21.82, 24.]),
                                         nside=nside))
 
     # XMM-LSS
-    surveys.append(Deep_drilling_survey(35.708333, -4-45/60., sequence='rgizy',
+    surveys.append(Deep_drilling_survey(bfs, 35.708333, -4-45/60., sequence='rgizy',
                                         nvis=[20, 10, 20, 26, 20],
                                         survey_name='DD:XMM-LSS', reward_value=100, moon_up=None,
                                         fraction_limit=0.0185, ha_limits=([0., 1.3], [21.7, 24.]),
                                         nside=nside))
-    surveys.append(Deep_drilling_survey(35.708333, -4-45/60., sequence='u',
+    surveys.append(Deep_drilling_survey(bfs, 35.708333, -4-45/60., sequence='u',
                                         nvis=[7],
                                         survey_name='DD:u,XMM-LSS', reward_value=100, moon_up=False,
                                         fraction_limit=0.0015, ha_limits=([0., 1.3], [21.7, 24.]),
                                         nside=nside))
 
     # Extended Chandra Deep Field South
-    surveys.append(Deep_drilling_survey(53.125, -28.-6/60., sequence='rgizy',
+    surveys.append(Deep_drilling_survey(bfs, 53.125, -28.-6/60., sequence='rgizy',
                                         nvis=[20, 10, 20, 26, 20],
                                         survey_name='DD:ECDFS', reward_value=100, moon_up=None,
                                         fraction_limit=0.0185, ha_limits=[[0.5, 3.0], [20., 22.5]],
                                         nside=nside))
-    surveys.append(Deep_drilling_survey(53.125, -28.-6/60., sequence='u',
+    surveys.append(Deep_drilling_survey(bfs, 53.125, -28.-6/60., sequence='u',
                                         nvis=[7],
                                         survey_name='DD:u,ECDFS', reward_value=100, moon_up=False,
                                         fraction_limit=0.0015, ha_limits=[[0.5, 3.0], [20., 22.5]],
                                         nside=nside))
     # COSMOS
-    surveys.append(Deep_drilling_survey(150.1, 2.+10./60.+55/3600., sequence='rgizy',
+    surveys.append(Deep_drilling_survey(bfs, 150.1, 2.+10./60.+55/3600., sequence='rgizy',
                                         nvis=[20, 10, 20, 26, 20],
                                         survey_name='DD:COSMOS', reward_value=100, moon_up=None,
                                         fraction_limit=0.0185, ha_limits=([0., 1.5], [21.5, 24.]),
                                         nside=nside))
-    surveys.append(Deep_drilling_survey(150.1, 2.+10./60.+55/3600., sequence='u',
+    surveys.append(Deep_drilling_survey(bfs, 150.1, 2.+10./60.+55/3600., sequence='u',
                                         nvis=[7], ha_limits=([0., 1.5], [21.5, 24.]),
                                         survey_name='DD:u,COSMOS', reward_value=100, moon_up=False,
                                         fraction_limit=0.0015,

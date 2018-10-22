@@ -10,16 +10,13 @@ __all__ = ['BaseSurvey', 'BaseMarkovDF_survey']
 
 class BaseSurvey(object):
 
-    def __init__(self, extra_features=None, extra_basis_functions=None,
+    def __init__(self, basis_functions, extra_features=None, extra_basis_functions=None,
                  ignore_obs='dummy', survey_name='', nside=None):
         """
         Parameters
         ----------
         basis_functions : list
             List of basis_function objects
-        basis_weights : numpy array
-            Array the same length as basis_functions that are the
-            weights to apply to each basis function
         extra_features : list XXX--should this be a dict for clarity?
             List of any additional features the survey may want to use
             e.g., for computing final dither positions, or feasability maps.
@@ -47,6 +44,8 @@ class BaseSurvey(object):
         self.sequence = False  # Specifies the survey gives sequence of observations
         self.survey_index = None
 
+        self.basis_functions = basis_functions
+
         if extra_features is None:
             self.extra_features = {}
         else:
@@ -69,11 +68,15 @@ class BaseSurvey(object):
                 bf.add_observation(observation, **kwargs)
             self.reward_checked = False
 
-    def _check_feasability(self, conditions):
+    def _check_feasibility(self, conditions):
         """
         Check if the survey is feasable in the current conditions
         """
-        return True
+        for bf in self.basis_functions:
+            result = bf.check_feasibility(conditions)
+            if not result:
+                return result
+        return result
 
     def calc_reward_function(self, conditions):
         """
@@ -132,14 +135,14 @@ class BaseMarkovDF_survey(BaseSurvey):
     def __init__(self, basis_functions, basis_weights, extra_features=None,
                  extra_basis_functions=None, smoothing_kernel=None,
                  ignore_obs='dummy', survey_name='', nside=None, seed=42,
-                 dither=True, tag_fields=False, tag_map=None, tag_names=None,):
+                 dither=True):
 
-        super(BaseMarkovDF_survey, self).__init__(extra_features=extra_features,
+        super(BaseMarkovDF_survey, self).__init__(basis_functions=basis_functions,
+                                                  extra_features=extra_features,
                                                   extra_basis_functions=extra_basis_functions,
                                                   ignore_obs=ignore_obs, survey_name=survey_name,
                                                   nside=nside)
 
-        self.basis_functions = basis_functions
         self.basis_weights = basis_weights
         # Check that weights and basis functions are same length
         if len(basis_functions) != np.size(basis_weights):
@@ -161,18 +164,6 @@ class BaseMarkovDF_survey(BaseSurvey):
         # Set the seed
         np.random.seed(seed)
         self.dither = dither
-
-        # Tagging fields
-        self.tag_fields = tag_fields
-        if tag_fields:
-            tags = np.unique(tag_map[tag_map > 0])
-            for tag in tags:
-                inside_tag = np.where(tag_map == tag)
-                fields_id = np.unique(self.hp2fields[inside_tag])
-                self.fields['tag'][fields_id] = tag
-        else:
-            for i in range(len(self.fields)):
-                self.fields['tag'][i] = 1
 
     def add_observation(self, observation, **kwargs):
         """
@@ -253,7 +244,7 @@ class BaseMarkovDF_survey(BaseSurvey):
 
     def calc_reward_function(self, conditions):
         self.reward_checked = True
-        if self._check_feasability(conditions):
+        if self._check_feasibility(conditions):
             self.reward = 0
             indx = np.arange(hp.nside2npix(self.nside))
             # keep track of masked pixels

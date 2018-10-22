@@ -117,7 +117,7 @@ class Core_scheduler(object):
         if len(self.queue) == 0:
             self._fill_queue()
 
-        if self.queue is None:
+        if len(self.queue) == 0:
             return None
         else:
             # If the queue has gone stale, flush and refill. Zero means no flush_by was set.
@@ -125,7 +125,7 @@ class Core_scheduler(object):
                 self.log.warning('Expired observations in queue, flushing and refilling')
                 self.flush_queue()
                 self._fill_queue()
-            if self.queue is None:
+            if len(self.queue) == 0:
                 return None
             observation = self.queue.pop(0)
             if self.is_sequence:
@@ -174,5 +174,4 @@ class Core_scheduler(object):
                 self.log.exception(e)
                 self.flush_queue()
         if len(self.queue) == 0:
-            self.queue = None
             self.log.warning('Failed to fill queue')

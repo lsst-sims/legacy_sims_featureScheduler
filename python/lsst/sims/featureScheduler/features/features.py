@@ -7,7 +7,6 @@ from lsst.sims.featureScheduler import utils
 from lsst.sims.utils import m5_flat_sed
 
 
-
 class BaseFeature(object):
     """
     Base class for features.
