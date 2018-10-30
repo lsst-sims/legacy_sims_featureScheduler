@@ -187,7 +187,8 @@ class Blob_survey(Greedy_survey):
             self.nvisit_block = int(np.floor(best_block_time*60. / (self.slew_approx + self.exptime +
                                                                     self.read_approx*(self.nexp - 1))))
 
-    def _check_feasability(self, conditions):
+    def _check_feasability_old(self, conditions):
+        ## XXX--todo--delete
         # Check if filters are loaded
         filters_mounted = self.filter_set.issubset(set(conditions.mounted_filters))
         if self.filtername2 is not None:
@@ -210,7 +211,7 @@ class Blob_survey(Greedy_survey):
         # Set the number of observations we are going to try and take
         self._set_block_size(conditions)
         #  Computing reward like usual with basis functions and weights
-        if self._check_feasability(conditions):
+        if self._check_feasibility(conditions):
             self.reward = 0
             indx = np.arange(hp.nside2npix(self.nside))
             # keep track of masked pixels
@@ -237,7 +238,10 @@ class Blob_survey(Greedy_survey):
 
             # Select healpixels within some radius of the max
             # This is probably faster with a kd-tree.
-            peak_reward = np.min(np.where(self.reward == np.max(self.reward))[0])
+            try:
+                peak_reward = np.min(np.where(self.reward == np.max(self.reward))[0])
+            except:
+                import pdb ; pdb.set_trace()
             # Apply radius selection
             dists = _angularSeparation(self.ra[peak_reward], self.dec[peak_reward], self.ra, self.dec)
             out_hp = np.where(dists > self.search_radius)

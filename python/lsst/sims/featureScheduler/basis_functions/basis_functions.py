@@ -82,6 +82,9 @@ class Base_basis_function(object):
 
         Return a reward healpix map or a reward scalar.
         """
+        # If we are not feasible, return -inf
+        if not self.check_feasibility(conditions):
+            return -np.inf
         if self.recalc:
             self.value = self._calc_value(conditions, **kwargs)
         if self.update_on_mjd:
@@ -747,3 +750,6 @@ class Cadence_enhance_basis_function(Base_basis_function):
             to_enhance = np.where((mjd_diff > self.enhance_window[0]) & (mjd_diff < self.enhance_window[1]))
             result[ind[to_enhance]] = self.enhance_val
         return result
+
+
+

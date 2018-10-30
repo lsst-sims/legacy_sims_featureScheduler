@@ -8,7 +8,8 @@ from lsst.sims.featureScheduler.basis_functions import Base_basis_function
 
 
 __all__ = ['Filter_loaded_basis_function', 'Time_to_twilight_basis_function',
-           'Not_twilight_basis_function']
+           'Not_twilight_basis_function', 'Force_delay_basis_function',
+           'Hour_Angle_limit_basis_function', 'Moon_down_basis_function']
 
 
 class Filter_loaded_basis_function(Base_basis_function):
@@ -72,7 +73,7 @@ class Force_delay_basis_function(Base_basis_function):
         days_delay : float (2)
             The number of days to force a gap on.
         """
-        super(Not_twilight_basis_function, self).__init__()
+        super(Force_delay_basis_function, self).__init__()
         self.days_delay = days_delay
         self.survey_name = survey_name
         self.survey_features['last_obs_self'] = features.Last_observation(survey_name=self.survey_name)
@@ -84,14 +85,14 @@ class Force_delay_basis_function(Base_basis_function):
         return result
 
 
-class Hour_Angle_limit_(Base_basis_function):
+class Hour_Angle_limit_basis_function(Base_basis_function):
     def __init__(self, RA=0., ha_limits=None):
         """
         Parameters
         ----------
 
         """
-        super(Not_twilight_basis_function, self).__init__()
+        super(Hour_Angle_limit_basis_function, self).__init__()
         self.ra_hours = RA/360.*24.
         self.HA_limits = np.array(ha_limits)
 

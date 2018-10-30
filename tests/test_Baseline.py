@@ -17,6 +17,7 @@ def gen_greedy_surveys(nside):
     target_map = standard_goals(nside=nside)
     filters = ['g', 'r', 'i', 'z', 'y']
     surveys = []
+    cloud_map = target_map['r'][0]*0 + 0.7
 
     for filtername in filters:
         bfs = []
@@ -26,9 +27,14 @@ def gen_greedy_surveys(nside):
                                                 out_of_bounds_val=hp.UNSEEN, nside=nside))
         bfs.append(bf.Slewtime_basis_function(filtername=filtername, nside=nside))
         bfs.append(bf.Strict_filter_basis_function(filtername=filtername))
+        # Masks, give these 0 weight
+        bfs.append(bf.Zenith_shadow_mask_basis_function(nside=nside, shadow_minutes=60., max_alt=76.))
+        bfs.append(bf.Moon_avoidance_basis_function(nside=nside, moon_distance=40.))
+        bfs.append(bf.Bulk_cloud_basis_function(max_cloud_map=cloud_map, nside=nside))
+
         bfs.append(bf.Filter_loaded_basis_function(filternames=filtername))
 
-        weights = np.array([3.0, 0.3, 3., 3., 0.])
+        weights = np.array([3.0, 0.3, 3., 3., 0., 0., 0., 0.])
         surveys.append(Greedy_survey(bfs, weights, block_size=1, filtername=filtername,
                                      dither=True, nside=nside))
     return surveys
@@ -69,7 +75,7 @@ def gen_blob_surveys(nside):
         bfs.append(bf.Zenith_shadow_mask_basis_function(nside=nside, shadow_minutes=60., max_alt=76.))
         bfs.append(bf.Moon_avoidance_basis_function(nside=nside, moon_distance=40.))
         bfs.append(bf.Bulk_cloud_basis_function(max_cloud_map=cloud_map, nside=nside))
-
+        # feasibility basis fucntions. Also give zero weight.
         bfs.append(bf.Filter_loaded_basis_function(filternames=[filtername, filtername2]))
         bfs.append(bf.Time_to_twilight_basis_function(time_needed=22.))
         bfs.append(bf.Not_twilight_basis_function())
