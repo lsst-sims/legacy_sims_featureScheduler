@@ -9,7 +9,8 @@ from lsst.sims.featureScheduler.basis_functions import Base_basis_function
 
 __all__ = ['Filter_loaded_basis_function', 'Time_to_twilight_basis_function',
            'Not_twilight_basis_function', 'Force_delay_basis_function',
-           'Hour_Angle_limit_basis_function', 'Moon_down_basis_function']
+           'Hour_Angle_limit_basis_function', 'Moon_down_basis_function',
+           'Fraction_of_obs_basis_function', 'Clouded_out_basis_function']
 
 
 class Filter_loaded_basis_function(Base_basis_function):
@@ -80,7 +81,7 @@ class Force_delay_basis_function(Base_basis_function):
 
     def check_feasibility(self, conditions):
         result = True
-        if conditions.mjd - self.extra_features['last_obs_self'].feature['mjd'] < self.day_space:
+        if conditions.mjd - self.survey_features['last_obs_self'].feature['mjd'] < self.days_delay:
             result = False
         return result
 
@@ -90,7 +91,7 @@ class Hour_Angle_limit_basis_function(Base_basis_function):
         """
         Parameters
         ----------
-
+        
         """
         super(Hour_Angle_limit_basis_function, self).__init__()
         self.ra_hours = RA/360.*24.
@@ -114,6 +115,44 @@ class Moon_down_basis_function(Base_basis_function):
             result = False
         return result
 
+
+class Fraction_of_obs_basis_function(Base_basis_function):
+    def __init__(self, frac_total, survey_name=''):
+        """
+        Parameters
+        ----------
+        frac_total : float
+            The fraction of total observations that can be of this survey
+        survey_name : str
+            The name of the survey
+        """
+        super(Fraction_of_obs_basis_function, self).__init__()
+        self.survey_name = survey_name
+        self.frac_total = frac_total
+        self.survey_features['Ntot'] = features.N_obs_survey()
+        self.survey_features['N_survey'] = features.N_obs_survey(note=self.survey_name)
+
+    def check_feasibility(self, conditions):
+        # If nothing has been observed, fine to go
+        result = True
+        if self.survey_features['Ntot'].feature == 0:
+            return result
+        ratio = self.survey_features['N_survey'].feature / self.survey_features['Ntot'].feature
+        if ratio > self.frac_total:
+            result = False
+        return result
+
+
+class Clouded_out_basis_function(Base_basis_function):
+    def __init__(self, cloud_limit=0.7):
+        super(Clouded_out_basis_function, self).__init__()
+        self.cloud_limit = cloud_limit
+
+    def check_feasibility(self, conditions):
+        result = True
+        if conditions.bulk_cloud > self.cloud_limit:
+            result = False
+        return result
 
 ## XXX--TODO:  Can include checks to see if downtime is coming, clouds are coming, moon rising, or surveys in a higher tier 
 # Have observations they want to execute soon.

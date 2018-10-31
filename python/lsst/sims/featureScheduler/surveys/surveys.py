@@ -20,8 +20,7 @@ class Greedy_survey(BaseMarkovDF_survey):
     def __init__(self, basis_functions, basis_weights, filtername='r',
                  block_size=1, smoothing_kernel=None, nside=None,
                  dither=True, seed=42, ignore_obs='ack', survey_name='',
-                 nexp=2, exptime=30.,
-                 extra_basis_functions=None):
+                 nexp=2, exptime=30.):
 
         extra_features = {}
 
@@ -31,7 +30,6 @@ class Greedy_survey(BaseMarkovDF_survey):
                                             smoothing_kernel=smoothing_kernel,
                                             ignore_obs=ignore_obs,
                                             nside=nside,
-                                            extra_basis_functions=extra_basis_functions,
                                             survey_name=survey_name, dither=dither)
         self.filtername = filtername
         self.block_size = block_size
@@ -238,10 +236,8 @@ class Blob_survey(Greedy_survey):
 
             # Select healpixels within some radius of the max
             # This is probably faster with a kd-tree.
-            try:
-                peak_reward = np.min(np.where(self.reward == np.max(self.reward))[0])
-            except:
-                import pdb ; pdb.set_trace()
+            peak_reward = np.min(np.where(self.reward == np.max(self.reward))[0])
+            
             # Apply radius selection
             dists = _angularSeparation(self.ra[peak_reward], self.dec[peak_reward], self.ra, self.dec)
             out_hp = np.where(dists > self.search_radius)

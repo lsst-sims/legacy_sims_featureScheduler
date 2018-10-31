@@ -53,7 +53,6 @@ def gen_blob_surveys(nside):
     filter1s = ['g']  # , 'r', 'i', 'z', 'y']
     filter2s = ['g']  # , 'r', 'i', None, None]
 
-
     pair_surveys = []
     for filtername, filtername2 in zip(filter1s, filter2s):
         bfs = []
@@ -136,13 +135,15 @@ class TestFeatures(unittest.TestCase):
         survey_length = 2.1  # days
 
         surveys = []
-        surveys.append(gen_blob_surveys(nside))
-        surveys.append(gen_greedy_surveys(nside))
-
         # Set up the DD
         dd_surveys = generate_dd_surveys(nside=nside)
         surveys.append(dd_surveys)
 
+        # 
+        surveys.append(gen_blob_surveys(nside))
+        surveys.append(gen_greedy_surveys(nside))
+
+        
         scheduler = Core_scheduler(surveys, nside=nside)
         observatory = Speed_observatory(nside=nside)
         observatory, scheduler, observations = sim_runner(observatory, scheduler,

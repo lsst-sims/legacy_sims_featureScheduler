@@ -10,7 +10,7 @@ __all__ = ['BaseSurvey', 'BaseMarkovDF_survey']
 
 class BaseSurvey(object):
 
-    def __init__(self, basis_functions, extra_features=None, extra_basis_functions=None,
+    def __init__(self, basis_functions, extra_features=None,
                  ignore_obs='dummy', survey_name='', nside=None):
         """
         Parameters
@@ -50,10 +50,6 @@ class BaseSurvey(object):
             self.extra_features = {}
         else:
             self.extra_features = extra_features
-        if extra_basis_functions is None:
-            self.extra_basis_functions = {}
-        else:
-            self.extra_basis_functions = extra_basis_functions
         self.reward_checked = False
 
         # Attribute to track if the reward function is up-to-date.
@@ -64,7 +60,7 @@ class BaseSurvey(object):
         if self.ignore_obs not in str(observation['note']):
             for feature in self.extra_features:
                 self.extra_features[feature].add_observation(observation, **kwargs)
-            for bf in self.extra_basis_functions:
+            for bf in self.basis_functions:
                 bf.add_observation(observation, **kwargs)
             self.reward_checked = False
 
@@ -133,13 +129,12 @@ class BaseMarkovDF_survey(BaseSurvey):
     """ A Markov Decision Function survey object
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None,
-                 extra_basis_functions=None, smoothing_kernel=None,
+                 smoothing_kernel=None,
                  ignore_obs='dummy', survey_name='', nside=None, seed=42,
                  dither=True):
 
         super(BaseMarkovDF_survey, self).__init__(basis_functions=basis_functions,
                                                   extra_features=extra_features,
-                                                  extra_basis_functions=extra_basis_functions,
                                                   ignore_obs=ignore_obs, survey_name=survey_name,
                                                   nside=nside)
 
@@ -173,8 +168,6 @@ class BaseMarkovDF_survey(BaseSurvey):
                 bf.add_observation(observation, **kwargs)
             for feature in self.extra_features:
                 self.extra_features[feature].add_observation(observation, **kwargs)
-            for bf in self.extra_basis_functions:
-                bf.add_observation(observation, **kwargs)
             self.reward_checked = False
 
     def _hp2fieldsetup(self, ra, dec, leafsize=100):
