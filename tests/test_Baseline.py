@@ -75,7 +75,8 @@ def gen_blob_surveys(nside):
         bfs.append(bf.Moon_avoidance_basis_function(nside=nside, moon_distance=40.))
         bfs.append(bf.Bulk_cloud_basis_function(max_cloud_map=cloud_map, nside=nside))
         # feasibility basis fucntions. Also give zero weight.
-        bfs.append(bf.Filter_loaded_basis_function(filternames=[filtername, filtername2]))
+        filternames = [fn for fn in [filtername, filtername2] if fn is not None]
+        bfs.append(bf.Filter_loaded_basis_function(filternames=filternames))
         bfs.append(bf.Time_to_twilight_basis_function(time_needed=22.))
         bfs.append(bf.Not_twilight_basis_function())
 

@@ -6,6 +6,7 @@ from lsst.sims.featureScheduler.utils import empty_observation
 from lsst.sims.utils import _angularSeparation
 import logging
 import healpy as hp
+import random
 
 
 log = logging.getLogger(__name__)
@@ -18,8 +19,8 @@ class Deep_drilling_survey(BaseSurvey):
     def __init__(self, basis_functions, RA, dec, sequence='rgizy',
                  nvis=[20, 10, 20, 26, 20],
                  exptime=30., nexp=2, ignore_obs='dummy', survey_name='DD',
-                 reward_value=101., readtime=2., filter_change_time = 120.,
-                 nside=None):
+                 reward_value=101., readtime=2., filter_change_time=120.,
+                 nside=None, filter_match_shuffle=True, seed=42):
         """
         Parameters
         ----------
@@ -39,13 +40,11 @@ class Deep_drilling_survey(BaseSurvey):
             The reward value to report if it is able to start (unitless).
         readtime : float (2.)
             Readout time for computing approximate time of observing the sequence. (seconds)
-        day_space : float (2.)
-            Demand this much spacing between trying to launch a sequence (days)
-        max_clouds : float (0.7)
-            Maximum allowed cloud value for an observation.
+        filter_match_shuffle : bool (True)
+            If True, switch up the order filters are executed in (first sequence will be currently loaded filter if possible)
         """
-
         super(Deep_drilling_survey, self).__init__(nside=nside, basis_functions=basis_functions)
+        random.seed(a=seed)
 
         self.ra = np.radians(RA)
         self.ra_hours = RA/360.*24.
@@ -54,7 +53,7 @@ class Deep_drilling_survey(BaseSurvey):
         self.survey_name = survey_name
         self.reward_value = reward_value
         self.sequence = True  # Specifies the survey gives sequence of observations
-
+        self.filter_sequence = []
         if type(sequence) == str:
             self.observations = []
             for num, filtername in zip(nvis, sequence):
@@ -67,10 +66,16 @@ class Deep_drilling_survey(BaseSurvey):
                     obs['nexp'] = nexp
                     obs['note'] = survey_name
                     self.observations.append(obs)
+                    self.filter_sequence.append(filtername)
         else:
             self.observations = sequence
 
         self.approx_time = np.sum([(o['exptime']+readtime)*o['nexp'] for o in obs])
+        self.filter_match_shuffle = filter_match_shuffle
+        self.filter_indices = {}
+        self.filter_sequence = np.array(self.filter_sequence)
+        for filtername in np.unique(self.filter_sequence):
+            self.filter_indices[filtername] = np.where(self.filter_sequence == filtername)[0]
 
     def check_feasibility(self, observation, conditions):
         # XXXX--maybe rename this to check_continue to make it clearer? Should this be an extra list of 
@@ -110,7 +115,18 @@ class Deep_drilling_survey(BaseSurvey):
         result = []
         if self._check_feasibility(conditions):
             result = copy.deepcopy(self.observations)
-            # Note, could check here what the current filter is and re-order the result
+            #
+            if self.filter_match_shuffle:
+                filters_remaining = list(self.filter_indices.keys())
+                random.shuffle(filters_remaining)
+                # If we want to observe the currrent filter, put it first
+                if conditions.current_filter in filters_remaining:
+                    filters_remaining.insert(0, filters_remaining.pop(filters_remaining.index(conditions.current_filter)))
+                final_result = []
+                for filtername in filters_remaining:
+                    final_result.extend(result[np.min(self.filter_indices[filtername]):np.max(self.filter_indices[filtername])+1])
+                result = final_result
+
         return result
 
 
@@ -120,7 +136,7 @@ def dd_bfs(RA, dec, survey_name, ha_limits, frac_total=0.0185):
     """
     bfs = []
     bfs.append(basis_functions.Filter_loaded_basis_function(filternames=['r', 'g', 'i', 'z', 'y']))
-    bfs.append(basis_functions.Not_twilight_basis_function())
+    bfs.append(basis_functions.Not_twilight_basis_function(sun_alt_limit=-18.5)) #XXX-possible pyephem bug
     bfs.append(basis_functions.Time_to_twilight_basis_function(time_needed=62.))
     bfs.append(basis_functions.Force_delay_basis_function(days_delay=2., survey_name=survey_name))
     bfs.append(basis_functions.Hour_Angle_limit_basis_function(RA=RA, ha_limits=ha_limits))
@@ -134,7 +150,7 @@ def dd_u_bfs(RA, dec, survey_name, ha_limits):
     """
     bfs = []
     bfs.append(basis_functions.Filter_loaded_basis_function(filternames='u'))
-    bfs.append(basis_functions.Not_twilight_basis_function())
+    bfs.append(basis_functions.Not_twilight_basis_function(sun_alt_limit=-18.5)) #XXX-possible pyephem bug
     bfs.append(basis_functions.Time_to_twilight_basis_function(time_needed=6.))
     bfs.append(basis_functions.Hour_Angle_limit_basis_function(RA=RA, ha_limits=ha_limits))
 
