@@ -20,7 +20,7 @@ class Deep_drilling_survey(BaseSurvey):
                  nvis=[20, 10, 20, 26, 20],
                  exptime=30., nexp=2, ignore_obs='dummy', survey_name='DD',
                  reward_value=101., readtime=2., filter_change_time=120.,
-                 nside=None, filter_match_shuffle=True, seed=42):
+                 nside=None, filter_match_shuffle=True, flush_pad=30., seed=42):
         """
         Parameters
         ----------
@@ -42,6 +42,8 @@ class Deep_drilling_survey(BaseSurvey):
             Readout time for computing approximate time of observing the sequence. (seconds)
         filter_match_shuffle : bool (True)
             If True, switch up the order filters are executed in (first sequence will be currently loaded filter if possible)
+        flush_pad : float (10.)
+            How long to hold observations in the queue after they were expected to be completed (minutes)/
         """
         super(Deep_drilling_survey, self).__init__(nside=nside, basis_functions=basis_functions)
         random.seed(a=seed)
@@ -52,6 +54,7 @@ class Deep_drilling_survey(BaseSurvey):
         self.ignore_obs = ignore_obs
         self.survey_name = survey_name
         self.reward_value = reward_value
+        self.flush_pad = flush_pad/60./24.  # To days
         self.sequence = True  # Specifies the survey gives sequence of observations
         self.filter_sequence = []
         if type(sequence) == str:
@@ -70,15 +73,17 @@ class Deep_drilling_survey(BaseSurvey):
         else:
             self.observations = sequence
 
-        self.approx_time = np.sum([(o['exptime']+readtime)*o['nexp'] for o in obs])
+        # Make an estimate of how long a seqeunce will take. Assumes no major rotational or spatial
+        # dithering slowing things down.
+        self.approx_time = np.sum([o['exptime']+readtime*o['nexp'] for o in self.observations])/3600./24. \
+                           + filter_change_time*len(sequence)/3600./24.  # to days
         self.filter_match_shuffle = filter_match_shuffle
         self.filter_indices = {}
         self.filter_sequence = np.array(self.filter_sequence)
         for filtername in np.unique(self.filter_sequence):
             self.filter_indices[filtername] = np.where(self.filter_sequence == filtername)[0]
 
-    def check_feasibility(self, observation, conditions):
-        # XXXX--maybe rename this to check_continue to make it clearer? Should this be an extra list of 
+    def check_continue(self, observation, conditions):
         # feasibility basis functions?
         '''
         This method enables external calls to check if a given observations that belongs to this survey is
@@ -87,23 +92,13 @@ class Deep_drilling_survey(BaseSurvey):
         :return:
         '''
 
-        # Check moon distance
-        #if self.moon_up is not None:
-        #    moon_separation = _angularSeparation(conditions.moonRA,
-        #                                         conditions.moonDec,
-        #                                         observation['RA'],
-        #                                         observation['dec'])
-        #    if moon_separation < self.moon_distance:
-        #        return False
+        result = True
+        #for bf in self.basis_functions:
+        #    result = bf.check_feasibility(conditions)
+        #    if not result:
+        #        return result
 
-        # Check clouds
-        #if conditions.bulk_cloud > self.max_clouds:
-        #    return False
-
-
-
-        # If we made it this far, good to go
-        return True
+        return result
 
     def calc_reward_function(self, conditions):
         result = -np.inf
@@ -115,7 +110,7 @@ class Deep_drilling_survey(BaseSurvey):
         result = []
         if self._check_feasibility(conditions):
             result = copy.deepcopy(self.observations)
-            #
+
             if self.filter_match_shuffle:
                 filters_remaining = list(self.filter_indices.keys())
                 random.shuffle(filters_remaining)
@@ -126,7 +121,9 @@ class Deep_drilling_survey(BaseSurvey):
                 for filtername in filters_remaining:
                     final_result.extend(result[np.min(self.filter_indices[filtername]):np.max(self.filter_indices[filtername])+1])
                 result = final_result
-
+            # Let's set the mjd to flush the queue by
+            for i, obs in enumerate(result):
+                result[i]['flush_by_mjd'] = conditions.mjd + self.approx_time + self.flush_pad
         return result
 
 

@@ -45,7 +45,7 @@ class Core_scheduler(object):
         # initialize a queue of observations to request
         self.queue = []
         # Are the observations in the queue part of a sequence.
-        self.is_sequence = False
+        self.queue_is_sequence = False
         # The indices of the survey that provided the last addition(s) to the queue
         self.survey_index = [None, None]
 
@@ -70,7 +70,7 @@ class Core_scheduler(object):
         Like it sounds, clear any currently queued desired observations.
         """
         self.queue = []
-        self.is_sequence = False
+        self.queue_is_sequence = False
         self.survey_index = [None, None]
 
     def add_observation(self, observation):
@@ -128,13 +128,18 @@ class Core_scheduler(object):
             if len(self.queue) == 0:
                 return None
             observation = self.queue.pop(0)
-            if self.is_sequence:
-                if self.survey_lists[self.survey_index[0]][self.survey_index[1]].check_feasibility(observation, self.conditions):
+            if self.queue_is_sequence:
+                if self.survey_lists[self.survey_index[0]][self.survey_index[1]].check_continue(observation, self.conditions):
                     return observation
                 else:
                     self.log.warning('Sequence interrupted! Cleaning queue!')
                     self.flush_queue()
-                    return None
+                    self._fill_queue()
+                    if len(self.queue) == 0:
+                        return None
+                    else:
+                        observation = self.queue.pop(0)
+                        return observation
             else:
                 return observation
 
@@ -169,7 +174,7 @@ class Core_scheduler(object):
                 # Survey return list of observations
                 result = self.survey_lists[self.survey_index[0]][self.survey_index[1]](self.conditions)
                 self.queue = result
-                self.is_sequence = self.survey_lists[self.survey_index[0]][self.survey_index[1]].sequence
+                self.queue_is_sequence = self.survey_lists[self.survey_index[0]][self.survey_index[1]].sequence
             except ValueError as e:
                 self.log.exception(e)
                 self.flush_queue()
