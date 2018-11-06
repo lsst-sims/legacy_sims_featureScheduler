@@ -11,14 +11,13 @@ from astropy.coordinates import SkyCoord
 from astropy import units as u
 import os
 import sys
-from lsst.utils import getPackageDir
 import sqlite3 as db
 import matplotlib.pylab as plt
 import time
 import datetime
 from lsst.sims.featureScheduler import version
 import warnings
-from lsst.sims.survey.fields import FieldsDatabase, FieldSelection
+from lsst.sims.survey.fields import FieldsDatabase
 
 log = logging.getLogger(__name__)
 

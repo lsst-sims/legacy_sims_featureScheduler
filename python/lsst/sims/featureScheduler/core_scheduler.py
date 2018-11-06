@@ -20,7 +20,7 @@ class Core_scheduler(object):
         """
         Parameters
         ----------
-        surveys : list of lsst.sims.featureScheduler.survey objects
+        surveys : list (or list of lists) of lsst.sims.featureScheduler.survey objects
             A list of surveys to consider. If multiple surveys retrurn the same highest
             reward value, the survey at the earliest position in the list will be selected.
             Can also be a list of lists to make heirarchical priorities.
@@ -46,7 +46,7 @@ class Core_scheduler(object):
         self.queue = []
         # Are the observations in the queue part of a sequence.
         self.queue_is_sequence = False
-        # The indices of the survey that provided the last addition(s) to the queue
+        # The indices of self.survey_lists that provided the last addition(s) to the queue
         self.survey_index = [None, None]
 
         # If we have a list of survey objects, convert to list-of-lists
@@ -85,9 +85,6 @@ class Core_scheduler(object):
         """
 
         # Find the healpixel centers that are included in an observation
-        # XXX-in the future, we may want to refactor to support multiple nside resolutions
-        # I think indx would then be a dict with keys 32,64,128, etc. Then each feature would
-        # say indx = indx[self.nside]
         indx = self.pointing2hpindx(observation['RA'], observation['dec'], observation['rotSkyPos'])
         for surveys in self.survey_lists:
             for survey in surveys:

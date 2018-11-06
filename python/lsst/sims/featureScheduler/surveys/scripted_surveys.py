@@ -1,6 +1,5 @@
 import numpy as np
-from lsst.sims.featureScheduler.utils import (empty_observation, set_default_nside,
-                                              hp_in_lsst_fov, read_fields)
+from lsst.sims.featureScheduler.utils import (empty_observation, set_default_nside)
 import lsst.sims.featureScheduler.features as features
 from lsst.sims.featureScheduler.surveys import BaseSurvey
 from lsst.sims.utils import _approx_RaDec2AltAz, _raDec2Hpid

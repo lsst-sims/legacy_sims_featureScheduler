@@ -1,12 +1,19 @@
 from __future__ import absolute_import
 from builtins import object
 import numpy as np
-import numpy.ma as ma
 from lsst.sims.featureScheduler import features
 from lsst.sims.featureScheduler import utils
 import healpy as hp
 from lsst.sims.skybrightness_pre import M5percentiles
 import matplotlib.pylab as plt
+
+
+__all__ = ['Base_basis_function', 'Constant_basis_function', 'Target_map_basis_function',
+           'Avoid_Fast_Revists', 'Visit_repeat_basis_function', 'M5_diff_basis_function',
+           'Strict_filter_basis_function', 'Goal_Strict_filter_basis_function',
+           'Filter_change_basis_function', 'Slewtime_basis_function',
+           'Aggressive_Slewtime_basis_function', 'Skybrightness_limit_basis_function',
+           'CableWrap_unwrap_basis_function', 'Cadence_enhance_basis_function']
 
 
 class Base_basis_function(object):

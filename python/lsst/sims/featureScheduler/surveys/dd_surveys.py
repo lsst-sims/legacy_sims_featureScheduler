@@ -9,6 +9,8 @@ import healpy as hp
 import random
 
 
+__all__ = ['Deep_drilling_survey', 'generate_dd_surveys']
+
 log = logging.getLogger(__name__)
 
 
@@ -41,9 +43,10 @@ class Deep_drilling_survey(BaseSurvey):
         readtime : float (2.)
             Readout time for computing approximate time of observing the sequence. (seconds)
         filter_match_shuffle : bool (True)
-            If True, switch up the order filters are executed in (first sequence will be currently loaded filter if possible)
+            If True, switch up the order filters are executed in (first sequence will be currently
+            loaded filter if possible)
         flush_pad : float (10.)
-            How long to hold observations in the queue after they were expected to be completed (minutes)/
+            How long to hold observations in the queue after they were expected to be completed (minutes).
         """
         super(Deep_drilling_survey, self).__init__(nside=nside, basis_functions=basis_functions)
         random.seed(a=seed)
@@ -133,7 +136,7 @@ def dd_bfs(RA, dec, survey_name, ha_limits, frac_total=0.0185):
     """
     bfs = []
     bfs.append(basis_functions.Filter_loaded_basis_function(filternames=['r', 'g', 'i', 'z', 'y']))
-    bfs.append(basis_functions.Not_twilight_basis_function(sun_alt_limit=-18.5)) #XXX-possible pyephem bug
+    bfs.append(basis_functions.Not_twilight_basis_function(sun_alt_limit=-18.5))  # XXX-possible pyephem bug
     bfs.append(basis_functions.Time_to_twilight_basis_function(time_needed=62.))
     bfs.append(basis_functions.Force_delay_basis_function(days_delay=2., survey_name=survey_name))
     bfs.append(basis_functions.Hour_Angle_limit_basis_function(RA=RA, ha_limits=ha_limits))
@@ -142,12 +145,13 @@ def dd_bfs(RA, dec, survey_name, ha_limits, frac_total=0.0185):
 
     return bfs
 
+
 def dd_u_bfs(RA, dec, survey_name, ha_limits):
     """Convienence function to generate all the feasibility basis functions for u-band DDFs
     """
     bfs = []
     bfs.append(basis_functions.Filter_loaded_basis_function(filternames='u'))
-    bfs.append(basis_functions.Not_twilight_basis_function(sun_alt_limit=-18.5)) #XXX-possible pyephem bug
+    bfs.append(basis_functions.Not_twilight_basis_function(sun_alt_limit=-18.5))  # XXX-possible pyephem bug
     bfs.append(basis_functions.Time_to_twilight_basis_function(time_needed=6.))
     bfs.append(basis_functions.Hour_Angle_limit_basis_function(RA=RA, ha_limits=ha_limits))
 
@@ -227,6 +231,21 @@ def generate_dd_surveys(nside=None):
     survey_name = 'DD:u,COSMOS'
     bfs = dd_u_bfs(RA, dec, survey_name, ha_limits)
     surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='u',
-                                        nvis=[7],  survey_name=survey_name, reward_value=100, nside=nside))
+                                        nvis=[7], survey_name=survey_name, reward_value=100, nside=nside))
+
+    # Extra DD Field, just to get to 5. Still not closed on this one
+    survey_name = 'DD:290'
+    RA = 349.386443
+    dec = -63.321004
+    ha_limits = ([0., 0.5], [23.5, 24.])
+    bfs = dd_bfs(RA, dec, survey_name, ha_limits)
+    surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='rgizy',
+                                        nvis=[20, 10, 20, 26, 20],
+                                        survey_name=survey_name, reward_value=100, nside=nside))
+
+    survey_name = 'DD:u,290'
+    bfs = dd_u_bfs(RA, dec, survey_name, ha_limits)
+    surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='u', nvis=[7],
+                                        survey_name=survey_name, reward_value=100, nside=nside))
 
     return surveys

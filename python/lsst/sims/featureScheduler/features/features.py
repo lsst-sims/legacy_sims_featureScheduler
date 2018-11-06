@@ -1,10 +1,15 @@
 from __future__ import absolute_import
 from builtins import object
 import numpy as np
-import numpy.ma as ma
 import healpy as hp
 from lsst.sims.featureScheduler import utils
 from lsst.sims.utils import m5_flat_sed
+
+
+__all__ = ['BaseFeature', 'BaseSurveyFeature', 'N_obs_count', 'N_obs_survey', 'N_obs_area',
+           'Last_observation', 'LastSequence_observation', 'LastFilterChange',
+           'N_observations', 'Coadded_depth', 'Last_observed', 'N_obs_night', 'Pair_in_night',
+           'Rotator_angle']
 
 
 class BaseFeature(object):
@@ -15,7 +20,6 @@ class BaseFeature(object):
         # self.feature should be a float, bool, or healpix size numpy array, or numpy masked array
         self.feature = None
 
-    # XXX--Should this actually be a __get__?
     def __call__(self):
         return self.feature
 

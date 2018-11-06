@@ -1,13 +1,11 @@
 import numpy as np
-from lsst.sims.featureScheduler.utils import (empty_observation, set_default_nside,
-                                              hp_in_lsst_fov, read_fields)
+from lsst.sims.featureScheduler.utils import (empty_observation, set_default_nside)
 import healpy as hp
-import lsst.sims.featureScheduler.features as features
 from lsst.sims.featureScheduler.surveys import BaseMarkovDF_survey
 from lsst.sims.featureScheduler.utils import (int_binned_stat, max_reject,
                                               gnomonic_project_toxy, tsp_convex)
 import copy
-from lsst.sims.utils import _angularSeparation, Site, _hpid2RaDec, _approx_RaDec2AltAz
+from lsst.sims.utils import _angularSeparation, _hpid2RaDec, _approx_RaDec2AltAz
 
 
 __all__ = ['Greedy_survey', 'Blob_survey']
@@ -185,26 +183,8 @@ class Blob_survey(Greedy_survey):
             self.nvisit_block = int(np.floor(best_block_time*60. / (self.slew_approx + self.exptime +
                                                                     self.read_approx*(self.nexp - 1))))
 
-    def _check_feasability_old(self, conditions):
-        ## XXX--todo--delete
-        # Check if filters are loaded
-        filters_mounted = self.filter_set.issubset(set(conditions.mounted_filters))
-        if self.filtername2 is not None:
-            second_fitler_mounted = self.filter2_set.issubset(set(conditions.mounted_filters))
-            filters_mounted = filters_mounted & second_fitler_mounted
-
-        available_time = conditions.next_twilight_start - conditions.mjd
-        if not filters_mounted:
-            return False
-        # We have enough time before twilight starts
-        elif available_time < self.time_needed:
-            return False
-        else:
-            return True
-
     def calc_reward_function(self, conditions):
         """
-        
         """
         # Set the number of observations we are going to try and take
         self._set_block_size(conditions)
@@ -237,7 +217,7 @@ class Blob_survey(Greedy_survey):
             # Select healpixels within some radius of the max
             # This is probably faster with a kd-tree.
             peak_reward = np.min(np.where(self.reward == np.max(self.reward))[0])
-            
+
             # Apply radius selection
             dists = _angularSeparation(self.ra[peak_reward], self.dec[peak_reward], self.ra, self.dec)
             out_hp = np.where(dists > self.search_radius)

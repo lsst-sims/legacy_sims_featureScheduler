@@ -1,8 +1,5 @@
 import numpy as np
-import numpy.ma as ma
 from lsst.sims.featureScheduler import features
-from lsst.sims.featureScheduler import utils
-import healpy as hp
 import matplotlib.pylab as plt
 from lsst.sims.featureScheduler.basis_functions import Base_basis_function
 
@@ -91,7 +88,11 @@ class Hour_Angle_limit_basis_function(Base_basis_function):
         """
         Parameters
         ----------
-        
+        RA : float (0.)
+            RA of the target (degrees).
+        ha_limits : list of lists
+            limits for what hour angles are acceptable (hours). e.g.,
+            to give 4 hour window around RA=0, ha_limits=[[22,24], [0,2]]
         """
         super(Hour_Angle_limit_basis_function, self).__init__()
         self.ra_hours = RA/360.*24.
@@ -109,6 +110,7 @@ class Hour_Angle_limit_basis_function(Base_basis_function):
 
 
 class Moon_down_basis_function(Base_basis_function):
+    """Demand the moon is down """
     def check_feasibility(self, conditions):
         result = True
         if conditions.moonAlt > 0:
@@ -117,6 +119,9 @@ class Moon_down_basis_function(Base_basis_function):
 
 
 class Fraction_of_obs_basis_function(Base_basis_function):
+    """Limit the fraction of all observations that can be labled a certain
+    survey name.
+    """
     def __init__(self, frac_total, survey_name=''):
         """
         Parameters
