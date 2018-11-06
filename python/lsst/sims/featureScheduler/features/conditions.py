@@ -82,7 +82,8 @@ class Conditions(object):
         last_twilight_end : float
             The MJD when the last twilight ended. (days)
         next_twilight_start : float
-            The MJD when the next twilight will start. (days) XXX--need to look up how this twilight is defined! For speedObservatory it's sunAlt of -18 degrees
+            The MJD when the next twilight will start. (days) XXX--need to look up how this twilight is
+            defined! For speedObservatory it's sunAlt of -18 degrees
         telRA : float
             The current telescope RA pointing (radians).
         telDec : float
@@ -156,6 +157,7 @@ class Conditions(object):
     @property
     def lmst(self):
         return self._lmst
+
     @lmst.setter
     def lmst(self, value):
         self._lmst = value
@@ -166,7 +168,7 @@ class Conditions(object):
         if self._HA is None:
             self.calc_HA()
         return self._HA
-    
+
     def calc_HA(self):
         self._HA = np.radians(self._lmst*360./24.) - self.ra
         self._HA[np.where(self._HA < 0)] += 2.*np.pi
@@ -216,6 +218,7 @@ class Conditions(object):
         self._alt, self._az = _approx_RaDec2AltAz(self.ra, self.dec,
                                                   self.site.latitude_rad,
                                                   self.site.longitude_rad, self._mjd)
+
     @property
     def mjd(self):
         return self._mjd

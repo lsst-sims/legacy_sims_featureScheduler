@@ -10,6 +10,7 @@ setupRequired(sims_speedObservatory)
 setupRequired(sims_seeingModel)
 setupRequired(sims_cloudModel)
 setupRequired(sims_downtimeModel)
+setupRequired(sims_survey_fields)
 
 envPrepend(PYTHONPATH, ${PRODUCT_DIR}/python)
 envPrepend(PATH, ${PRODUCT_DIR}/bin)

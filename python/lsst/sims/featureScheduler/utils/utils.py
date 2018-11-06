@@ -18,16 +18,9 @@ import time
 import datetime
 from lsst.sims.featureScheduler import version
 import warnings
+from lsst.sims.survey.fields import FieldsDatabase, FieldSelection
 
 log = logging.getLogger(__name__)
-
-_load_local_fieldlist = False
-try:
-    from lsst.ts.scheduler.fields import FieldsDatabase
-except ImportError as err:
-    warnings.warn('''Could not import ts.scheduler. This is required to load the FieldsDatabase. In this case
-it will fallback to loading fields from the local "fieldID.lis" file.''')
-    _load_local_fieldlist = True
 
 
 def set_default_nside(nside=None):
@@ -271,48 +264,19 @@ def read_fields():
     numpy.array
         With RA and dec in radians.
     """
-    if _load_local_fieldlist:
-        return read_fields_from_localfile()
-    else:
-        return read_fields_from_tscheduler()
+    query = 'select fieldId, fieldRA, fieldDEC from Field;'
+    fd = FieldsDatabase()
+    fields = np.array(list(fd.get_field_set(query)))
+    # order by field ID
+    fields = fields[fields[:,0].argsort()]
 
-
-def read_fields_from_localfile():
     names = ['RA', 'dec']
     types = [float, float]
-    data_dir = os.path.join(getPackageDir('sims_featureScheduler'), 'python/lsst/sims/featureScheduler/utils')
-    filepath = os.path.join(data_dir, 'fieldID.lis')
-    field_coords = np.loadtxt(filepath, dtype=list(zip(names, types)))
+    result = np.zeros(np.size(fields[:, 1]), dtype=list(zip(names, types)))
+    result['RA'] = np.radians(fields[:, 1])
+    result['dec'] = np.radians(fields[:, 2])
 
-    field_names = ['field_id', 'fov_rad', 'RA', 'dec', 'gl', 'gb', 'el', 'eb', 'tag']
-    field_types = [int, float, float, float, float, float, float, float, int]
-    fields = np.zeros(len(field_coords['RA']), dtype=list(zip(field_names, field_types)))
-
-    fields['RA'] = np.radians(field_coords['RA'])
-    fields['dec'] = np.radians(field_coords['dec'])
-
-    return fields
-
-
-def read_fields_from_tscheduler():
-    sql = "select * from Field"
-    db = FieldsDatabase()
-    res = db.query(sql)
-    names = ['field_id', 'fov_rad', 'RA', 'dec', 'gl', 'gb', 'el', 'eb', 'tag']
-    types = [int, float, float, float, float, float, float, float, int]
-    fields = np.zeros(len(res), dtype=list(zip(names, types)))
-
-    for i, row in enumerate(res):
-        fields['field_id'][i] = row[0]
-        fields['fov_rad'][i] = row[1]
-        fields['RA'][i] = np.radians(row[2])
-        fields['dec'][i] = np.radians(row[3])
-        fields['gl'][i] = row[4]
-        fields['gb'][i] = row[5]
-        fields['el'][i] = row[6]
-        fields['eb'][i] = row[7]
-
-    return fields
+    return result
 
 
 def hp_kd_tree(nside=None, leafsize=100):
@@ -953,8 +917,6 @@ def observations2sqlite(observations, filename='observations.db', delete_past=Fa
         any added columns
     """
 
-    # XXX--Here is a good place to add any missing columns, e.g., alt,az
-
     if delete_past:
         try:
             os.remove(filename)
@@ -978,7 +940,7 @@ def observations2sqlite(observations, filename='observations.db', delete_past=Fa
 
 def sqlite2observations(filename='observations.db'):
     """
-    Restore a databse of observations.
+    Restore a database of observations.
     """
     con = db.connect(filename)
     df = pd.read_sql('select * from observations;', con)

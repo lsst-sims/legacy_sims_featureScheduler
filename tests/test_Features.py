@@ -31,8 +31,6 @@ class TestFeatures(unittest.TestCase):
         pin.add_observation(obs, indx=indx)
         self.assertEqual(np.max(pin.feature), 2.)
 
-        # XXX--test that it clears if a new night rolls over
-
 
 class TestMemory(lsst.utils.tests.MemoryTestCase):
     pass
