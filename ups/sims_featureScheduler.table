@@ -11,6 +11,7 @@ setupRequired(sims_seeingModel)
 setupRequired(sims_cloudModel)
 setupRequired(sims_downtimeModel)
 setupRequired(sims_survey_fields)
+setupRequired(ts_observatory_model)
 
 envPrepend(PYTHONPATH, ${PRODUCT_DIR}/python)
 envPrepend(PATH, ${PRODUCT_DIR}/bin)
