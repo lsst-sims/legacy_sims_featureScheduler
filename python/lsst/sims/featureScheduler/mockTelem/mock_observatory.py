@@ -13,9 +13,32 @@ from lsst.ts.observatory.model import ObservatoryModel, Target
 from astropy.coordinates import get_sun, get_moon, EarthLocation, AltAz
 from astropy.time import Time
 import copy
-
+from scipy.optimize import minimize, Bounds
 
 __all__ = ['Mock_observatory']
+
+
+class ExtendedObservatoryModel(ObservatoryModel):
+
+    def expose(self, target):
+        # Break out the exposure command from observe method
+        visit_time = sum(target.exp_times) + \
+            target.num_exp * self.params.shuttertime + \
+            max(target.num_exp - 1, 0) * self.params.readouttime
+        self.update_state(self.current_state.time + visit_time)
+
+    def observe_times(self, target):
+        """observe a target, and return the slewtime and visit time
+        """
+        t1 = self.current_state.time + 0
+        # Note, this slew assumes there is a readout that needs to be done.
+        self.slew(target)
+        t2 = self.current_state.time + 0
+        self.expose(target)
+        t3 = self.current_state.time + 0
+        slewtime = t2 - t1
+        visitime = t3 - t2
+        return slewtime, visitime
 
 
 class dummy_time_handler(object):
@@ -43,36 +66,6 @@ class dummy_time_handler(object):
             return (datetime1 - datetime2).total_seconds()
         else:
             return (datetime2 - datetime1).total_seconds()
-
-
-def generate_sunsets(mjd_start, duration=12.):
-    """Generate the sunset and twilight times for a range of dates
-
-    Parameters
-    ----------
-    mjd_start : float
-        The starting mjd
-    duration : float (12.)
-        How long to compute times for (years)
-    """
-
-    # Should also do moon-rise, set times.
-
-    # end result, I want an array so that given an MJD I can:
-    # look up if it's day, night, or twililight
-    # What night number it is
-    # When the next moon rise/set is.
-
-
-    # Let's find the nights first, find the times where the sun crosses the meridian.
-    site = Site('LSST')
-    location = EarthLocation(lat=site.latitude, lon=site.longitude, height=site.height)
-    # go on 1/10th of a day steps
-    t_step = 0.1
-    t = Time(np.arange(duration*365.25*t_step, t_step)+mjd_start, format='mjd', location=location)
-    sun = get_sun(t)
-    aa = AltAz(location=location, obstime=t)
-    sun_aa = sun.transform_to(aa)
 
 
 class filter_swap_scheduler(object):
@@ -145,7 +138,7 @@ class Mock_observatory(object):
 
         self.sky_model = sb.SkyModelPre(speedLoad=quickTest)
 
-        self.observatory = ObservatoryModel()
+        self.observatory = ExtendedObservatoryModel()
         self.observatory.configure_from_module()
         # Make it so it respects my requested rotator angles
         self.observatory.params.rotator_followsky = True
