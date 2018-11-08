@@ -46,7 +46,9 @@ class Greedy_survey(BaseMarkovDF_survey):
             self.night = conditions.night.copy()
 
         # Let's find the best N from the fields
-        order = np.argsort(self.reward.data)[::-1]
+        order = np.argsort(self.reward)[::-1]
+        # Crop off any NaNs
+        order = order[~np.isnan(self.reward[order])]
 
         iter = 0
         while True:
@@ -192,43 +194,33 @@ class Blob_survey(Greedy_survey):
         if self._check_feasibility(conditions):
             self.reward = 0
             indx = np.arange(hp.nside2npix(self.nside))
-            # keep track of masked pixels
-            mask = np.zeros(indx.size, dtype=bool)
             for bf, weight in zip(self.basis_functions, self.basis_weights):
                 basis_value = bf(conditions, indx=indx)
-                mask[np.where(basis_value == hp.UNSEEN)] = True
-                if hasattr(basis_value, 'mask'):
-                    mask[np.where(basis_value.mask == True)] = True
                 self.reward += basis_value*weight
                 # might be faster to pull this out into the feasabiliity check?
-                if hasattr(self.reward, 'mask'):
-                    indx = np.where(self.reward.mask == False)[0]
-            self.reward[mask] = hp.UNSEEN
-            self.reward.mask = mask
-            self.reward.fill_value = hp.UNSEEN
 
             if self.smoothing_kernel is not None:
                 self.smooth_reward()
 
             # Apply max altitude cut
             too_high = np.where(conditions.alt > self.alt_max)
-            self.reward[too_high] = hp.UNSEEN
+            self.reward[too_high] = np.nan
 
             # Select healpixels within some radius of the max
             # This is probably faster with a kd-tree.
-            peak_reward = np.min(np.where(self.reward == np.max(self.reward))[0])
+            peak_reward = np.min(np.where(self.reward == np.nanmax(self.reward))[0])
 
             # Apply radius selection
             dists = _angularSeparation(self.ra[peak_reward], self.dec[peak_reward], self.ra, self.dec)
             out_hp = np.where(dists > self.search_radius)
-            self.reward[out_hp] = hp.UNSEEN
+            self.reward[out_hp] = np.nan
 
             # Apply az cut
             az_centered = conditions.az - conditions.az[peak_reward]
             az_centered[np.where(az_centered < 0)] += 2.*np.pi
 
             az_out = np.where((az_centered > self.az_range/2.) & (az_centered < 2.*np.pi-self.az_range/2.))
-            self.reward[az_out] = hp.UNSEEN
+            self.reward[az_out] = np.nan
         else:
             self.reward = -np.inf
         self.reward_checked = True
@@ -247,12 +239,13 @@ class Blob_survey(Greedy_survey):
             self.night = conditions.night.copy()
 
         # Now that we have the reward map,
-        potential_hp = np.where(self.reward.filled() != hp.UNSEEN)
+        potential_hp = np.where(~np.isnan(self.reward) == True)
         # Find the max reward for each potential pointing
         ufields, reward_by_field = int_binned_stat(self.hp2fields[potential_hp],
-                                                   self.reward[potential_hp].filled(),
+                                                   self.reward[potential_hp],
                                                    statistic=max_reject)
         order = np.argsort(reward_by_field)
+        order = order[~np.isnan(ufields[order])]
         ufields = ufields[order][::-1][0:self.nvisit_block]
         self.best_fields = ufields
 

@@ -231,7 +231,7 @@ class BaseMarkovDF_survey(BaseSurvey):
             self.reward_smooth = hp.sphtfunc.smoothing(self.reward.filled(),
                                                        fwhm=self.smoothing_kernel,
                                                        verbose=False)
-            good = np.where(self.reward_smooth != hp.UNSEEN)
+            good = ~np.isnan(self.reward_smooth)
             # Round off to prevent strange behavior early on
             self.reward_smooth[good] = np.round(self.reward_smooth[good], decimals=4)
 
@@ -240,21 +240,10 @@ class BaseMarkovDF_survey(BaseSurvey):
         if self._check_feasibility(conditions):
             self.reward = 0
             indx = np.arange(hp.nside2npix(self.nside))
-            # keep track of masked pixels
-            mask = np.zeros(indx.size, dtype=bool)
             for bf, weight in zip(self.basis_functions, self.basis_weights):
                 basis_value = bf(conditions, indx=indx)
-                mask[np.where(basis_value == hp.UNSEEN)] = True
-                if hasattr(basis_value, 'mask'):
-                    mask[np.where(basis_value.mask == True)] = True
                 self.reward += basis_value*weight
-                # might be faster to pull this out into the feasabiliity check?
-                if hasattr(self.reward, 'mask'):
-                    indx = np.where(self.reward.mask == False)[0]
-            self.reward[mask] = hp.UNSEEN
-            # self.reward.mask = mask
-            # self.reward.fill_value = hp.UNSEEN
-            # inf reward means it trumps everything.
+
             if np.any(np.isinf(self.reward)):
                 self.reward = np.inf
         else:

@@ -24,12 +24,12 @@ def gen_greedy_surveys(nside):
         bfs.append(bf.M5_diff_basis_function(filtername=filtername, nside=nside))
         bfs.append(bf.Target_map_basis_function(filtername=filtername,
                                                 target_map=target_map[filtername],
-                                                out_of_bounds_val=hp.UNSEEN, nside=nside))
+                                                out_of_bounds_val=np.nan, nside=nside))
         bfs.append(bf.Slewtime_basis_function(filtername=filtername, nside=nside))
         bfs.append(bf.Strict_filter_basis_function(filtername=filtername))
         # Masks, give these 0 weight
         bfs.append(bf.Zenith_shadow_mask_basis_function(nside=nside, shadow_minutes=60., max_alt=76.))
-        bfs.append(bf.Moon_avoidance_basis_function(nside=nside, moon_distance=40.))
+        bfs.append(bf.Moon_avoidance_basis_function(nside=nside, moon_distance=30.))
         bfs.append(bf.Bulk_cloud_basis_function(max_cloud_map=cloud_map, nside=nside))
 
         bfs.append(bf.Filter_loaded_basis_function(filternames=filtername))
@@ -61,18 +61,18 @@ def gen_blob_surveys(nside):
             bfs.append(bf.M5_diff_basis_function(filtername=filtername2, nside=nside))
         bfs.append(bf.Target_map_basis_function(filtername=filtername,
                                                 target_map=target_map[filtername],
-                                                out_of_bounds_val=hp.UNSEEN, nside=nside,
+                                                out_of_bounds_val=np.nan, nside=nside,
                                                 norm_factor=norm_factor))
         if filtername2 is not None:
             bfs.append(bf.Target_map_basis_function(filtername=filtername2,
                                                     target_map=target_map[filtername2],
-                                                    out_of_bounds_val=hp.UNSEEN, nside=nside,
+                                                    out_of_bounds_val=np.nan, nside=nside,
                                                     norm_factor=norm_factor))
         bfs.append(bf.Slewtime_basis_function(filtername=filtername, nside=nside))
         bfs.append(bf.Strict_filter_basis_function(filtername=filtername))
         # Masks, give these 0 weight
         bfs.append(bf.Zenith_shadow_mask_basis_function(nside=nside, shadow_minutes=60., max_alt=76.))
-        bfs.append(bf.Moon_avoidance_basis_function(nside=nside, moon_distance=40.))
+        bfs.append(bf.Moon_avoidance_basis_function(nside=nside, moon_distance=30.))
         bfs.append(bf.Bulk_cloud_basis_function(max_cloud_map=cloud_map, nside=nside))
         # feasibility basis fucntions. Also give zero weight.
         filternames = [fn for fn in [filtername, filtername2] if fn is not None]

@@ -40,7 +40,7 @@ class Zenith_shadow_mask_basis_function(Base_basis_function):
     """Mask the zenith, and things that will soon pass near zenith
     """
     def __init__(self, nside=None, min_alt=20., max_alt=82.,
-                 shadow_minutes=40., penalty=hp.UNSEEN, site='LSST'):
+                 shadow_minutes=40., penalty=np.nan, site='LSST'):
         """
         Parameters
         ----------
@@ -80,7 +80,7 @@ class Zenith_shadow_mask_basis_function(Base_basis_function):
         result[alt_limit] = 1
         to_mask = np.where((conditions.HA > (2.*np.pi-self.shadow_minutes-self.zenith_radius)) &
                            (self.decband == 1))
-        result[to_mask] = hp.UNSEEN
+        result[to_mask] = np.nan
         return result
 
 
@@ -107,7 +107,7 @@ class Moon_avoidance_basis_function(Base_basis_function):
                                               conditions.moonAz,
                                               conditions.moonAlt)
 
-        result[angular_distance < self.moon_distance] = hp.UNSEEN
+        result[angular_distance < self.moon_distance] = np.nan
 
         return result
 
@@ -119,7 +119,7 @@ class Bulk_cloud_basis_function(Base_basis_function):
     """
 
     def __init__(self, nside=None, max_cloud_map=None, max_val=0.7,
-                 out_of_bounds_val=hp.UNSEEN):
+                 out_of_bounds_val=np.nan):
         """
         Parameters
         ----------

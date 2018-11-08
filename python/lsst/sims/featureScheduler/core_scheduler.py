@@ -5,7 +5,6 @@ import healpy as hp
 from lsst.sims.utils import _hpid2RaDec
 from lsst.sims.featureScheduler.utils import hp_in_lsst_fov, set_default_nside, hp_in_comcam_fov
 from lsst.sims.featureScheduler.features import Conditions
-import warnings
 import logging
 
 
@@ -13,29 +12,30 @@ __all__ = ['Core_scheduler']
 
 
 class Core_scheduler(object):
-    """Core scheduler that takes completed obsrevations and observatory status and requests observations.
+    """Core scheduler that takes completed obsrevations and observatory status and requests observations
+
+    Parameters
+    ----------
+    surveys : list (or list of lists) of lsst.sims.featureScheduler.survey objects
+        A list of surveys to consider. If multiple surveys retrurn the same highest
+        reward value, the survey at the earliest position in the list will be selected.
+        Can also be a list of lists to make heirarchical priorities.
+    nside : int
+        A HEALpix nside value.
+    camera : str ('LSST')
+        Which camera to use for computing overlapping HEALpixels for an observation.
+        Can be 'LSST' or 'comcam'
+    conditions : a lsst.sims.featureScheduler.features.Conditions object (None)
+        An object that hold the current conditions and derived values (e.g., 5-sigma depth). Will
+        generate a default if set to None.
     """
 
     def __init__(self, surveys, nside=None, camera='LSST', conditions=None):
-        """
-        Parameters
-        ----------
-        surveys : list (or list of lists) of lsst.sims.featureScheduler.survey objects
-            A list of surveys to consider. If multiple surveys retrurn the same highest
-            reward value, the survey at the earliest position in the list will be selected.
-            Can also be a list of lists to make heirarchical priorities.
-        nside : int
-            A HEALpix nside value.
-        camera : str ('LSST')
-            Which camera to use for computing overlapping HEALpixels for an observation.
-            Can be 'LSST' or 'comcam'
-        conditions : a lsst.sims.featureScheduler.features.Conditions object (None)
-            An object that hold the current conditions and derived values (e.g., 5-sigma depth). Will
-            generate a default if set to None.
-        """
+
         if nside is None:
             nside = set_default_nside()
 
+        # XXX--TODO:  To be removed, will just pass a conditions object in update_conditions
         if conditions is None:
             self.conditions = Conditions(nside=nside)
         else:
@@ -150,30 +150,25 @@ class Core_scheduler(object):
         for ns, surveys in enumerate(self.survey_lists):
             rewards = np.zeros(len(surveys))
             for i, survey in enumerate(surveys):
-                rewards[i] = np.max(survey.calc_reward_function(self.conditions))
+                rewards[i] = np.nanmax(survey.calc_reward_function(self.conditions))
             # If we have a good reward, break out of the loop
-            if np.nanmax(rewards) > -np.inf and np.nanmax(rewards) != hp.UNSEEN:
+            if np.nanmax(rewards) > -np.inf:
                 self.survey_index[0] = ns
                 break
-
-        if np.all(np.bitwise_or(np.bitwise_or(np.isnan(rewards),
-                                              np.isneginf(rewards)), rewards == hp.UNSEEN)):
-            # All values are invalid
+        # Check if all values are invalid
+        if (np.nanmax(rewards) == -np.inf) | (np.isnan(np.nanmax(rewards))) :
             self.flush_queue()
         else:
-            try:
-                to_fix = np.where(np.isnan(rewards))
-                rewards[to_fix] = -np.inf
-                # Take a min here, so the surveys will be executed in the order they are
-                # entered if there is a tie.
-                self.survey_index[1] = np.min(np.where(rewards == np.max(rewards)))
+            to_fix = np.where(np.isnan(rewards) == True)
+            rewards[to_fix] = -np.inf
+            # Take a min here, so the surveys will be executed in the order they are
+            # entered if there is a tie.
+            self.survey_index[1] = np.min(np.where(rewards == np.nanmax(rewards)))
 
-                # Survey return list of observations
-                result = self.survey_lists[self.survey_index[0]][self.survey_index[1]](self.conditions)
-                self.queue = result
-                self.queue_is_sequence = self.survey_lists[self.survey_index[0]][self.survey_index[1]].sequence
-            except ValueError as e:
-                self.log.exception(e)
-                self.flush_queue()
+            # Survey return list of observations
+            result = self.survey_lists[self.survey_index[0]][self.survey_index[1]](self.conditions)
+            self.queue = result
+            self.queue_is_sequence = self.survey_lists[self.survey_index[0]][self.survey_index[1]].sequence
+        
         if len(self.queue) == 0:
             self.log.warning('Failed to fill queue')
