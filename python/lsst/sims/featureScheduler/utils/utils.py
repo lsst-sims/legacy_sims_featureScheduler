@@ -1,6 +1,3 @@
-from __future__ import print_function
-from builtins import zip
-from builtins import object
 import numpy as np
 import healpy as hp
 import pandas as pd
@@ -64,7 +61,7 @@ def max_reject(inarr, reject_val=np.nan):
     if np.isnan(reject_val):
         result = True in np.isnan(inarr)
         return result
-        
+
     if reject_val in inarr:
         return -np.inf
 

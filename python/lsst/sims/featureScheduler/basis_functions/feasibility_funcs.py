@@ -11,14 +11,14 @@ __all__ = ['Filter_loaded_basis_function', 'Time_to_twilight_basis_function',
 
 
 class Filter_loaded_basis_function(Base_basis_function):
-    def __init__(self, filternames='r'):
-        """
-        Parameters
-        ----------
-        filternames : str of list of str
-            The filternames that need to be mounted to execute.
-        """
+    """Check that the filter(s) needed are loaded
 
+    Parameters
+    ----------
+    filternames : str or list of str
+        The filternames that need to be mounted to execute.
+    """
+    def __init__(self, filternames='r'):
         super(Filter_loaded_basis_function, self).__init__()
         if type(filternames) is not list:
             filternames = [filternames]
@@ -34,13 +34,15 @@ class Filter_loaded_basis_function(Base_basis_function):
 
 
 class Time_to_twilight_basis_function(Base_basis_function):
+    """Make sure there is enough time before twilight. Useful
+    if you want to check before starting a long sequence of observations.
+
+    Parameters
+    ----------
+    time_needed : float (30.)
+        The time needed to run a survey (mintues).
+    """
     def __init__(self, time_needed=30.):
-        """
-        Parameters
-        ----------
-        time_needed : float (30.)
-            The time needed to run a survey (mintues).
-        """
         super(Time_to_twilight_basis_function, self).__init__()
         self.time_needed = time_needed/60./24.  # To days
 
@@ -51,6 +53,13 @@ class Time_to_twilight_basis_function(Base_basis_function):
 
 
 class Not_twilight_basis_function(Base_basis_function):
+    """Test that it is not currrently twilight time
+
+    Parameters
+    ----------
+    sun_alt_limit : float (-18.)
+        The altitude of the sun to consider the start of twilight (degrees)
+    """
     def __init__(self, sun_alt_limit=-18.):
         """
         """
@@ -58,19 +67,21 @@ class Not_twilight_basis_function(Base_basis_function):
         super(Not_twilight_basis_function, self).__init__()
 
     def check_feasibility(self, conditions):
-
+        # XXX--TODO:  Update to use the info on the night, since expected
+        # sunalt can be slightly off due to interpolation.
         result = conditions.sunAlt < self.sun_alt_limit
         return result
 
 
 class Force_delay_basis_function(Base_basis_function):
+    """Keep a survey from executing to rapidly.
+
+    Parameters
+    ----------
+    days_delay : float (2)
+        The number of days to force a gap on.
+    """
     def __init__(self, days_delay=2., survey_name=None):
-        """
-        Parameters
-        ----------
-        days_delay : float (2)
-            The number of days to force a gap on.
-        """
         super(Force_delay_basis_function, self).__init__()
         self.days_delay = days_delay
         self.survey_name = survey_name
@@ -84,16 +95,18 @@ class Force_delay_basis_function(Base_basis_function):
 
 
 class Hour_Angle_limit_basis_function(Base_basis_function):
+    """Only execute a survey in limited hour angle ranges. Useful for
+    limiting Deep Drilling Fields.
+
+    Parameters
+    ----------
+    RA : float (0.)
+        RA of the target (degrees).
+    ha_limits : list of lists
+        limits for what hour angles are acceptable (hours). e.g.,
+        to give 4 hour window around RA=0, ha_limits=[[22,24], [0,2]]
+    """
     def __init__(self, RA=0., ha_limits=None):
-        """
-        Parameters
-        ----------
-        RA : float (0.)
-            RA of the target (degrees).
-        ha_limits : list of lists
-            limits for what hour angles are acceptable (hours). e.g.,
-            to give 4 hour window around RA=0, ha_limits=[[22,24], [0,2]]
-        """
         super(Hour_Angle_limit_basis_function, self).__init__()
         self.ra_hours = RA/360.*24.
         self.HA_limits = np.array(ha_limits)
@@ -120,17 +133,17 @@ class Moon_down_basis_function(Base_basis_function):
 
 class Fraction_of_obs_basis_function(Base_basis_function):
     """Limit the fraction of all observations that can be labled a certain
-    survey name.
+    survey name. Useful for keeping DDFs from exceeding a given fraction of the
+    total survey.
+
+    Parameters
+    ----------
+    frac_total : float
+        The fraction of total observations that can be of this survey
+    survey_name : str
+        The name of the survey
     """
     def __init__(self, frac_total, survey_name=''):
-        """
-        Parameters
-        ----------
-        frac_total : float
-            The fraction of total observations that can be of this survey
-        survey_name : str
-            The name of the survey
-        """
         super(Fraction_of_obs_basis_function, self).__init__()
         self.survey_name = survey_name
         self.frac_total = frac_total

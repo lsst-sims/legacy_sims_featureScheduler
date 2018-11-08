@@ -77,6 +77,34 @@ class Greedy_survey(BaseMarkovDF_survey):
 
 class Blob_survey(Greedy_survey):
     """Select observations in large, mostly contiuguous, blobs.
+
+    Parameters
+    ----------
+    filtername1 : str ('r')
+        The filter to observe in.
+    filtername2 : str ('g')
+        The filter to pair with the first observation. If set to None, no pair
+        will be observed.
+    slew_approx : float (7.5)
+        The approximate slewtime between neerby fields (seconds). Used to calculate
+        how many observations can be taken in the desired time block.
+    filter_change_approx : float (140.)
+         The approximate time it takes to change filters (seconds).
+    ideal_pair_time : float (22.)
+        The ideal time gap wanted between observations to the same pointing (minutes)
+    min_pair_time : float (15.)
+        The minimum acceptable pair time (minutes)
+    search_radius : float (30.)
+        The radius around the reward peak to look for additional potential pointings (degrees)
+    alt_max : float (85.)
+        The maximum altitude to include (degrees).
+    az_range : float (90.)
+        The range of azimuths to consider around the peak reward value (degrees).
+    flush_time : float (30.)
+        The time past the final expected exposure to flush the queue. Keeps observations
+        from lingering past when they should be executed. (minutes)
+    sitename : str ('LSST')
+        The name of the site to lookup latitude and longitude.
     """
     def __init__(self, basis_functions, basis_weights,
                  filtername1='r', filtername2='g',
@@ -89,35 +117,6 @@ class Blob_survey(Greedy_survey):
                  dither=True, seed=42, ignore_obs='ack',
                  survey_note='blob',
                  sitename='LSST'):
-        """
-        Parameters
-        ----------
-        filtername1 : str ('r')
-            The filter to observe in.
-        filtername2 : str ('g')
-            The filter to pair with the first observation. If set to None, no pair
-            will be observed.
-        slew_approx : float (7.5)
-            The approximate slewtime between neerby fields (seconds). Used to calculate
-            how many observations can be taken in the desired time block.
-        filter_change_approx : float (140.)
-             The approximate time it takes to change filters (seconds).
-        ideal_pair_time : float (22.)
-            The ideal time gap wanted between observations to the same pointing (minutes)
-        min_pair_time : float (15.)
-            The minimum acceptable pair time (minutes)
-        search_radius : float (30.)
-            The radius around the reward peak to look for additional potential pointings (degrees)
-        alt_max : float (85.)
-            The maximum altitude to include (degrees).
-        az_range : float (90.)
-            The range of azimuths to consider around the peak reward value (degrees).
-        flush_time : float (30.)
-            The time past the final expected exposure to flush the queue. Keeps observations
-            from lingering past when they should be executed. (minutes)
-        sitename : str ('LSST')
-            The name of the site to lookup latitude and longitude.
-        """
 
         if nside is None:
             nside = set_default_nside()

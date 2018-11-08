@@ -1,9 +1,5 @@
-from __future__ import absolute_import
-from builtins import object
 import numpy as np
-import numpy.ma as ma
 import healpy as hp
-from lsst.sims.featureScheduler import utils
 from lsst.sims.utils import _hpid2RaDec, Site, _angularSeparation
 import matplotlib.pylab as plt
 from lsst.sims.featureScheduler.basis_functions import Base_basis_function
@@ -14,15 +10,18 @@ __all__ = ['Zenith_mask_basis_function', 'Zenith_shadow_mask_basis_function',
 
 
 class Zenith_mask_basis_function(Base_basis_function):
-    """Just remove the area near zenith
-    """
-    def __init__(self, nside=None, min_alt=20., max_alt=82., penalty=0.):
-        """
-        """
-        super(Zenith_mask_basis_function, self).__init__(nside=nside)
-        self.update_on_newobs = False
+    """Just remove the area near zenith.
 
-        self.penalty = penalty
+    Parameters
+    ----------
+    min_alt : float (20.)
+        The minimum possible altitude (degrees)
+    max_alt : float (82.)
+        The maximum allowed altitude (degrees)
+    """
+    def __init__(self, min_alt=20., max_alt=82.):
+        super(Zenith_mask_basis_function, self).__init__()
+        self.update_on_newobs = False
         self.min_alt = np.radians(min_alt)
         self.max_alt = np.radians(max_alt)
         self.result = np.empty(hp.nside2npix(self.nside), dtype=float).fill(self.penalty)
@@ -37,20 +36,20 @@ class Zenith_mask_basis_function(Base_basis_function):
 
 
 class Zenith_shadow_mask_basis_function(Base_basis_function):
-    """Mask the zenith, and things that will soon pass near zenith
+    """Mask the zenith, and things that will soon pass near zenith. Useful for making sure
+    observations will be able to be too close to zenith when they need to be observed again (e.g. for a pair)
+
+    Parameters
+    ----------
+    min_alt : float (20.)
+        The minimum alititude to alow. Everything lower is masked. (degrees)
+    max_alt : float (82.)
+        The maximum altitude to alow. Everything higher is masked. (degrees)
+    shadow_minutes : float (40.)
+        Mask anything that will pass through the max alt in the next shadow_minutes time. (minutes)
     """
     def __init__(self, nside=None, min_alt=20., max_alt=82.,
                  shadow_minutes=40., penalty=np.nan, site='LSST'):
-        """
-        Parameters
-        ----------
-        min_alt : float (20.)
-            The minimum alititude to alow. Everything lower is masked. (degrees)
-        max_alt : float (82.)
-            The maximum altitude to alow. Everything higher is masked. (degrees)
-        shadow_minutes : float (40.)
-            Mask anything that will pass through the max alt in the next shadow_minutes time. (minutes)
-        """
         super(Zenith_shadow_mask_basis_function, self).__init__(nside=nside)
         self.update_on_newobs = False
 
@@ -85,15 +84,16 @@ class Zenith_shadow_mask_basis_function(Base_basis_function):
 
 
 class Moon_avoidance_basis_function(Base_basis_function):
-    """Mark regions that are closer than a certain .
+    """Avoid looking too close to the moon.
 
+    Parameters
+    ----------
+    moon_distance: float (30.)
+        Minimum allowed moon distance. (degrees)
+
+    XXX--TODO:  This could be a more complicated function of filter and moon phase.
     """
     def __init__(self, nside=None, moon_distance=30.):
-        """
-        Parameters
-        moon_distance: float (30.)
-            Minimum allowed moon distance. (degrees)
-        """
         super(Moon_avoidance_basis_function, self).__init__(nside=nside)
         self.update_on_newobs = False
 
@@ -113,23 +113,21 @@ class Moon_avoidance_basis_function(Base_basis_function):
 
 
 class Bulk_cloud_basis_function(Base_basis_function):
-    """Mark healpixels on a map as unseen if their cloud values are greater than
+    """Mark healpixels on a map if their cloud values are greater than
     the same healpixels on a maximum cloud map.
 
+    Parameters
+    ----------
+    nside: int (default_nside)
+        The healpix resolution.
+    max_cloud_map : numpy array (None)
+        A healpix map showing the maximum allowed cloud values for all points on the sky
+    out_of_bounds_val : float (10.)
+        Point value to give regions where there are no observations requested
     """
 
     def __init__(self, nside=None, max_cloud_map=None, max_val=0.7,
                  out_of_bounds_val=np.nan):
-        """
-        Parameters
-        ----------
-        nside: int (default_nside)
-            The healpix resolution.
-        max_cloud_map : numpy array (None)
-            A healpix map showing the maximum allowed cloud values for all points on the sky
-        out_of_bounds_val : float (10.)
-            Point value to give regions where there are no observations requested
-        """
         super(Bulk_cloud_basis_function, self).__init__(nside=nside)
         self.update_on_newobs = False
 
@@ -155,8 +153,7 @@ class Bulk_cloud_basis_function(Base_basis_function):
 
         result = self.result.copy()
 
-        clouded = np.where(self.max_cloud_map  <= conditions.bulk_cloud)
+        clouded = np.where(self.max_cloud_map <= conditions.bulk_cloud)
         result[clouded] = self.out_of_bounds_val
 
         return result
-

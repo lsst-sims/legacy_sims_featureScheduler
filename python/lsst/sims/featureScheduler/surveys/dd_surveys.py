@@ -3,7 +3,6 @@ from lsst.sims.featureScheduler.surveys import BaseSurvey
 import copy
 import lsst.sims.featureScheduler.basis_functions as basis_functions
 from lsst.sims.featureScheduler.utils import empty_observation
-from lsst.sims.utils import _angularSeparation
 import logging
 import healpy as hp
 import random
@@ -15,7 +14,31 @@ log = logging.getLogger(__name__)
 
 
 class Deep_drilling_survey(BaseSurvey):
-    """A survey class for running deep drilling fields
+    """A survey class for running deep drilling fields.
+
+    Parameters
+    ----------
+    basis_functions : list of lsst.sims.featureScheduler.basis_function objects
+        These should be feasibility basis functions.
+    RA : float
+        The RA of the field (degrees)
+    dec : float
+        The dec of the field to observe (degrees)
+    sequence : list of observation objects or str (rgizy)
+        The sequence of observations to take. Can be a string of list of obs objects.
+    nvis : list of ints
+        The number of visits in each filter. Should be same length as sequence.
+    survey_name : str (DD)
+        The name to give this survey so it can be tracked
+    reward_value : float (101.)
+        The reward value to report if it is able to start (unitless).
+    readtime : float (2.)
+        Readout time for computing approximate time of observing the sequence. (seconds)
+    filter_match_shuffle : bool (True)
+        If True, switch up the order filters are executed in (first sequence will be currently
+        loaded filter if possible)
+    flush_pad : float (30.)
+        How long to hold observations in the queue after they were expected to be completed (minutes).
     """
 
     def __init__(self, basis_functions, RA, dec, sequence='rgizy',
@@ -23,31 +46,6 @@ class Deep_drilling_survey(BaseSurvey):
                  exptime=30., nexp=2, ignore_obs='dummy', survey_name='DD',
                  reward_value=101., readtime=2., filter_change_time=120.,
                  nside=None, filter_match_shuffle=True, flush_pad=30., seed=42):
-        """
-        Parameters
-        ----------
-        basis_functions : list of lsst.sims.featureScheduler.basis_function objects
-            These should be feasibility basis functions.
-        RA : float
-            The RA of the field (degrees)
-        dec : float
-            The dec of the field to observe (degrees)
-        sequence : list of observation objects or str (rgizy)
-            The sequence of observations to take. Can be a string of list of obs objects.
-        nvis : list of ints
-            The number of visits in each filter. Should be same length as sequence.
-        survey_name : str (DD)
-            The name to give this survey so it can be tracked
-        reward_value : float (101.)
-            The reward value to report if it is able to start (unitless).
-        readtime : float (2.)
-            Readout time for computing approximate time of observing the sequence. (seconds)
-        filter_match_shuffle : bool (True)
-            If True, switch up the order filters are executed in (first sequence will be currently
-            loaded filter if possible)
-        flush_pad : float (10.)
-            How long to hold observations in the queue after they were expected to be completed (minutes).
-        """
         super(Deep_drilling_survey, self).__init__(nside=nside, basis_functions=basis_functions)
         random.seed(a=seed)
 
@@ -92,7 +90,8 @@ class Deep_drilling_survey(BaseSurvey):
         This method enables external calls to check if a given observations that belongs to this survey is
         feasible or not. This is called once a sequence has started to make sure it can continue.
 
-        :return:
+        XXX--TODO:  Need to decide if we want to develope check_continue, or instead hold the 
+        sequence in the survey, and be able to check it that way.
         '''
 
         result = True
@@ -146,7 +145,7 @@ def dd_bfs(RA, dec, survey_name, ha_limits, frac_total=0.0185):
     return bfs
 
 
-def dd_u_bfs(RA, dec, survey_name, ha_limits):
+def dd_u_bfs(RA, dec, survey_name, ha_limits, frac_total=0.0015):
     """Convienence function to generate all the feasibility basis functions for u-band DDFs
     """
     bfs = []
@@ -157,7 +156,7 @@ def dd_u_bfs(RA, dec, survey_name, ha_limits):
 
     bfs.append(basis_functions.Force_delay_basis_function(days_delay=2., survey_name=survey_name))
     bfs.append(basis_functions.Moon_down_basis_function())
-    bfs.append(basis_functions.Fraction_of_obs_basis_function(frac_total=0.0015, survey_name=survey_name))
+    bfs.append(basis_functions.Fraction_of_obs_basis_function(frac_total=frac_total, survey_name=survey_name))
     bfs.append(basis_functions.Clouded_out_basis_function())
 
     return bfs
