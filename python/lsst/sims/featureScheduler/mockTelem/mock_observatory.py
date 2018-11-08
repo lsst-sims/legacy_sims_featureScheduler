@@ -86,7 +86,8 @@ class Mock_observatory(object):
     """A class to generate a realistic telemetry stream for the scheduler
     """
 
-    def __init__(self, nside=None, mjd_start=59853.5, seed=42, quickTest=True, alt_min=5., lax_dome=True):
+    def __init__(self, nside=None, mjd_start=59853.5, seed=42, quickTest=True,
+                 alt_min=5., lax_dome=True):
         """
         Parameters
         ----------
