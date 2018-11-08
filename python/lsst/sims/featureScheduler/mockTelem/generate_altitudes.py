@@ -5,6 +5,7 @@ from astropy.time import Time
 from scipy.optimize import minimize, Bounds
 
 
+__all__ = ['generate_nights']
 
 
 def lin_interp(x, x0, x1, y0, y1):
@@ -53,7 +54,7 @@ def alt_moon_sum(in_mjds, location, offset):
     return result
 
 
-def generate_nights(mjd_start, duration=3653., rough_step=2):
+def generate_nights(mjd_start, duration=3653., rough_step=2, verbose=False):
     """Generate the sunset and twilight times for a range of dates
 
     Parameters
@@ -123,7 +124,6 @@ def generate_nights(mjd_start, duration=3653., rough_step=2):
     good_indices = np.where(insert_indices > 0)[0]
     alt_info_array['sun_n18_rising'][insert_indices[good_indices]] = point[good_indices]
 
-
     point = alt_passing_interp(t_sparse.mjd, sun_aa_sparse.alt.deg,
                                goal_alt=-18., rising=False)
     insert_indices = np.searchsorted(alt_info_array['sunset'], point, side='left')-1
@@ -151,20 +151,26 @@ def generate_nights(mjd_start, duration=3653., rough_step=2):
     names_dict = {'sunset': 0., 'sun_n12_setting': 12., 'sun_n18_setting': 18., 'sun_n18_rising': 18.,
                   'sun_n12_rising': 12., 'sunrise': 0}
 
+    # Need to keep the runtime reasonable
     options = {'maxiter': 5}
     for key in names_dict:
-        print(key)
+        if verbose:
+            print(key)
         bounds = Bounds(alt_info_array[key]-rough_step/10./24., alt_info_array[key] + rough_step/10./24.)
         new_mjds = minimize(alt_sun_sum, alt_info_array[key],
                             bounds=bounds, args=(location, names_dict[key]), options=options)
         refined_mjds[key] = new_mjds.x
 
     for key in ['moonrise', 'moonset']:
-        print(key)
+        if verbose:
+            print(key)
         bounds = Bounds(alt_info_array[key]-rough_step/10./24., alt_info_array[key] + rough_step/10./24.)
         new_mjds = minimize(alt_moon_sum, alt_info_array[key], bounds=bounds,
                             args=(location, 0.), options=options)
         refined_mjds[key] = new_mjds.x
+
+    # Note, there is the possibility that some moonrise/moonset times changed nights upon refinement. I suppose
+    # I could do another seatchsorted pass here just to be extra sure nothing changed.
 
     return alt_info_array, refined_mjds
 
@@ -174,4 +180,8 @@ if __name__ == '__main__':
     mjd_start = 59853.5
     # 
     rough_times, refined_mjds = generate_nights(mjd_start-365.25*2-40., duration=365.25*24+80, rough_step=2)
+    #rough_times, refined_mjds = generate_nights(mjd_start, duration=50, rough_step=2)
+    # Maybe just use pandas to dump it to a csv file?
+    np.savez('night_info.npz', rough_times=rough_times, refined_mjds=refined_mjds)
+
 

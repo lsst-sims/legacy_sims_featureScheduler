@@ -19,6 +19,8 @@ __all__ = ['Mock_observatory']
 
 
 class ExtendedObservatoryModel(ObservatoryModel):
+    """Add some functionality to ObservatoryModel
+    """
 
     def expose(self, target):
         # Break out the exposure command from observe method
@@ -28,7 +30,8 @@ class ExtendedObservatoryModel(ObservatoryModel):
         self.update_state(self.current_state.time + visit_time)
 
     def observe_times(self, target):
-        """observe a target, and return the slewtime and visit time
+        """observe a target, and return the slewtime and visit time for the action
+        Note, slew and expose will update the current_state
         """
         t1 = self.current_state.time + 0
         # Note, this slew assumes there is a readout that needs to be done.
