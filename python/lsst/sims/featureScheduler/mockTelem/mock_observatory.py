@@ -1,8 +1,8 @@
 import numpy as np
-from lsst.sims.utils import _hpid2RaDec, _raDec2Hpid, Site, calcLmstLast, _approx_RaDec2AltAz
+from lsst.sims.utils import (_hpid2RaDec, _raDec2Hpid, Site, calcLmstLast,
+                             m5_flat_sed, _approx_RaDec2AltAz, _angularSeparation)
 import lsst.sims.skybrightness_pre as sb
 import healpy as hp
-from lsst.sims.utils import m5_flat_sed, _angularSeparation
 from datetime import datetime
 from lsst.sims.downtimeModel import ScheduledDowntime, UnscheduledDowntime
 from lsst.sims.seeingModel import SeeingSim
@@ -14,6 +14,9 @@ from astropy.coordinates import get_sun, get_moon, EarthLocation, AltAz
 from astropy.time import Time
 import copy
 from scipy.optimize import minimize, Bounds
+from lsst.utils import getPackageDir
+import os
+
 
 __all__ = ['Mock_observatory']
 
@@ -87,7 +90,7 @@ class Mock_observatory(object):
     """
 
     def __init__(self, nside=None, mjd_start=59853.5, seed=42, quickTest=True,
-                 alt_min=5., lax_dome=True):
+                 alt_min=5., lax_dome=True, cloud_limit=0.7):
         """
         Parameters
         ----------
@@ -99,11 +102,15 @@ class Mock_observatory(object):
             The minimum altitude to compute models at (degrees).
         lax_dome : bool (True)
             Passed to observatory model. If true, allows dome creep.
+        cloud_limit : float (0.7)
+            The limit to stop taking observations if the cloud model returns something equal or higher
         """
 
         if nside is None:
             nside = set_default_nside()
         self.nside = nside
+
+        self.cloud_limit = cloud_limit
 
         self.alt_min = np.radians(alt_min)
         self.lax_dome = lax_dome
@@ -115,8 +122,9 @@ class Mock_observatory(object):
         self.conditions = Conditions(nside=self.nside)
 
         # Create an astropy location
-        site = Site('LSST')
-        self.location = EarthLocation(lat=site.latitude, lon=site.longitude, height=site.height)
+        self.site = Site('LSST')
+        self.location = EarthLocation(lat=self.site.latitude, lon=self.site.longitude,
+                                      height=self.site.height)
 
         # Load up all the models we need
         # Make my dummy time handler
@@ -152,8 +160,29 @@ class Mock_observatory(object):
         for key in self.filterlist:
             self.seeing_FWHMeff[key] = np.zeros(hp.nside2npix(self.nside), dtype=float)
 
+        self._load_almanac()
+
+        # Let's make sure we're at an openable MJD
+        good_mjd = False
+        to_set_mjd = self.mjd
+        while not good_mjd:
+            good_mjd, to_set_mjd = self.check_mjd(to_set_mjd)
+        self.set_mjd(to_set_mjd)
+
+    def _load_almanac(self):
+        file = os.path.join(getPackageDir('sims_featureScheduler'),
+                            'python/lsst/sims/featureScheduler/mockTelem/almanac.npz')
+        temp = np.load(file)
+        self.almanac = temp['almanac'].copy()
+        temp.close()
+        # Set the night index based on the starting MJD
+        loc = np.searchsorted(self.almanac['sunset'], self.mjd_start)
+        self.almanac['night'] -= self.almanac['night'][loc]
+
+
     def return_conditions(self):
         """
+
         Returns
         -------
         lsst.sims.featureScheduler.features.conditions object
@@ -161,7 +190,7 @@ class Mock_observatory(object):
 
         self.conditions.mjd = self.mjd
 
-        self.conditions.night = self.get_night()
+        self.conditions.night = self.get_night(self.mjd)
         # Time since start of simulation
         delta_t = (self.mjd-self.mjd_start)*24.*3600.
 
@@ -224,43 +253,112 @@ class Mock_observatory(object):
         moon_sun_sep = _angularSeparation(sun.ra.rad, sun.dec.rad, moon.ra.rad, moon.dec.rad)
         self.conditions.moonPhase = np.max(moon_sun_sep/np.pi*100.)
 
-        self.conditions.moonAlt = moonAlt
-        self.conditions.moonAz = moonAz
+        self.conditions.moonAlt = moonAlt.min()
+        self.conditions.moonAz = moonAz.min()
         self.conditions.moonRA = moon.ra.rad
         self.conditions.moonDec = moon.dec.rad
 
-        self.conditions.sunAlt = sunAlt
+        self.conditions.sunAlt = sunAlt.min()
 
         self.conditions.lmst, last = calcLmstLast(self.mjd, self.site.longitude_rad)
+
+        self.conditions.telRA = self.observatory.current_state.ra_rad
+        self.conditions.telDec = self.observatory.current_state.dec_rad
+        self.conditions.telRotSkyPos = self.observatory.current_state.ang_rad
 
         # To set
 
         # conditions.last_twilight_end
         # conditions.next_twilight_start
 
-        #conditions.telRA
-        #condistions.telDec
-
-        # Need to add position angle everywhere.
-
-
         return self.conditions
 
-    def set_mjd(self):
+    def set_mjd(self, mjd):
+        self.mjd = mjd
+
         pass
 
-    def get_night(self):
+    def get_night(self, mjd):
         # use self.mjd to figure out what night it is
-        night = None
-        return night
+        result = self.almanac['night'][np.searchsorted(self.almanac['sunset'], mjd)]
+        return result
 
-    def observe(self, observation):
-        """Try to make an observation
+    def observation_add_data(self, observation):
         """
-        # slew to the target--note that one can't slew without also incurring a readtime penalty?
-
-
+        Fill in the metadata for a completed observation
+        """
+        # Time since start of simulation
+        delta_t = (self.mjd-self.mjd_start)*24.*3600.
 
         return observation
 
+    def check_mjd(self, mjd):
+        """See if an mjd is ok to observe
 
+        Returns
+        -------
+        bool
+
+        mdj : float
+            If True, the input mjd. If false, a good mjd to skip forward to.
+        """
+        # check the clouds
+        delta_t = (mjd-self.mjd_start)*24.*3600.
+        clouds = self.cloud_model.get_cloud(delta_t)
+        # cloudy, should advance a cloud time step
+        
+        if clouds > self.cloud_limit:
+            # Let's just reach into the cloud model and see when it's not cloudy anymore
+            jump_to = np.where((self.cloud_model.cloud_dates > delta_t) &
+                               (self.cloud_model.cloud_values < self.cloud_limit))[0].min()
+
+            return False, self.mjd_start + self.cloud_model.dates[jump_to]/24./3600.
+        alm_indx = np.searchsorted(self.almanac['sunset'], mjd, side='right')
+        # at the end of the night, advance to the next setting twilight
+        if mjd > self.almanac['sun_n12_rising'][alm_indx]:
+            return False, self.almanac['sun_n12_rising'][alm_indx+1]
+        # We're in a down night, advance to next night
+        if self.almanac['night'][alm_indx] in self.down_nights:
+            return False, self.almanac['sun_n12_rising'][alm_indx+1]
+        import pdb ; pdb.set_trace()
+        return True, mjd
+
+    def observe(self, observation):
+        """Try to make an observation
+
+        Returns
+        -------
+        status : bool
+            Result of if the observation worked
+        observation : observation object
+            None if there was no observation taken
+        new_night : bool
+            Have we started a new night
+        """
+
+        start_night = self.get_night()
+        # slew to the target--note that one can't slew without also incurring a readtime penalty?
+        target = Target(band_filter=observation['filter'], ra_rad=observation['RA'],
+                        dec_rad=observation['dec'], ang_rad=observation['rotSkyPos'],
+                        num_exp=observation['nexp'], exp_times=[observation['exptime']])
+        slewtime, visittime = self.observatory.observe_times(target)
+
+        # Check if the mjd after slewtime and visitime is fine:
+        observation_worked, new_mjd = self.check_mjd(self.mjd + slewtime + visittime)
+        if observation_worked:
+            observation['visittime'] = visittime
+            observation['slewtime'] = slewtime
+            self.set_mjd(self.mjd + slewtime)
+            # Metadata on observation is after slew and settle, so at start of exposure.
+            result = self.observation_data(observation)
+            self.set_mjd(self.mjd + visittime)
+            new_night = False
+        else:
+            result = None
+            self.observatory.park()
+            # Skip to next legitimate mjd
+            self.set_mjd(new_mjd)
+            now_night = self.get_night()
+            new_night = now_night != start_night
+
+        return observation_worked, result, new_night
