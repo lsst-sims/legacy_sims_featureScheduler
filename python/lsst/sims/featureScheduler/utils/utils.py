@@ -39,36 +39,6 @@ def set_default_nside(nside=None):
     return set_default_nside.nside
 
 
-def sum_reject(inarr, reject_val=np.nan):
-    """
-    compute the sum of an array but retrun -inf if reject_val present
-    """
-    if np.isnan(reject_val):
-        result = True in np.isnan(inarr)
-        return result
-
-    if reject_val in inarr:
-        return -np.inf
-
-    else:
-        return np.sum(inarr)
-
-
-def max_reject(inarr, reject_val=np.nan):
-    """
-    compute the max of an array but retrun -inf if reject_val present
-    """
-    if np.isnan(reject_val):
-        result = True in np.isnan(inarr)
-        return result
-
-    if reject_val in inarr:
-        return -np.inf
-
-    else:
-        return np.max(inarr)
-
-
 def int_binned_stat(ids, values, statistic=np.mean):
     """
     Like scipy.binned_statistic, but for unique int ids

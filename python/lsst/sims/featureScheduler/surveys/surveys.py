@@ -2,11 +2,10 @@ import numpy as np
 from lsst.sims.featureScheduler.utils import (empty_observation, set_default_nside)
 import healpy as hp
 from lsst.sims.featureScheduler.surveys import BaseMarkovDF_survey
-from lsst.sims.featureScheduler.utils import (int_binned_stat, max_reject,
+from lsst.sims.featureScheduler.utils import (int_binned_stat,
                                               gnomonic_project_toxy, tsp_convex)
 import copy
 from lsst.sims.utils import _angularSeparation, _hpid2RaDec, _approx_RaDec2AltAz
-
 
 __all__ = ['Greedy_survey', 'Blob_survey']
 
@@ -239,15 +238,16 @@ class Blob_survey(Greedy_survey):
 
         # Now that we have the reward map,
         potential_hp = np.where(~np.isnan(self.reward) == True)
-        # Find the max reward for each potential pointing
         ufields, reward_by_field = int_binned_stat(self.hp2fields[potential_hp],
-                                                   self.reward[potential_hp],
-                                                   statistic=max_reject)
+                                                   self.reward[potential_hp], statistic=np.max)
+        # chop off any nans
+        not_nans = np.where(~np.isnan(reward_by_field) == True)
+        ufields = ufields[not_nans]
+        reward_by_field = reward_by_field[not_nans]
+
         order = np.argsort(reward_by_field)
-        order = order[~np.isnan(ufields[order])]
         ufields = ufields[order][::-1][0:self.nvisit_block]
         self.best_fields = ufields
-
         # Let's find the alt, az coords of the points (right now, hopefully doesn't change much in time block)
         pointing_alt, pointing_az = _approx_RaDec2AltAz(self.fields['RA'][self.best_fields],
                                                         self.fields['dec'][self.best_fields],
