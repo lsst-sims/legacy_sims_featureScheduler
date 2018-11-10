@@ -12,8 +12,6 @@ from lsst.sims.featureScheduler.utils import set_default_nside
 from lsst.ts.observatory.model import ObservatoryModel, Target
 from astropy.coordinates import get_sun, get_moon, EarthLocation, AltAz
 from astropy.time import Time
-import copy
-from scipy.optimize import minimize, Bounds
 from lsst.utils import getPackageDir
 import os
 
@@ -90,7 +88,7 @@ class Mock_observatory(object):
     """
 
     def __init__(self, nside=None, mjd_start=59853.5, seed=42, quickTest=True,
-                 alt_min=5., lax_dome=True, cloud_limit=0.7):
+                 alt_min=5., lax_dome=True, cloud_limit=0.699):
         """
         Parameters
         ----------
@@ -305,8 +303,6 @@ class Mock_observatory(object):
         # check the clouds
         delta_t = (mjd-self.mjd_start)*24.*3600.
         clouds = self.cloud_model.get_cloud(delta_t)
-        # cloudy, should advance a cloud time step
-        
         if clouds > self.cloud_limit:
             # Let's just reach into the cloud model and see when it's not cloudy anymore
             jump_to = np.where((self.cloud_model.cloud_dates > delta_t) &
@@ -316,11 +312,10 @@ class Mock_observatory(object):
         alm_indx = np.searchsorted(self.almanac['sunset'], mjd, side='right')
         # at the end of the night, advance to the next setting twilight
         if mjd > self.almanac['sun_n12_rising'][alm_indx]:
-            return False, self.almanac['sun_n12_rising'][alm_indx+1]
+            return False, self.almanac['sun_n12_setting'][alm_indx+1]
         # We're in a down night, advance to next night
         if self.almanac['night'][alm_indx] in self.down_nights:
-            return False, self.almanac['sun_n12_rising'][alm_indx+1]
-        import pdb ; pdb.set_trace()
+            return False, self.almanac['sun_n12_setting'][alm_indx+1]
         return True, mjd
 
     def observe(self, observation):
