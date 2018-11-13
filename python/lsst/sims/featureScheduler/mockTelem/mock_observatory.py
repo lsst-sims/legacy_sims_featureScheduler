@@ -114,7 +114,7 @@ class Mock_observatory(object):
         self.lax_dome = lax_dome
 
         self.mjd_start = mjd_start
-        self.mjd = mjd_start
+        
 
         # Conditions object to update and return on request
         self.conditions = Conditions(nside=self.nside)
@@ -162,10 +162,10 @@ class Mock_observatory(object):
 
         # Let's make sure we're at an openable MJD
         good_mjd = False
-        to_set_mjd = self.mjd
+        to_set_mjd = mjd_start
         while not good_mjd:
             good_mjd, to_set_mjd = self.check_mjd(to_set_mjd)
-        self.set_mjd(to_set_mjd)
+        self.mjd = to_set_mjd
 
     def _load_almanac(self):
         file = os.path.join(getPackageDir('sims_featureScheduler'),
@@ -175,8 +175,8 @@ class Mock_observatory(object):
         temp.close()
         # Set the night index based on the starting MJD
         loc = np.searchsorted(self.almanac['sunset'], self.mjd_start)
-        self.almanac['night'] -= self.almanac['night'][loc]
-
+        # Set the start MJD to be night 1.
+        self.almanac['night'] -= self.almanac['night'][loc-1]
 
     def return_conditions(self):
         """
@@ -188,7 +188,7 @@ class Mock_observatory(object):
 
         self.conditions.mjd = self.mjd
 
-        self.conditions.night = self.get_night(self.mjd)
+        self.conditions.night = self.night
         # Time since start of simulation
         delta_t = (self.mjd-self.mjd_start)*24.*3600.
 
@@ -271,15 +271,15 @@ class Mock_observatory(object):
 
         return self.conditions
 
-    def set_mjd(self, mjd):
-        self.mjd = mjd
+    @property
+    def mjd(self):
+        return self._mjd
 
-        pass
-
-    def get_night(self, mjd):
-        # use self.mjd to figure out what night it is
-        result = self.almanac['night'][np.searchsorted(self.almanac['sunset'], mjd)]
-        return result
+    @mjd.setter
+    def mjd(self, value):
+        self._mjd = value
+        self.almanac_indx = np.searchsorted(self.almanac['sunset'], value)
+        self.night = self.almanac['night'][self.almanac_indx]
 
     def observation_add_data(self, observation):
         """
@@ -287,6 +287,7 @@ class Mock_observatory(object):
         """
         # Time since start of simulation
         delta_t = (self.mjd-self.mjd_start)*24.*3600.
+        # XXX--todo
 
         return observation
 
@@ -326,12 +327,12 @@ class Mock_observatory(object):
         status : bool
             Result of if the observation worked
         observation : observation object
-            None if there was no observation taken
+            None if there was no observation taken. Completed observation with meta data filled in.
         new_night : bool
-            Have we started a new night
+            Have we started a new night.
         """
 
-        start_night = self.get_night()
+        start_night = self.night.copy()
         # slew to the target--note that one can't slew without also incurring a readtime penalty?
         target = Target(band_filter=observation['filter'], ra_rad=observation['RA'],
                         dec_rad=observation['dec'], ang_rad=observation['rotSkyPos'],
@@ -343,17 +344,17 @@ class Mock_observatory(object):
         if observation_worked:
             observation['visittime'] = visittime
             observation['slewtime'] = slewtime
-            self.set_mjd(self.mjd + slewtime)
+            self.mjd = self.mjd + slewtime
             # Metadata on observation is after slew and settle, so at start of exposure.
             result = self.observation_data(observation)
-            self.set_mjd(self.mjd + visittime)
+            self.mjd = self.mjd + visittime
             new_night = False
         else:
             result = None
             self.observatory.park()
             # Skip to next legitimate mjd
-            self.set_mjd(new_mjd)
-            now_night = self.get_night()
+            self.mjd = new_mjd
+            now_night = self.night
             new_night = now_night != start_night
 
         return observation_worked, result, new_night
