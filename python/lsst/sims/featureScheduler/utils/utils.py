@@ -149,6 +149,24 @@ def raster_sort(x0, order=['x', 'y'], xbin=1.):
         return order1
 
 
+def obs2opsim_schema(obs_arrray):
+    """
+    Record how to convert an observation array to the standard opsim schema
+    """
+
+    # Conversion dictionary, keys are opsim schema, values are observation dtype names
+    #convert_dict = {observationId|night|observationStartTime|observationStartMJD|observationStartLST|numExposures|
+    # visitTime|visitExposureTime|proposalId|fieldId|fieldRA|fieldDec|altitude|azimuth|filter|airmass|
+    # skyBrightness|cloud|seeingFwhm500|seeingFwhmGeom|seeingFwhmEff|fiveSigmaDepth|slewTime|slewDistance|
+    # paraAngle|rotTelPos|rotSkyPos|moonRA|moonDec|moonAlt|moonAz|moonDistance|moonPhase|sunAlt|sunAz|solarElong}
+
+    # angles to converts
+    angles_rad2deg = ['fieldRA', 'fieldDec', 'altitude', 'azimuth', 'slewDistance',
+                      'paraAngle', 'rotTelPos', 'rotSkyPos', 'moonRA', 'moonDec',
+                      'moonAlt', 'moonAz', 'moonDistance', 'sunAlt', 'sunAz', 'solarElong']
+
+
+
 def empty_observation():
     """
     Return a numpy array that could be a handy observation record
@@ -196,13 +214,20 @@ def empty_observation():
     flush_by_mjd : float
         If we hit this MJD, we should flush the queue and refill it.
     """
+
     names = ['RA', 'dec', 'mjd', 'flush_by_mjd', 'exptime', 'filter', 'rotSkyPos', 'nexp',
-             'airmass', 'FWHMeff', 'FWHM_geometric', 'skybrightness', 'night', 'slewtime', 'fivesigmadepth',
-             'alt', 'az', 'clouds', 'moonAlt', 'sunAlt', 'note', 'field_id', 'survey_id', 'block_id']
+             'airmass', 'FWHM_500', 'FWHMeff', 'FWHM_geometric', 'skybrightness', 'night',
+             'slewtime', 'visittime', 'slewdist', 'fivesigmadepth',
+             'alt', 'az', 'pa', 'clouds', 'moonAlt', 'sunAlt', 'note',
+             'field_id', 'survey_id', 'block_id',
+             'lmst']
     # units of rad, rad,   days,  seconds,   string, radians (E of N?)
-    types = [float, float, float, float, float, '|U1', float, int, float,
-             float, float, float, int, float, float,
-             float, float, float, float, float, '|U40', int, int, int]
+    types = [float, float, float, float, float, '|U1', float, int,
+             float, float, float, float, float, float, int,
+             float, float, float, float,
+             float, float, float, float, float, '|U40',
+             int, int, int,
+             float]
     result = np.zeros(1, dtype=list(zip(names, types)))
     return result
 

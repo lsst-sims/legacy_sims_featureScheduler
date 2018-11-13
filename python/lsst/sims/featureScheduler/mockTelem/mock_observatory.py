@@ -37,6 +37,8 @@ class ExtendedObservatoryModel(ObservatoryModel):
         t1 = self.current_state.time + 0
         # Note, this slew assumes there is a readout that needs to be done.
         self.slew(target)
+        if not self.current_state.tracking:
+            import pdb ; pdb.set_trace()
         t2 = self.current_state.time + 0
         self.expose(target)
         t3 = self.current_state.time + 0
@@ -114,7 +116,6 @@ class Mock_observatory(object):
         self.lax_dome = lax_dome
 
         self.mjd_start = mjd_start
-        
 
         # Conditions object to update and return on request
         self.conditions = Conditions(nside=self.nside)
@@ -127,7 +128,7 @@ class Mock_observatory(object):
         # Load up all the models we need
         # Make my dummy time handler
         dth = dummy_time_handler(mjd_start)
-        
+
         # Downtime
         self.down_nights = []
         sdt = ScheduledDowntime()
@@ -142,6 +143,9 @@ class Mock_observatory(object):
         self.down_nights.sort()
 
         self.seeing_model = SeeingSim(dth)
+        self.seeing_indx_dict = {}
+        for i, filtername in enumerate(self.seeing_model.filter_list):
+            self.seeing_indx_dict[filtername] = i
 
         self.cloud_model = CloudModel(dth)
         self.cloud_model.read_data()
@@ -233,6 +237,31 @@ class Mock_observatory(object):
         self.conditions.slewtime = slewtimes
 
         # Let's get the sun and moon
+        sun, moon, sunAlt, sunAz, moonAlt, moonAz, moon_sun_sep, moonPhase = self.get_sun_moon_properties()
+
+        self.conditions.moonPhase = moonPhase
+
+        self.conditions.moonAlt = moonAlt.min()
+        self.conditions.moonAz = moonAz.min()
+        self.conditions.moonRA = moon.ra.rad
+        self.conditions.moonDec = moon.dec.rad
+
+        self.conditions.sunAlt = sunAlt.min()
+
+        self.conditions.lmst, last = calcLmstLast(self.mjd, self.site.longitude_rad)
+
+        self.conditions.telRA = self.observatory.current_state.ra_rad
+        self.conditions.telDec = self.observatory.current_state.dec_rad
+        self.conditions.telRotSkyPos = self.observatory.current_state.ang_rad
+
+        # Add in the almanac information
+
+        # conditions.last_twilight_end
+        # conditions.next_twilight_start
+
+        return self.conditions
+
+    def get_sun_moon_properties(self):
         t = Time(self.mjd, format='mjd', location=self.location)
         sun = get_sun(t)
         moon = get_moon(t)
@@ -249,27 +278,10 @@ class Mock_observatory(object):
                                               self.mjd)
 
         moon_sun_sep = _angularSeparation(sun.ra.rad, sun.dec.rad, moon.ra.rad, moon.dec.rad)
-        self.conditions.moonPhase = np.max(moon_sun_sep/np.pi*100.)
+        moonPhase = np.max(moon_sun_sep/np.pi*100.)
 
-        self.conditions.moonAlt = moonAlt.min()
-        self.conditions.moonAz = moonAz.min()
-        self.conditions.moonRA = moon.ra.rad
-        self.conditions.moonDec = moon.dec.rad
+        return sun, moon, sunAlt, sunAz, moonAlt, moonAz, moon_sun_sep, moonPhase
 
-        self.conditions.sunAlt = sunAlt.min()
-
-        self.conditions.lmst, last = calcLmstLast(self.mjd, self.site.longitude_rad)
-
-        self.conditions.telRA = self.observatory.current_state.ra_rad
-        self.conditions.telDec = self.observatory.current_state.dec_rad
-        self.conditions.telRotSkyPos = self.observatory.current_state.ang_rad
-
-        # To set
-
-        # conditions.last_twilight_end
-        # conditions.next_twilight_start
-
-        return self.conditions
 
     @property
     def mjd(self):
@@ -288,6 +300,38 @@ class Mock_observatory(object):
         # Time since start of simulation
         delta_t = (self.mjd-self.mjd_start)*24.*3600.
         # XXX--todo
+        observation['clouds'] = self.cloud_model.get_cloud(delta_t)
+
+        observation['alt'] = self.observatory.current_state.alt_rad
+        observation['az'] = self.observatory.current_state.az_rad
+        observation['pa'] = self.observatory.current_state.pa_rad
+
+        observation['airmass'] = 1./np.cos(np.pi/2. - observation['alt'])
+
+        fwhm_500, fwhm_eff, fwhm_geom = self.seeing_model.get_seeing(delta_t, observation['airmass'])
+
+        observation['FWHMeff'] = fwhm_eff[self.seeing_indx_dict[observation['filter'][0]]]
+
+        observation['FWHM_geometric'] = fwhm_geom[self.seeing_indx_dict[observation['filter'][0]]]
+        observation['FWHM_500'] = fwhm_500
+
+        observation['night'] = self.night
+
+        hpid = _raDec2Hpid(self.sky_model.nside, observation['RA'], observation['dec'])
+        observation['skybrightness'] = self.sky_model.returnMags(self.mjd,
+                                                                 indx=hpid)[observation['filter'][0]]
+
+        observation['fivesigmadepth'] = m5_flat_sed(observation['filter'][0], observation['skybrightness'],
+                                                    observation['FWHMeff'], observation['exptime'],
+                                                    observation['airmass'])
+
+        lmst, last = calcLmstLast(self.mjd, self.site.longitude_rad)
+        observation['lmst'] = lmst
+
+        sun, moon, sunAlt, sunAz, moonAlt, moonAz, moon_sun_sep, moonPhase = self.get_sun_moon_properties()
+
+        # XXX--fill this the rest of the way out.
+
 
         return observation
 
@@ -337,17 +381,24 @@ class Mock_observatory(object):
         target = Target(band_filter=observation['filter'], ra_rad=observation['RA'],
                         dec_rad=observation['dec'], ang_rad=observation['rotSkyPos'],
                         num_exp=observation['nexp'], exp_times=[observation['exptime']])
+        start_ra = self.observatory.current_state.ra_rad
+        start_dec = self.observatory.current_state.dec_rad
+        # Make sure the observatory has the proper time:
+        t = Time(self.mjd, format='mjd', location=self.location)
+        self.observatory.update_state(t.utc.value)
         slewtime, visittime = self.observatory.observe_times(target)
-
         # Check if the mjd after slewtime and visitime is fine:
-        observation_worked, new_mjd = self.check_mjd(self.mjd + slewtime + visittime)
+        observation_worked, new_mjd = self.check_mjd(self.mjd + (slewtime + visittime)/24./3600.)
         if observation_worked:
             observation['visittime'] = visittime
             observation['slewtime'] = slewtime
-            self.mjd = self.mjd + slewtime
+            observation['slewdist'] = _angularSeparation(start_ra, start_dec,
+                                                         self.observatory.current_state.ra_rad,
+                                                         self.observatory.current_state.dec_rad)
+            self.mjd = self.mjd + slewtime/24./3600.
             # Metadata on observation is after slew and settle, so at start of exposure.
-            result = self.observation_data(observation)
-            self.mjd = self.mjd + visittime
+            result = self.observation_add_data(observation)
+            self.mjd = self.mjd + visittime/24./3600.
             new_night = False
         else:
             result = None
