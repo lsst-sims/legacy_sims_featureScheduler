@@ -9,29 +9,23 @@ __all__ = ['BaseSurvey', 'BaseMarkovDF_survey']
 
 
 class BaseSurvey(object):
+    """A baseclass for survey objects. 
 
+    Parameters
+    ----------
+    basis_functions : list
+        List of basis_function objects
+    extra_features : list XXX--should this be a dict for clarity?
+        List of any additional features the survey may want to use
+        e.g., for computing final dither positions.
+    ignore_obs : str ('dummy')
+        If an incoming observation has this string in the note, ignore it. Handy if
+        one wants to ignore DD fields or observations requested by self. Take note,
+        if a survey is called 'mysurvey23', setting ignore_obs to 'mysurvey2' will
+        ignore it because 'mysurvey2' is a substring of 'mysurvey23'.
+    """
     def __init__(self, basis_functions, extra_features=None,
                  ignore_obs='dummy', survey_name='', nside=None):
-        """
-        Parameters
-        ----------
-        basis_functions : list
-            List of basis_function objects
-        extra_features : list XXX--should this be a dict for clarity?
-            List of any additional features the survey may want to use
-            e.g., for computing final dither positions, or feasability maps.
-        extra_basis_functions : list of basis functions.
-        smoothing_kernel : float (None)
-            Smooth the reward function with a Gaussian FWHM (degrees)
-        ignore_obs : str ('dummy')
-            If an incoming observation has this string in the note, ignore it. Handy if
-            one wants to ignore DD fields or observations requested by self. Take note,
-            if a survey is called 'mysurvey23', setting ignore_obs to 'mysurvey2' will
-            ignore it because 'mysurvey2' is a substring of 'mysurvey23'.
-        """
-
-        # XXX--nside shouldn't be in BaseSurvey. But the DDFs need it for 
-        # tagging observations. TODO-take that out.
         if nside is None:
             nside = set_default_nside()
 
@@ -88,7 +82,7 @@ class BaseSurvey(object):
         if self._check_feasability():
             self.reward = 0
         else:
-            # If we don't pass feasability 
+            # If we don't pass feasability
             self.reward = -np.inf
 
         self.reward_checked = True
@@ -126,7 +120,18 @@ def rotx(theta, x, y, z):
 
 
 class BaseMarkovDF_survey(BaseSurvey):
-    """ A Markov Decision Function survey object
+    """ A Markov Decision Function survey object. Uses Basis functions to compute a
+    final reward function and decide what to observe based on the reward. Includes
+    methods for dithering and defaults to dithering nightly.
+
+    Parameters
+    ----------
+    basis_function : list of lsst.sims.featureSchuler.basis_function objects
+
+    basis_weights : list of float
+        Must be same length as basis_function
+    seed : hashable
+        Random number seed, used for randomly orienting sky tessellation.
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None,
                  smoothing_kernel=None,
@@ -231,7 +236,7 @@ class BaseMarkovDF_survey(BaseSurvey):
             self.reward_smooth = hp.sphtfunc.smoothing(self.reward.filled(),
                                                        fwhm=self.smoothing_kernel,
                                                        verbose=False)
-            good = np.where(self.reward_smooth != hp.UNSEEN)
+            good = ~np.isnan(self.reward_smooth)
             # Round off to prevent strange behavior early on
             self.reward_smooth[good] = np.round(self.reward_smooth[good], decimals=4)
 
@@ -240,21 +245,10 @@ class BaseMarkovDF_survey(BaseSurvey):
         if self._check_feasibility(conditions):
             self.reward = 0
             indx = np.arange(hp.nside2npix(self.nside))
-            # keep track of masked pixels
-            mask = np.zeros(indx.size, dtype=bool)
             for bf, weight in zip(self.basis_functions, self.basis_weights):
                 basis_value = bf(conditions, indx=indx)
-                mask[np.where(basis_value == hp.UNSEEN)] = True
-                if hasattr(basis_value, 'mask'):
-                    mask[np.where(basis_value.mask == True)] = True
                 self.reward += basis_value*weight
-                # might be faster to pull this out into the feasabiliity check?
-                if hasattr(self.reward, 'mask'):
-                    indx = np.where(self.reward.mask == False)[0]
-            self.reward[mask] = hp.UNSEEN
-            # self.reward.mask = mask
-            # self.reward.fill_value = hp.UNSEEN
-            # inf reward means it trumps everything.
+
             if np.any(np.isinf(self.reward)):
                 self.reward = np.inf
         else:

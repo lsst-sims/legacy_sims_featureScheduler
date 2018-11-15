@@ -199,6 +199,8 @@ class Conditions(object):
             self._slewtime = value
         else:
             self._slewtime = hp.ud_grade(value, nside_out=self.nside)
+            # Make sure there are no healpy UNSEENs creeping in
+            self._slewtime[np.where(self._slewtime == hp.UNSEEN)] = np.nan
 
     @property
     def airmass(self):
@@ -245,6 +247,8 @@ class Conditions(object):
     def skybrightness(self, indict):
         for key in indict:
             self._skybrightness[key] = hp.ud_grade(indict[key], nside_out=self.nside)
+            # Swap any healpy.UNSEEN values to nans.
+            self._skybrightness[key][np.where(self._skybrightness[key] == hp.UNSEEN)] = np.nan
         # If sky brightness changes, need to recalc M5 depth.
         self._M5Depth = None
 
@@ -267,7 +271,7 @@ class Conditions(object):
     def calc_M5Depth(self):
         self._M5Depth = {}
         for filtername in self._skybrightness:
-            good = np.where(self._skybrightness[filtername] != hp.UNSEEN)
+            good = ~np.isnan(self._skybrightness[filtername])
             self._M5Depth[filtername] = self.nan_map.copy()
             self._M5Depth[filtername][good] = m5_flat_sed(filtername,
                                                           self._skybrightness[filtername][good],

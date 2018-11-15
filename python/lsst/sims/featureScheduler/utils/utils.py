@@ -1,6 +1,3 @@
-from __future__ import print_function
-from builtins import zip
-from builtins import object
 import numpy as np
 import healpy as hp
 import pandas as pd
@@ -40,28 +37,6 @@ def set_default_nside(nside=None):
     if nside is not None:
         set_default_nside.nside = nside
     return set_default_nside.nside
-
-
-def sum_reject(inarr, reject_val=hp.UNSEEN):
-    """
-    compute the sum of an array but retrun -inf if reject_val present
-    """
-    if reject_val in inarr:
-        return -np.inf
-
-    else:
-        return np.sum(inarr)
-
-
-def max_reject(inarr, reject_val=hp.UNSEEN):
-    """
-    compute the max of an array but retrun -inf if reject_val present
-    """
-    if reject_val in inarr:
-        return -np.inf
-
-    else:
-        return np.max(inarr)
 
 
 def int_binned_stat(ids, values, statistic=np.mean):

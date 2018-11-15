@@ -6,7 +6,7 @@ from lsst.sims.featureScheduler import utils
 from lsst.sims.utils import m5_flat_sed
 
 
-__all__ = ['BaseFeature', 'BaseSurveyFeature', 'N_obs_count', 'N_obs_survey', 'N_obs_area',
+__all__ = ['BaseFeature', 'BaseSurveyFeature', 'N_obs_count', 'N_obs_survey',
            'Last_observation', 'LastSequence_observation', 'LastFilterChange',
            'N_observations', 'Coadded_depth', 'Last_observed', 'N_obs_night', 'Pair_in_night',
            'Rotator_angle']
@@ -26,14 +26,27 @@ class BaseFeature(object):
 
 class BaseSurveyFeature(object):
     """
-    feature that tracks progreess of the survey. Takes observations and updates self.feature
+    Feature that tracks progreess of the survey. Takes observations and updates self.feature
     """
-    def add_observation(self, observation, **kwargs):
+    def add_observation(self, observation, indx=None, **kwargs):
+        """
+        Parameters
+        ----------
+        obsevation : dict-like
+            Object that contains the information about the observation (ra, dec, filter, mjd, etc)
+        indx : ints (None)
+            The healpixel indices that the observation overlaps.
+        """
         raise NotImplementedError
 
 
 class N_obs_count(BaseSurveyFeature):
-    """Count the number of observations.
+    """Count the number of observations. Total number, not tracked over sky
+
+    Parameters
+    ----------
+    filtername : str (None)
+        The filter to count (if None, all filters counted)
     """
     def __init__(self, filtername=None, tag=None):
         self.feature = 0
@@ -59,14 +72,13 @@ class N_obs_count(BaseSurveyFeature):
 
 class N_obs_survey(BaseSurveyFeature):
     """Count the number of observations.
+
+     Parameters
+    ----------
+    note : str (None)
+        Only count observations that have str in their note field
     """
     def __init__(self, note=None):
-        """
-        Parameters
-        ----------
-        note : str (None)
-            Only count observations that have str in their note field
-        """
         self.feature = 0
         self.note = note
 
@@ -79,29 +91,14 @@ class N_obs_survey(BaseSurveyFeature):
                 self.feature += 1
 
 
-class N_obs_area(BaseSurveyFeature):
-    """Count the number of observations that happened on a specific region.
-    """
-    def __init__(self, tag_map=None):
-        """
-        Parameters
-        ----------
-        tag_map : np.ndarray (None)
-            A healpix map with a tag map. Only observations with tag equals to the region tag will be counted.
-        """
-        self.feature = 0
-        self.tag_map = tag_map
-
-    def add_observation(self, observation, indx=None):
-
-        if self.tag_map is not None:
-            tags = np.unique(self.tag_map[indx])
-            if observation['tag'] in tags:
-                self.feature += 1
-
-
 class Last_observation(BaseSurveyFeature):
-    """When was the last observation
+    """Track the last observation. Useful if you want to see when the
+    last time a survey took an observation.
+
+    Parameters
+    ----------
+    survey_name : str (None)
+        Only records if the survey name matches (or survey_name set to None)
     """
     def __init__(self, survey_name=None):
         self.survey_name = survey_name
@@ -130,7 +127,7 @@ class LastSequence_observation(BaseSurveyFeature):
 
 
 class LastFilterChange(BaseSurveyFeature):
-    """When was the last observation
+    """Record when the filter last changed.
     """
     def __init__(self):
         self.feature = {'mjd': 0.,
@@ -151,18 +148,18 @@ class LastFilterChange(BaseSurveyFeature):
 class N_observations(BaseSurveyFeature):
     """
     Track the number of observations that have been made accross the sky.
+
+    Parameters
+    ----------
+    filtername : str ('r')
+        String or list that has all the filters that can count.
+    nside : int (32)
+        The nside of the healpixel map to use
+    mask_indx : list of ints (None)
+        List of healpixel indices to mask and interpolate over
+
     """
     def __init__(self, filtername=None, nside=None, mask_indx=None):
-        """
-        Parameters
-        ----------
-        filtername : str ('r')
-            String or list that has all the filters that can count.
-        nside : int (32)
-            The nside of the healpixel map to use
-        mask_indx : list of ints (None)
-            List of healpixel indices to mask and interpolate over
-        """
         if nside is None:
             nside = utils.set_default_nside()
 
@@ -190,12 +187,10 @@ class N_observations(BaseSurveyFeature):
 
 
 class Coadded_depth(BaseSurveyFeature):
+    """
+    Track the co-added depth that has been reached accross the sky
+    """
     def __init__(self, filtername='r', nside=None):
-        """
-        Track the co-added depth that has been reached accross the sky
-        Parameters
-        ----------
-        """
         if nside is None:
             nside = utils.set_default_nside()
         self.filtername = filtername
@@ -234,16 +229,16 @@ class N_obs_night(BaseSurveyFeature):
     """
     Track how many times something has been observed in a night
     (Note, even if there are two, it might not be a good pair.)
+
+    Parameters
+    ----------
+    filtername : string ('r')
+        Filter to track.
+    nside : int (32)
+        Scale of the healpix map
+
     """
     def __init__(self, filtername='r', nside=None):
-        """
-        Parameters
-        ----------
-        filtername : string ('r')
-            Filter to track.
-        nside : int (32)
-            Scale of the healpix map
-        """
         if nside is None:
             nside = utils.set_default_nside()
 
@@ -262,16 +257,15 @@ class N_obs_night(BaseSurveyFeature):
 class Pair_in_night(BaseSurveyFeature):
     """
     Track how many pairs have been observed within a night
+
+    Parameters
+    ----------
+    gap_min : float (25.)
+        The minimum time gap to consider a successful pair in minutes
+    gap_max : float (45.)
+        The maximum time gap to consider a successful pair (minutes)
     """
     def __init__(self, filtername='r', nside=None, gap_min=25., gap_max=45.):
-        """
-        Parameters
-        ----------
-        gap_min : float (25.)
-            The minimum time gap to consider a successful pair in minutes
-        gap_max : float (45.)
-            The maximum time gap to consider a successful pair (minutes)
-        """
         if nside is None:
             nside = utils.set_default_nside()
 

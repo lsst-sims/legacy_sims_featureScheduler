@@ -2,11 +2,10 @@ import numpy as np
 from lsst.sims.featureScheduler.utils import (empty_observation, set_default_nside)
 import healpy as hp
 from lsst.sims.featureScheduler.surveys import BaseMarkovDF_survey
-from lsst.sims.featureScheduler.utils import (int_binned_stat, max_reject,
+from lsst.sims.featureScheduler.utils import (int_binned_stat,
                                               gnomonic_project_toxy, tsp_convex)
 import copy
 from lsst.sims.utils import _angularSeparation, _hpid2RaDec, _approx_RaDec2AltAz
-
 
 __all__ = ['Greedy_survey', 'Blob_survey']
 
@@ -46,7 +45,9 @@ class Greedy_survey(BaseMarkovDF_survey):
             self.night = conditions.night.copy()
 
         # Let's find the best N from the fields
-        order = np.argsort(self.reward.data)[::-1]
+        order = np.argsort(self.reward)[::-1]
+        # Crop off any NaNs
+        order = order[~np.isnan(self.reward[order])]
 
         iter = 0
         while True:
@@ -75,6 +76,34 @@ class Greedy_survey(BaseMarkovDF_survey):
 
 class Blob_survey(Greedy_survey):
     """Select observations in large, mostly contiuguous, blobs.
+
+    Parameters
+    ----------
+    filtername1 : str ('r')
+        The filter to observe in.
+    filtername2 : str ('g')
+        The filter to pair with the first observation. If set to None, no pair
+        will be observed.
+    slew_approx : float (7.5)
+        The approximate slewtime between neerby fields (seconds). Used to calculate
+        how many observations can be taken in the desired time block.
+    filter_change_approx : float (140.)
+         The approximate time it takes to change filters (seconds).
+    ideal_pair_time : float (22.)
+        The ideal time gap wanted between observations to the same pointing (minutes)
+    min_pair_time : float (15.)
+        The minimum acceptable pair time (minutes)
+    search_radius : float (30.)
+        The radius around the reward peak to look for additional potential pointings (degrees)
+    alt_max : float (85.)
+        The maximum altitude to include (degrees).
+    az_range : float (90.)
+        The range of azimuths to consider around the peak reward value (degrees).
+    flush_time : float (30.)
+        The time past the final expected exposure to flush the queue. Keeps observations
+        from lingering past when they should be executed. (minutes)
+    sitename : str ('LSST')
+        The name of the site to lookup latitude and longitude.
     """
     def __init__(self, basis_functions, basis_weights,
                  filtername1='r', filtername2='g',
@@ -87,35 +116,6 @@ class Blob_survey(Greedy_survey):
                  dither=True, seed=42, ignore_obs='ack',
                  survey_note='blob',
                  sitename='LSST'):
-        """
-        Parameters
-        ----------
-        filtername1 : str ('r')
-            The filter to observe in.
-        filtername2 : str ('g')
-            The filter to pair with the first observation. If set to None, no pair
-            will be observed.
-        slew_approx : float (7.5)
-            The approximate slewtime between neerby fields (seconds). Used to calculate
-            how many observations can be taken in the desired time block.
-        filter_change_approx : float (140.)
-             The approximate time it takes to change filters (seconds).
-        ideal_pair_time : float (22.)
-            The ideal time gap wanted between observations to the same pointing (minutes)
-        min_pair_time : float (15.)
-            The minimum acceptable pair time (minutes)
-        search_radius : float (30.)
-            The radius around the reward peak to look for additional potential pointings (degrees)
-        alt_max : float (85.)
-            The maximum altitude to include (degrees).
-        az_range : float (90.)
-            The range of azimuths to consider around the peak reward value (degrees).
-        flush_time : float (30.)
-            The time past the final expected exposure to flush the queue. Keeps observations
-            from lingering past when they should be executed. (minutes)
-        sitename : str ('LSST')
-            The name of the site to lookup latitude and longitude.
-        """
 
         if nside is None:
             nside = set_default_nside()
@@ -192,43 +192,33 @@ class Blob_survey(Greedy_survey):
         if self._check_feasibility(conditions):
             self.reward = 0
             indx = np.arange(hp.nside2npix(self.nside))
-            # keep track of masked pixels
-            mask = np.zeros(indx.size, dtype=bool)
             for bf, weight in zip(self.basis_functions, self.basis_weights):
                 basis_value = bf(conditions, indx=indx)
-                mask[np.where(basis_value == hp.UNSEEN)] = True
-                if hasattr(basis_value, 'mask'):
-                    mask[np.where(basis_value.mask == True)] = True
                 self.reward += basis_value*weight
                 # might be faster to pull this out into the feasabiliity check?
-                if hasattr(self.reward, 'mask'):
-                    indx = np.where(self.reward.mask == False)[0]
-            self.reward[mask] = hp.UNSEEN
-            self.reward.mask = mask
-            self.reward.fill_value = hp.UNSEEN
 
             if self.smoothing_kernel is not None:
                 self.smooth_reward()
 
             # Apply max altitude cut
             too_high = np.where(conditions.alt > self.alt_max)
-            self.reward[too_high] = hp.UNSEEN
+            self.reward[too_high] = np.nan
 
             # Select healpixels within some radius of the max
             # This is probably faster with a kd-tree.
-            peak_reward = np.min(np.where(self.reward == np.max(self.reward))[0])
+            peak_reward = np.min(np.where(self.reward == np.nanmax(self.reward))[0])
 
             # Apply radius selection
             dists = _angularSeparation(self.ra[peak_reward], self.dec[peak_reward], self.ra, self.dec)
             out_hp = np.where(dists > self.search_radius)
-            self.reward[out_hp] = hp.UNSEEN
+            self.reward[out_hp] = np.nan
 
             # Apply az cut
             az_centered = conditions.az - conditions.az[peak_reward]
             az_centered[np.where(az_centered < 0)] += 2.*np.pi
 
             az_out = np.where((az_centered > self.az_range/2.) & (az_centered < 2.*np.pi-self.az_range/2.))
-            self.reward[az_out] = hp.UNSEEN
+            self.reward[az_out] = np.nan
         else:
             self.reward = -np.inf
         self.reward_checked = True
@@ -247,15 +237,17 @@ class Blob_survey(Greedy_survey):
             self.night = conditions.night.copy()
 
         # Now that we have the reward map,
-        potential_hp = np.where(self.reward.filled() != hp.UNSEEN)
-        # Find the max reward for each potential pointing
+        potential_hp = np.where(~np.isnan(self.reward) == True)
         ufields, reward_by_field = int_binned_stat(self.hp2fields[potential_hp],
-                                                   self.reward[potential_hp].filled(),
-                                                   statistic=max_reject)
+                                                   self.reward[potential_hp], statistic=np.max)
+        # chop off any nans
+        not_nans = np.where(~np.isnan(reward_by_field) == True)
+        ufields = ufields[not_nans]
+        reward_by_field = reward_by_field[not_nans]
+
         order = np.argsort(reward_by_field)
         ufields = ufields[order][::-1][0:self.nvisit_block]
         self.best_fields = ufields
-
         # Let's find the alt, az coords of the points (right now, hopefully doesn't change much in time block)
         pointing_alt, pointing_az = _approx_RaDec2AltAz(self.fields['RA'][self.best_fields],
                                                         self.fields['dec'][self.best_fields],

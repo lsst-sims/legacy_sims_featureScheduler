@@ -1,5 +1,3 @@
-from __future__ import absolute_import
-from builtins import object
 import numpy as np
 from lsst.sims.featureScheduler import features
 from lsst.sims.featureScheduler import utils
@@ -17,13 +15,10 @@ __all__ = ['Base_basis_function', 'Constant_basis_function', 'Target_map_basis_f
 
 
 class Base_basis_function(object):
-    """
-    Class that takes features and computes a reward function when called.
+    """Class that takes features and computes a reward function when called.
     """
 
     def __init__(self, nside=None, filtername=None, **kwargs):
-        """
-        """
 
         # Set if basis function needs to be recalculated if there is a new observation
         self.update_on_newobs = True
@@ -109,26 +104,27 @@ class Constant_basis_function(Base_basis_function):
 
 class Target_map_basis_function(Base_basis_function):
     """Basis function that tracks number of observations and tries to match a specified spatial distribution
+
+    Parameters
+    ----------
+    filtername: (string 'r')
+        The name of the filter for this target map.
+    nside: int (default_nside)
+        The healpix resolution.
+    target_map : numpy array (None)
+        A healpix map showing the ratio of observations desired for all points on the sky
+    norm_factor : float (0.00010519)
+        for converting target map to number of observations. Should be the area of the camera
+        divided by the area of a healpixel divided by the sum of all your goal maps. Default
+        value assumes LSST foV has 1.75 degree radius and the standard goal maps. If using
+        mulitple filters, see lsst.sims.featureScheduler.utils.calc_norm_factor for a utility
+        that computes norm_factor.
+    out_of_bounds_val : float (-10.)
+        Reward value to give regions where there are no observations requested (unitless).
     """
     def __init__(self, filtername='r', nside=None, target_map=None,
                  norm_factor=0.00010519,
                  out_of_bounds_val=-10.):
-        """
-        Parameters
-        ----------
-        filtername: (string 'r')
-            The name of the filter for this target map.
-        nside: int (default_nside)
-            The healpix resolution.
-        target_map : numpy array (None)
-            A healpix map showing the ratio of observations desired for all points on the sky
-        norm_factor : float (0.00010519)
-            for converting target map to number of observations. Should be the area of the camera
-            divided by the area of a healpixel divided by the sum of all your goal maps. Default
-            value assumes LSST foV has 1.75 degree radius and the standard goal maps.
-        out_of_bounds_val : float (-10.)
-            Point value to give regions where there are no observations requested
-        """
 
         super(Target_map_basis_function, self).__init__(nside=nside, filtername=filtername)
 
@@ -174,19 +170,20 @@ class Target_map_basis_function(Base_basis_function):
 
 class Avoid_Fast_Revists(Base_basis_function):
     """Marks targets as unseen if they are in a specified time window in order to avoid fast revisits.
+
+    Parameters
+    ----------
+    filtername: (string 'r')
+        The name of the filter for this target map.
+    gap_min : float (25.)
+        Minimum time for the gap (minutes).
+    nside: int (default_nside)
+        The healpix resolution.
+    penalty_val : float (np.nan)
+        The reward value to use for regions to penalize. Will be masked if set to np.nan (default).
     """
     def __init__(self, filtername='r', nside=None, gap_min=25.,
-                 penalty_val=hp.UNSEEN):
-        """
-        Parameters
-        ----------
-        filtername: (string 'r')
-            The name of the filter for this target map.
-        gap_min : float (25.)
-            Minimum time for the gap (minutes).
-        nside: int (default_nside)
-            The healpix resolution.
-        """
+                 penalty_val=np.nan):
         super(Avoid_Fast_Revists, self).__init__(nside=nside, filtername=filtername)
 
         self.filtername = filtername
@@ -211,21 +208,21 @@ class Avoid_Fast_Revists(Base_basis_function):
 class Visit_repeat_basis_function(Base_basis_function):
     """
     Basis function to reward re-visiting an area on the sky. Looking for Solar System objects.
+
+    Parameters
+    ----------
+    gap_min : float (15.)
+        Minimum time for the gap (minutes)
+    gap_max : float (45.)
+        Maximum time for a gap
+    filtername : str ('r')
+        The filter(s) to count with pairs
+    npairs : int (1)
+        The number of pairs of observations to attempt to gather
     """
     def __init__(self, gap_min=25., gap_max=45.,
                  filtername='r', nside=None, npairs=1):
-        """
-        survey_features : dict of features (None)
-            Dict of feature objects.
-        gap_min : float (15.)
-            Minimum time for the gap (minutes)
-        gap_max : flaot (45.)
-            Maximum time for a gap
-        filtername : str ('r')
-            The filter(s) to count with pairs
-        npairs : int (1)
-            The number of pairs of observations to attempt to gather
-        """
+
         super(Visit_repeat_basis_function, self).__init__(nside=nside, filtername=filtername)
 
         self.gap_min = gap_min/60./24.
@@ -255,19 +252,15 @@ class Visit_repeat_basis_function(Base_basis_function):
 
 class M5_diff_basis_function(Base_basis_function):
     """Basis function based on the 5-sigma depth.
-    Look up the best a pixel gets, and compute the limiting depth difference with current conditions
+    Look up the best depth a healpixel achieves, and compute
+    the limiting depth difference given current conditions
     """
     def __init__(self, filtername='r', nside=None):
-        """
-        """
+
         super(M5_diff_basis_function, self).__init__(nside=nside, filtername=filtername)
         # Need to look up the deepest m5 values for all the healpixels
         m5p = M5percentiles()
         self.dark_map = m5p.dark_map(filtername=filtername, nside_out=self.nside)
-
-    def add_observation(self, observation, indx=None):
-        # No tracking of observations in this basis function. Purely based on conditions.
-        pass
 
     def _calc_value(self, conditions, indx=None):
         # No way to get the sign on this right the first time.
@@ -282,16 +275,15 @@ class Strict_filter_basis_function(Base_basis_function):
     a filter change. This basis function rewards if it matches the current filter, the moon rises or sets,
     twilight starts or stops, or there has been a large gap since the last observation.
 
+    Paramters
+    ---------
+    time_lag : float (10.)
+        If there is a gap between observations longer than this, let the filter change (minutes)
+    twi_change : float (-18.)
+        The sun altitude to consider twilight starting/ending (degrees)
     """
     def __init__(self, time_lag=10., filtername='r', twi_change=-18.):
-        """
-        Paramters
-        ---------
-        time_lag : float (10.)
-            If there is a gap between observations longer than this, let the filter change (minutes)
-        twi_change : float (-18.)
-            The sun altitude to consider twilight starting/ending
-        """
+
         super(Strict_filter_basis_function, self).__init__(filtername=filtername)
 
         self.time_lag = time_lag/60./24.  # Convert to days
@@ -334,28 +326,28 @@ class Goal_Strict_filter_basis_function(Base_basis_function):
     a filter change. This basis function rewards if it matches the current filter, the moon rises or sets,
     twilight starts or stops, or there has been a large gap since the last observation.
 
+    Parameters
+    ---------
+    time_lag_min: Minimum time after a filter change for which a new filter change will receive zero reward, or
+        be denied at all (see unseen_before_lag).
+    time_lag_max: Time after a filter change where the reward for changing filters achieve its maximum.
+    time_lag_boost: Time after a filter change to apply a boost on the reward.
+    boost_gain: A multiplier factor for the reward after time_lag_boost.
+    unseen_before_lag: If True will make it impossible to switch filter before time_lag has passed.
+    filtername: The filter for which this basis function will be used.
+    tag: When using filter proportion use only regions with this tag to count for observations.
+    twi_change: Switch reward on when twilight changes.
+    proportion: The expected filter proportion distribution.
+    aways_available: If this is true the basis function will aways be computed regardless of the feasibility. If
+        False a more detailed feasibility check is performed. When set to False, it may speed up the computation
+        process by avoiding to compute the reward functions paired with this bf, when observation is not feasible.
+
     """
 
     def __init__(self, time_lag_min=10., time_lag_max=30.,
                  time_lag_boost=60., boost_gain=2.0, unseen_before_lag=False,
                  filtername='r', tag=None, twi_change=-18., proportion=1.0, aways_available=False):
-        """
-        Parameters
-        ---------
-        time_lag_min: Minimum time after a filter change for which a new filter change will receive zero reward, or
-            be denied at all (see unseen_before_lag).
-        time_lag_max: Time after a filter change where the reward for changing filters achieve its maximum.
-        time_lag_boost: Time after a filter change to apply a boost on the reward.
-        boost_gain: A multiplier factor for the reward after time_lag_boost.
-        unseen_before_lag: If True will make it impossible to switch filter before time_lag has passed.
-        filtername: The filter for which this basis function will be used.
-        tag: When using filter proportion use only regions with this tag to count for observations.
-        twi_change: Switch reward on when twilight changes.
-        proportion: The expected filter proportion distribution.
-        aways_available: If this is true the basis function will aways be computed regardless of the feasibility. If
-            False a more detailed feasibility check is performed. When set to False, it may speed up the computation
-            process by avoiding to compute the reward functions paired with this bf, when observation is not feasible.
-        """
+
         super(Goal_Strict_filter_basis_function, self).__init__(filtername=filtername)
 
         self.time_lag_min = time_lag_min / 60. / 24.  # Convert to days
@@ -482,8 +474,7 @@ class Goal_Strict_filter_basis_function(Base_basis_function):
 
 
 class Filter_change_basis_function(Base_basis_function):
-    """
-    Reward staying in the current filter.
+    """Reward staying in the current filter.
     """
     def __init__(self, filtername='r'):
         super(Filter_change_basis_function, self).__init__(filtername=filtername)
@@ -499,6 +490,12 @@ class Filter_change_basis_function(Base_basis_function):
 
 class Slewtime_basis_function(Base_basis_function):
     """Reward slews that take little time
+
+    Parameters
+    ----------
+    max_time : float (135)
+         The estimated maximum slewtime (seconds). Used to normalize so the basis function
+         spans ~0-1 in reward units.
     """
     def __init__(self, max_time=135., filtername='r', nside=None):
         super(Slewtime_basis_function, self).__init__(nside=nside, filtername=filtername)
@@ -520,7 +517,7 @@ class Slewtime_basis_function(Base_basis_function):
             # Need to make sure smaller slewtime is larger reward.
             if np.size(conditions.slewtime) > 1:
                 result = self.result.copy()
-                good = np.where(conditions.slewtime != hp.UNSEEN)
+                good = ~np.isnan(conditions.slewtime)
                 result[good] = (self.maxtime - conditions.slewtime[good])/self.maxtime
             else:
                 result = (self.maxtime - conditions.slewtime)/self.maxtime
@@ -530,7 +527,7 @@ class Slewtime_basis_function(Base_basis_function):
 class Aggressive_Slewtime_basis_function(Base_basis_function):
     """Reward slews that take little time
 
-    XXX--not sure how this is different from Slewtime_basis_function. 
+    XXX--not sure how this is different from Slewtime_basis_function?
     Looks like it's checking the slewtime to the field position rather than the healpix maybe?
     """
 
@@ -550,7 +547,7 @@ class Aggressive_Slewtime_basis_function(Base_basis_function):
             # Need to make sure smaller slewtime is larger reward.
             if np.size(self.condition_features['slewtime'].feature) > 1:
                 result = self.result.copy()
-                result.fill(hp.UNSEEN)
+                result.fill(np.nan)
 
                 good = np.where(np.bitwise_and(conditions.slewtime > 0.,
                                                conditions.slewtime < self.maxtime))
@@ -569,21 +566,25 @@ class Aggressive_Slewtime_basis_function(Base_basis_function):
 
 
 class Skybrightness_limit_basis_function(Base_basis_function):
-    """mask regions that are outside a sky brightness limit
+    """Mask regions that are outside a sky brightness limit
+
+    XXX--TODO:  This should probably go to the mask basis functions.
+
+    Parameters
+    ----------
+    min : float (20.)
+         The minimum sky brightness (mags).
+    max : float (30.)
+         The maximum sky brightness (mags).
 
     """
     def __init__(self, nside=None, filtername='r', min=20., max=30.):
-        """
-        Parameters
-        moon_distance: float (30.)
-            Minimum allowed moon distance. (degrees)
-        """
         super(Skybrightness_limit_basis_function, self).__init__(nside=nside, filtername=filtername)
 
         self.min = min
         self.max = max
         self.result = np.empty(hp.nside2npix(self.nside), dtype=float)
-        self.result.fill(hp.UNSEEN)
+        self.result.fill(np.nan)
 
     def _calc_value(self, conditions, indx=None):
         result = self.result.copy()
@@ -597,19 +598,17 @@ class Skybrightness_limit_basis_function(Base_basis_function):
 
 class CableWrap_unwrap_basis_function(Base_basis_function):
     """
+    Parameters
+    ----------
+    minAz : float (20.)
+        The minimum azimuth to activate bf (degrees)
+    maxAz : float (82.)
+        The maximum azimuth to activate bf (degrees)
+    unwrap_until: float (90.)
+        The window in which the bf is activated (degrees)
     """
     def __init__(self, nside=None, minAz=-270., maxAz=270., minAlt=20., maxAlt=82.,
                  activate_tol=20., delta_unwrap=1.2, unwrap_until=70., max_duration=30.):
-        """
-        Parameters
-        ----------
-        minAz : float (20.)
-            The minimum azimuth to activate bf (degrees)
-        maxAz : float (82.)
-            The maximum azimuth to activate bf (degrees)
-        unwrap_until: float (90.)
-            The window in which the bf is activated (degrees)
-        """
         super(CableWrap_unwrap_basis_function, self).__init__(nside=nside)
 
         self.minAz = np.radians(minAz)
@@ -636,7 +635,7 @@ class CableWrap_unwrap_basis_function(Base_basis_function):
         current_abs_rad = np.radians(conditions.az)
         unseen = np.where(np.bitwise_or(conditions.alt < self.minAlt,
                                         conditions.alt > self.maxAlt))
-        result[unseen] = hp.UNSEEN
+        result[unseen] = np.nan
 
         if (self.minAz + self.activate_tol < current_abs_rad < self.maxAz - self.activate_tol) and not self.active:
             return result
@@ -700,28 +699,26 @@ class CableWrap_unwrap_basis_function(Base_basis_function):
         # Finally build reward map
         result = (1. - unwrap_distance_rad/np.max(unwrap_distance_rad))**2.
         result[mask] = 0.
-        result[unseen] = hp.UNSEEN
+        result[unseen] = np.nan
 
         return result
 
 
 class Cadence_enhance_basis_function(Base_basis_function):
-    """Drive a certain cadence"""
+    """Drive a certain cadence
+    Parameters
+    ----------
+    filtername : str ('gri')
+        The filter(s) that should be grouped together
+    supress_window : list of float
+        The start and stop window for when observations should be repressed (days)
+    apply_area : healpix map
+        The area over which to try and drive the cadence. Good values as 1, no candece drive 0.
+        Probably works as a bool array too."""
     def __init__(self, filtername='gri', nside=None,
                  supress_window=[0, 1.8], supress_val=-0.5,
                  enhance_window=[2.1, 3.2], enhance_val=1.,
                  apply_area=None):
-        """
-        Parameters
-        ----------
-        filtername : str ('gri')
-            The filter(s) that should be grouped together
-        supress_window : list of float
-            The start and stop window for when observations should be repressed (days)
-        apply_area : healpix map
-            The area over which to try and drive the cadence. Good values as 1, no candece drive 0.
-            Probably works as a bool array too.
-        """
         super(Cadence_enhance_basis_function, self).__init__(nside=nside, filtername=filtername)
 
         self.supress_window = np.sort(supress_window)
@@ -755,6 +752,3 @@ class Cadence_enhance_basis_function(Base_basis_function):
             to_enhance = np.where((mjd_diff > self.enhance_window[0]) & (mjd_diff < self.enhance_window[1]))
             result[ind[to_enhance]] = self.enhance_val
         return result
-
-
-
