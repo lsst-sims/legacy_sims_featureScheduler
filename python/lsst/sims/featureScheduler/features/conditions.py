@@ -93,7 +93,6 @@ class Conditions(object):
         HA : np.array
             Healpix map of the hour angle of each healpixel (radians).
 
-        XXX -- todo, rotTelPos, rotSkyPos
         """
         if nside is None:
             nside = set_default_nside()
@@ -140,8 +139,15 @@ class Conditions(object):
         self.sunAlt = None
         self.sunAz = None
 
-        self.last_twilight_end = None
-        self.next_twilight_start = None
+        # Almanac information
+        self.sunset = None
+        self.sun_n12_setting = None
+        self.sun_n18_setting = None
+        self.sun_n18_rising = None
+        self.sun_n12_rising = None
+        self.sunrise = None
+        self.moonrise = None
+        self.moonset = None
 
         # Current telescope pointing
         self.telRA = None
@@ -153,6 +159,8 @@ class Conditions(object):
 
         # XXX--document
         self.bulk_cloud = None
+
+        self.rotTelPos = None
 
     @property
     def lmst(self):

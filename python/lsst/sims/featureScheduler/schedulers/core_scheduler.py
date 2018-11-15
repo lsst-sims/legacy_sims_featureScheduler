@@ -4,7 +4,6 @@ import numpy as np
 import healpy as hp
 from lsst.sims.utils import _hpid2RaDec
 from lsst.sims.featureScheduler.utils import hp_in_lsst_fov, set_default_nside, hp_in_comcam_fov
-from lsst.sims.featureScheduler.features import Conditions
 import warnings
 import logging
 
@@ -16,7 +15,7 @@ class Core_scheduler(object):
     """Core scheduler that takes completed obsrevations and observatory status and requests observations.
     """
 
-    def __init__(self, surveys, nside=None, camera='LSST', conditions=None):
+    def __init__(self, surveys, nside=None, camera='LSST'):
         """
         Parameters
         ----------
@@ -29,17 +28,9 @@ class Core_scheduler(object):
         camera : str ('LSST')
             Which camera to use for computing overlapping HEALpixels for an observation.
             Can be 'LSST' or 'comcam'
-        conditions : a lsst.sims.featureScheduler.features.Conditions object (None)
-            An object that hold the current conditions and derived values (e.g., 5-sigma depth). Will
-            generate a default if set to None.
         """
         if nside is None:
             nside = set_default_nside()
-
-        if conditions is None:
-            self.conditions = Conditions(nside=nside)
-        else:
-            self.conditions = conditions
 
         self.log = logging.getLogger("Core_scheduler")
         # initialize a queue of observations to request
@@ -98,10 +89,13 @@ class Core_scheduler(object):
             The current conditions of the telescope (pointing position, loaded filters, cloud-mask, etc)
         """
         # Add the current queue and scheduled queue to the conditions
+        self.conditions = conditions_in
+        # put the local queue in the conditions
         self.conditions.queue = self.queue
-        # Update the conditions
-        for key in conditions_in:
-            setattr(self.conditions, key, conditions_in[key])
+
+        # XXX---TODO:  Could potentially put more complicated info from all
+        # the surveys in the conditions object here. e.g., when a DDF plans to next request
+        # observations.
 
     def request_observation(self):
         """

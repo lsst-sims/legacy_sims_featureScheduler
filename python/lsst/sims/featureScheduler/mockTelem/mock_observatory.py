@@ -38,7 +38,7 @@ class ExtendedObservatoryModel(ObservatoryModel):
         # Note, this slew assumes there is a readout that needs to be done.
         self.slew(target)
         if not self.current_state.tracking:
-            import pdb ; pdb.set_trace()
+            ValueError('Telescope model stopped tracking, that seems bad.')
         t2 = self.current_state.time + 0
         self.expose(target)
         t3 = self.current_state.time + 0
@@ -72,17 +72,6 @@ class dummy_time_handler(object):
             return (datetime1 - datetime2).total_seconds()
         else:
             return (datetime2 - datetime1).total_seconds()
-
-
-class filter_swap_scheduler(object):
-    """A simple way to schedule what filter to load
-    """
-    def __init__(self):
-        pass
-
-    def __call__(self, conditions):
-        # Just based on lunar illumination, decide if some different filter should be loaded.
-        pass
 
 
 class Mock_observatory(object):
@@ -171,6 +160,8 @@ class Mock_observatory(object):
             good_mjd, to_set_mjd = self.check_mjd(to_set_mjd)
         self.mjd = to_set_mjd
 
+        self.obsID_counter = 0
+
     def _load_almanac(self):
         file = os.path.join(getPackageDir('sims_featureScheduler'),
                             'python/lsst/sims/featureScheduler/mockTelem/almanac.npz')
@@ -197,7 +188,7 @@ class Mock_observatory(object):
         delta_t = (self.mjd-self.mjd_start)*24.*3600.
 
         # Clouds
-        self.conditions.clouds = self.cloud_model.get_cloud(delta_t)
+        self.conditions.bulk_cloud = self.cloud_model.get_cloud(delta_t)
 
         # use conditions object itself to get aprox altitude of each healpx
         alts = self.conditions.alt
@@ -224,7 +215,7 @@ class Mock_observatory(object):
         self.conditions.skybrightness = self.sky_model.returnMags(self.mjd)
 
         self.conditions.mounted_filters = self.observatory.current_state.mountedfilters
-        self.conditions.curret_filter = self.observatory.current_state.filter
+        self.conditions.current_filter = self.observatory.current_state.filter[0]
 
         # Compute the slewtimes
         slewtimes = np.empty(alts.size, dtype=float)
@@ -252,12 +243,19 @@ class Mock_observatory(object):
 
         self.conditions.telRA = self.observatory.current_state.ra_rad
         self.conditions.telDec = self.observatory.current_state.dec_rad
-        self.conditions.telRotSkyPos = self.observatory.current_state.ang_rad
+
+        self.conditions.rotTelPos = self.observatory.current_state.rot_rad
 
         # Add in the almanac information
-
-        # conditions.last_twilight_end
-        # conditions.next_twilight_start
+        self.conditions.night = self.night
+        self.conditions.sunset = self.almanac['sunset'][self.almanac_indx]
+        self.conditions.sun_n12_setting = self.almanac['sun_n12_setting'][self.almanac_indx]
+        self.conditions.sun_n18_setting = self.almanac['sun_n18_setting'][self.almanac_indx]
+        self.conditions.sun_n18_rising = self.almanac['sun_n18_rising'][self.almanac_indx]
+        self.conditions.sun_n12_rising = self.almanac['sun_n12_rising'][self.almanac_indx]
+        self.conditions.sunrise = self.almanac['sunrise'][self.almanac_indx]
+        self.conditions.moonrise = self.almanac['moonrise'][self.almanac_indx]
+        self.conditions.moonset = self.almanac['moonset'][self.almanac_indx]
 
         return self.conditions
 
@@ -290,7 +288,7 @@ class Mock_observatory(object):
     @mjd.setter
     def mjd(self, value):
         self._mjd = value
-        self.almanac_indx = np.searchsorted(self.almanac['sunset'], value)
+        self.almanac_indx = np.searchsorted(self.almanac['sunset'], value) - 1
         self.night = self.almanac['night'][self.almanac_indx]
 
     def observation_add_data(self, observation):
@@ -299,23 +297,17 @@ class Mock_observatory(object):
         """
         # Time since start of simulation
         delta_t = (self.mjd-self.mjd_start)*24.*3600.
-        # XXX--todo
+
         observation['clouds'] = self.cloud_model.get_cloud(delta_t)
-
-        observation['alt'] = self.observatory.current_state.alt_rad
-        observation['az'] = self.observatory.current_state.az_rad
-        observation['pa'] = self.observatory.current_state.pa_rad
-
         observation['airmass'] = 1./np.cos(np.pi/2. - observation['alt'])
-
+        # Seeing
         fwhm_500, fwhm_eff, fwhm_geom = self.seeing_model.get_seeing(delta_t, observation['airmass'])
-
         observation['FWHMeff'] = fwhm_eff[self.seeing_indx_dict[observation['filter'][0]]]
-
         observation['FWHM_geometric'] = fwhm_geom[self.seeing_indx_dict[observation['filter'][0]]]
         observation['FWHM_500'] = fwhm_500
 
         observation['night'] = self.night
+        observation['mjd'] = self.mjd
 
         hpid = _raDec2Hpid(self.sky_model.nside, observation['RA'], observation['dec'])
         observation['skybrightness'] = self.sky_model.returnMags(self.mjd,
@@ -329,9 +321,20 @@ class Mock_observatory(object):
         observation['lmst'] = lmst
 
         sun, moon, sunAlt, sunAz, moonAlt, moonAz, moon_sun_sep, moonPhase = self.get_sun_moon_properties()
+        observation['sunAlt'] = sunAlt
+        observation['sunAz'] = sunAz
+        observation['moonAlt'] = moonAlt
+        observation['moonAz'] = moonAz
+        observation['moonRA'] = moon.ra.rad
+        observation['moonDec'] = moon.dec.rad
+        observation['moonDist'] = _angularSeparation(observation['RA'], observation['dec'],
+                                                     moon.ra.rad, moon.dec.rad)
+        observation['solarElong'] = _angularSeparation(observation['RA'], observation['dec'],
+                                                       sun.ra.rad, sun.dec.rad)
+        observation['moonPhase'] = moonPhase
 
-        # XXX--fill this the rest of the way out.
-
+        observation['ID'] = self.obsID_counter
+        self.obsID_counter += 1
 
         return observation
 
@@ -353,10 +356,12 @@ class Mock_observatory(object):
             jump_to = np.where((self.cloud_model.cloud_dates > delta_t) &
                                (self.cloud_model.cloud_values < self.cloud_limit))[0].min()
 
-            return False, self.mjd_start + self.cloud_model.dates[jump_to]/24./3600.
-        alm_indx = np.searchsorted(self.almanac['sunset'], mjd, side='right')
+            return False, self.mjd_start + self.cloud_model.cloud_dates[jump_to]/24./3600.
+        alm_indx = np.searchsorted(self.almanac['sunset'], mjd) -1
         # at the end of the night, advance to the next setting twilight
         if mjd > self.almanac['sun_n12_rising'][alm_indx]:
+            return False, self.almanac['sun_n12_setting'][alm_indx+1]
+        if mjd < self.almanac['sun_n12_setting'][alm_indx]:
             return False, self.almanac['sun_n12_setting'][alm_indx+1]
         # We're in a down night, advance to next night
         if self.almanac['night'][alm_indx] in self.down_nights:
@@ -396,6 +401,12 @@ class Mock_observatory(object):
                                                          self.observatory.current_state.ra_rad,
                                                          self.observatory.current_state.dec_rad)
             self.mjd = self.mjd + slewtime/24./3600.
+            # Reach into the observatory model to pull out the relevant data it has calculated
+            observation['alt'] = self.observatory.current_state.alt_rad
+            observation['az'] = self.observatory.current_state.az_rad
+            observation['pa'] = self.observatory.current_state.pa_rad
+            observation['rotTelPos'] = self.observatory.current_state.rot_rad
+            observation['rotSkyPos'] = self.observatory.current_state.ang_rad
             # Metadata on observation is after slew and settle, so at start of exposure.
             result = self.observation_add_data(observation)
             self.mjd = self.mjd + visittime/24./3600.

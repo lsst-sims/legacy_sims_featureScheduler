@@ -136,7 +136,7 @@ def dd_bfs(RA, dec, survey_name, ha_limits, frac_total=0.0185):
     """
     bfs = []
     bfs.append(basis_functions.Filter_loaded_basis_function(filternames=['r', 'g', 'i', 'z', 'y']))
-    bfs.append(basis_functions.Not_twilight_basis_function(sun_alt_limit=-18.5))  # XXX-possible pyephem bug
+    bfs.append(basis_functions.Not_twilight_basis_function(sun_alt_limit=-18))  # XXX-possible pyephem bug
     bfs.append(basis_functions.Time_to_twilight_basis_function(time_needed=62.))
     bfs.append(basis_functions.Force_delay_basis_function(days_delay=2., survey_name=survey_name))
     bfs.append(basis_functions.Hour_Angle_limit_basis_function(RA=RA, ha_limits=ha_limits))
@@ -151,7 +151,7 @@ def dd_u_bfs(RA, dec, survey_name, ha_limits):
     """
     bfs = []
     bfs.append(basis_functions.Filter_loaded_basis_function(filternames='u'))
-    bfs.append(basis_functions.Not_twilight_basis_function(sun_alt_limit=-18.5))  # XXX-possible pyephem bug
+    bfs.append(basis_functions.Not_twilight_basis_function(sun_alt_limit=-18))  # XXX-possible pyephem bug
     bfs.append(basis_functions.Time_to_twilight_basis_function(time_needed=6.))
     bfs.append(basis_functions.Hour_Angle_limit_basis_function(RA=RA, ha_limits=ha_limits))
 

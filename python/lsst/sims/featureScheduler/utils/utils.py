@@ -149,22 +149,75 @@ def raster_sort(x0, order=['x', 'y'], xbin=1.):
         return order1
 
 
-def obs2opsim_schema(obs_arrray):
+class schema_converter(object):
     """
     Record how to convert an observation array to the standard opsim schema
     """
+    def __init__(self):
+        # Conversion dictionary, keys are opsim schema, values are observation dtype names
+        self.convert_dict = {'observationId': 'ID', 'night': 'night',
+                            'observationStartMJD': 'mjd',
+                            'observationStartLST': 'lmst', 'numExposures': 'nexp',
+                            'visitTime': 'visittime', 'visitExposureTime': 'exptime',
+                            'proposalId': 'survey_id', 'fieldId': 'field_id',
+                            'fieldRA': 'RA', 'fieldDec': 'dec', 'altitude': 'alt', 'azimuth': 'az',
+                            'filter': 'filter', 'airmass': 'airmass', 'skyBrightness': 'skybrightness',
+                            'cloud': 'cloud', 'seeingFwhm500': 'FWHM_500',
+                            'seeingFwhmGeom': 'FWHM_geometric', 'seeingFwhmEff': 'FWHMeff',
+                            'fiveSigmaDepth': 'fivesigmadepth', 'slewTime': 'slewtime',
+                            'slewDistance': 'slewdist', 'paraAngle': 'pa', 'rotTelPos': 'rotTelPos',
+                            'rotSkyPos': 'rotSkyPos', 'moonRA': 'moonRA',
+                            'moonDec': 'moonDec', 'moonAlt': 'moonAlt', 'moonAz': 'moonAz',
+                            'moonDistance': 'moonDist', 'moonPhase': 'moonPhase',
+                            'sunAlt': 'sunAlt', 'sunAz': 'sunAz', 'solarElong': 'solarElong'}
+        # Column(s) not bothering to remap:  'observationStartTime': None,
+        self.inv_map = {v: k for k, v in self.convert_dict.items()}
+        # angles to converts
+        self.angles_rad2deg = ['fieldRA', 'fieldDec', 'altitude', 'azimuth', 'slewDistance',
+                               'paraAngle', 'rotTelPos', 'rotSkyPos', 'moonRA', 'moonDec',
+                               'moonAlt', 'moonAz', 'moonDistance', 'sunAlt', 'sunAz', 'solarElong']
 
-    # Conversion dictionary, keys are opsim schema, values are observation dtype names
-    #convert_dict = {observationId|night|observationStartTime|observationStartMJD|observationStartLST|numExposures|
-    # visitTime|visitExposureTime|proposalId|fieldId|fieldRA|fieldDec|altitude|azimuth|filter|airmass|
-    # skyBrightness|cloud|seeingFwhm500|seeingFwhmGeom|seeingFwhmEff|fiveSigmaDepth|slewTime|slewDistance|
-    # paraAngle|rotTelPos|rotSkyPos|moonRA|moonDec|moonAlt|moonAz|moonDistance|moonPhase|sunAlt|sunAz|solarElong}
+    def obs2opsim(self, obs_array, filename=None, info=None, delete_past=False):
+        """convert an array of observations into a pandas dataframe with Opsim schema
+        """
+        if delete_past:
+            try:
+                os.remove(filename)
+            except OSError:
+                pass
+        
+        df = pd.DataFrame(obs_array)
+        df.rename(indx=str, columns=self.inv_map)
+        for colname in self.angles_rad2deg:
+            df[colname] = np.degrees(df[colname])
 
-    # angles to converts
-    angles_rad2deg = ['fieldRA', 'fieldDec', 'altitude', 'azimuth', 'slewDistance',
-                      'paraAngle', 'rotTelPos', 'rotSkyPos', 'moonRA', 'moonDec',
-                      'moonAlt', 'moonAz', 'moonDistance', 'sunAlt', 'sunAz', 'solarElong']
+        if filename is not None:
+            con = db.connect(filename)
+            df.to_sql('SummaryAllProps', con, index_label='observationId')
+            if info is not None:
+                df = pd.DataFrame(info)
+                df.to_sql('info', con)
 
+    def opsim2obs(self, filename):
+        """convert an opsim schema datarfame into an observation array.
+        """
+
+        con = db.connect(filename)
+        df = pd.read_sql('select * from SummaryAllProps;', con)
+        for key in self.angles_rad2deg:
+            df[key] = np.radians(df[key])
+
+        df.rename(indx=str, columns=self.convert_dict)
+
+        blank = empty_observation()
+        result = df.as_matrix()
+        final_result = np.empty(result.shape[0], dtype=blank.dtype)
+
+        # XXX-ugh, there has to be a better way.
+        for i, key in enumerate(blank.dtype.names):
+            final_result[key] = result[:, i+1]
+
+        return final_result
 
 
 def empty_observation():
@@ -215,19 +268,21 @@ def empty_observation():
         If we hit this MJD, we should flush the queue and refill it.
     """
 
-    names = ['RA', 'dec', 'mjd', 'flush_by_mjd', 'exptime', 'filter', 'rotSkyPos', 'nexp',
+    names = ['ID', 'RA', 'dec', 'mjd', 'flush_by_mjd', 'exptime', 'filter', 'rotSkyPos', 'nexp',
              'airmass', 'FWHM_500', 'FWHMeff', 'FWHM_geometric', 'skybrightness', 'night',
              'slewtime', 'visittime', 'slewdist', 'fivesigmadepth',
              'alt', 'az', 'pa', 'clouds', 'moonAlt', 'sunAlt', 'note',
              'field_id', 'survey_id', 'block_id',
-             'lmst']
-    # units of rad, rad,   days,  seconds,   string, radians (E of N?)
-    types = [float, float, float, float, float, '|U1', float, int,
-             float, float, float, float, float, float, int,
+             'lmst', 'rotTelPos', 'moonAz', 'sunAz', 'sunRA', 'sunDec', 'moonRA', 'moonDec',
+             'moonDist', 'solarElong', 'moonPhase']
+
+    types = [int, float, float, float, float, float, 'U1', float, int,
+             float, float, float, float, float, int,
              float, float, float, float,
-             float, float, float, float, float, '|U40',
+             float, float, float, float, float, float, 'U40',
              int, int, int,
-             float]
+             float, float, float, float, float, float, float, float,
+             float, float, float]
     result = np.zeros(1, dtype=list(zip(names, types)))
     return result
 
@@ -826,7 +881,7 @@ def run_info_table(observatory):
     Make a little table for recording the information of a run
     """
     names = ['time', 'datetime', 'ymd', 'version', 'fingerprint', 'observatory_class', 'obs_finger']
-    types = [float, '|U20', '|U20', '|U20', '|U50', '|U20', '|U50']
+    types = [float, '', 'U20', '', 'U20', '', 'U20', '', 'U50', '', 'U20', '', 'U50']
     result = np.zeros(1, dtype=list(zip(names, types)))
     result['time'] = np.float(time.time())
     now = datetime.datetime.now()
@@ -841,81 +896,6 @@ def run_info_table(observatory):
         pass
     return result
 
-
-def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3.,
-               filename=None, delete_past=True, n_visit_limit=None, step_none=15.):
-    """
-    run a simulation
-
-    Parameters
-    ----------
-    survey_length : float (3.)
-        The length of the survey ot run (days)
-    step_none : float (15)
-        The amount of time to advance if the scheduler fails to return a target (minutes).
-    """
-
-    if mjd_start is None:
-        mjd = observatory.mjd
-        mjd_start = mjd + 0
-    else:
-        observatory.mjd = mjd
-        observatory.ra = None
-        observatory.dec = None
-        observatory.status = None
-        observatory.filtername = None
-
-    end_mjd = mjd + survey_length
-    scheduler.update_conditions(observatory.return_status())
-    observations = []
-    mjd_track = mjd + 0
-    step = 1./24.
-    step_none = step_none/60./24.  # to days
-    mjd_run = end_mjd-mjd_start
-    nskip = 0
-
-    while mjd < end_mjd:
-        desired_obs = scheduler.request_observation()
-        if desired_obs is None:
-            # No observation. Just step into the future and try again.
-            warnings.warn('No observation. Step into the future and trying again.')
-            observatory.set_mjd(observatory.mjd + step_none)
-            scheduler.update_conditions(observatory.return_status())
-            nskip += 1
-            continue
-        attempted_obs = observatory.attempt_observe(desired_obs)
-        if attempted_obs is not None:
-            scheduler.add_observation(attempted_obs[0])
-            observations.append(attempted_obs)
-        else:
-            scheduler.flush_queue()
-        scheduler.update_conditions(observatory.return_status())
-        mjd = observatory.mjd
-        if (mjd-mjd_track) > step:
-            progress = float(mjd-mjd_start)/mjd_run*100
-            text = "\rprogress = %.1f%%" % progress
-            sys.stdout.write(text)
-            sys.stdout.flush()
-            mjd_track = mjd+0
-        if n_visit_limit is not None:
-            if len(observations) == n_visit_limit:
-                break
-        # XXX--handy place to interupt and debug
-        # if len(observations) > 3:
-        #    import pdb ; pdb.set_trace()
-
-    print('Skipped %i observations' % nskip)
-    print('Completed %i observations' % len(observations))
-    observations = np.array(observations)[:, 0]
-    if filename is not None:
-        # don't crash just because some info stuff failed.
-        try:
-            info = run_info_table(observatory)
-        except:
-            info = None
-            warnings.warn('Failed to get info about run, may need to run scons in some pacakges.')
-        observations2sqlite(observations, filename=filename, delete_past=delete_past, info=info)
-    return observatory, scheduler, observations
 
 
 def observations2sqlite(observations, filename='observations.db', delete_past=False, info=None):

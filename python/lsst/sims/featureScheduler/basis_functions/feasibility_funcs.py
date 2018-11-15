@@ -45,21 +45,25 @@ class Time_to_twilight_basis_function(Base_basis_function):
         self.time_needed = time_needed/60./24.  # To days
 
     def check_feasibility(self, conditions):
-        available_time = conditions.next_twilight_start - conditions.mjd
+        available_time = conditions.sun_n18_rising - conditions.mjd
         result = available_time > self.time_needed
         return result
 
 
 class Not_twilight_basis_function(Base_basis_function):
-    def __init__(self, sun_alt_limit=-18.):
+    def __init__(self, sun_alt_limit=-18):
         """
+        # Should be -18 or -12
         """
-        self.sun_alt_limit = np.radians(sun_alt_limit)
+        self.sun_alt_limit = str(sun_alt_limit).replace('-', 'n')
         super(Not_twilight_basis_function, self).__init__()
 
     def check_feasibility(self, conditions):
-
-        result = conditions.sunAlt < self.sun_alt_limit
+        result = True
+        if conditions.mjd < getattr(conditions, 'sun_'+self.sun_alt_limit+'_setting'):
+            result = False
+        if conditions.mjd > getattr(conditions, 'sun_'+self.sun_alt_limit+'_rising'):
+            result = False
         return result
 
 
