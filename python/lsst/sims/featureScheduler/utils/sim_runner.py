@@ -30,7 +30,6 @@ def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, su
         observatory.mjd = mjd
 
     end_mjd = mjd + survey_length
-    scheduler.update_conditions(observatory.return_conditions())
     observations = []
     mjd_track = mjd + 0
     step = 1./24.
@@ -39,6 +38,9 @@ def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, su
     nskip = 0
 
     while mjd < end_mjd:
+        # XXX--Note, this might not work well for "sequences"
+        if not scheduler.check_queue_mjd_only(observatory.mjd):
+            scheduler.update_conditions(observatory.return_conditions())
         desired_obs = scheduler.request_observation()
         if desired_obs is None:
             # No observation. Just step into the future and try again.
@@ -63,7 +65,6 @@ def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, su
                 # ugh, "swap_filter" means "unmount filter"
                 observatory.observatory.swap_filter(filtername)
 
-        scheduler.update_conditions(observatory.return_conditions())
         mjd = observatory.mjd
         if (mjd-mjd_track) > step:
             progress = float(mjd-mjd_start)/mjd_run*100

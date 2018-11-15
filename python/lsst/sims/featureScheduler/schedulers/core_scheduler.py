@@ -97,6 +97,16 @@ class Core_scheduler(object):
         # the surveys in the conditions object here. e.g., when a DDF plans to next request
         # observations.
 
+    def check_queue_mjd_only(self, mjd):
+        """
+        Check if there are things in the queue that can be executed using only MJD and not full conditions
+        """
+        result = False
+        if len(self.queue) > 0:
+            if (mjd < self.queue[0]['flush_by_mjd']) | (self.queue[0]['flush_by_mjd'] == 0):
+                result = True
+        return result
+
     def request_observation(self):
         """
         Ask the scheduler what it wants to observe next
