@@ -1,7 +1,6 @@
 import numpy as np
 from lsst.sims.utils import _approx_RaDec2AltAz, Site, _hpid2RaDec, m5_flat_sed
 import healpy as hp
-import numpy.ma as ma
 from lsst.sims.featureScheduler.utils import set_default_nside
 
 __all__ = ['Conditions']
@@ -102,8 +101,8 @@ class Conditions(object):
         hpids = np.arange(hp.nside2npix(nside))
         # Generate an empty map so we can copy when we need a new map
         self.zeros_map = np.zeros(hp.nside2npix(nside), dtype=float)
-        self.unseen_map = np.zeros(hp.nside2npix(nside), dtype=float)
-        self.unseen_map.fill(hp.UNSEEN)
+        self.nan_map = np.zeros(hp.nside2npix(nside), dtype=float)
+        self.nan_map.fill(np.nan)
         # The RA, Dec grid we are using
         self.ra, self.dec = _hpid2RaDec(nside, hpids)
 
@@ -269,11 +268,9 @@ class Conditions(object):
         self._M5Depth = {}
         for filtername in self._skybrightness:
             good = np.where(self._skybrightness[filtername] != hp.UNSEEN)
-            self._M5Depth[filtername] = self.unseen_map.copy()
+            self._M5Depth[filtername] = self.nan_map.copy()
             self._M5Depth[filtername][good] = m5_flat_sed(filtername,
                                                           self._skybrightness[filtername][good],
                                                           self._FWHMeff[filtername][good],
                                                           self.exptime,
                                                           self._airmass[good])
-
-            self._M5Depth[filtername] = ma.masked_values(self._M5Depth[filtername], hp.UNSEEN)

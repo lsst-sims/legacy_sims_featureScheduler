@@ -144,12 +144,11 @@ class Core_scheduler(object):
         for ns, surveys in enumerate(self.survey_lists):
             rewards = np.zeros(len(surveys))
             for i, survey in enumerate(surveys):
-                rewards[i] = np.max(survey.calc_reward_function(self.conditions))
+                rewards[i] = np.nanmax(survey.calc_reward_function(self.conditions))
             # If we have a good reward, break out of the loop
             if np.nanmax(rewards) > -np.inf and np.nanmax(rewards) != hp.UNSEEN:
                 self.survey_index[0] = ns
                 break
-
         if np.all(np.bitwise_or(np.bitwise_or(np.isnan(rewards),
                                               np.isneginf(rewards)), rewards == hp.UNSEEN)):
             # All values are invalid

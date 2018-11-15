@@ -272,8 +272,6 @@ class M5_diff_basis_function(Base_basis_function):
     def _calc_value(self, conditions, indx=None):
         # No way to get the sign on this right the first time.
         result = conditions.M5Depth[self.filtername] - self.dark_map
-        mask = np.where(conditions.M5Depth[self.filtername].filled() == hp.UNSEEN)
-        result[mask] = hp.UNSEEN
         return result
 
 
