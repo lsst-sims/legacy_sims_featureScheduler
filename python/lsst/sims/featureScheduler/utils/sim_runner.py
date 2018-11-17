@@ -36,6 +36,7 @@ def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, su
     step_none = step_none/60./24.  # to days
     mjd_run = end_mjd-mjd_start
     nskip = 0
+    new_night = False
 
     while mjd < end_mjd:
         # XXX--Note, this might not work well for "sequences"

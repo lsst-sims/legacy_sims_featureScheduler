@@ -4,7 +4,6 @@ import astropy.units as u
 from astropy.time import Time
 from lsst.sims.utils import Site
 
-
 # Trying out the astroplan sunrise/set code.
 # conda install -c astropy astroplan
 mjd_start = 59853.5 - 3.*365.25
@@ -56,4 +55,4 @@ umjds, indx = np.unique(almanac['sunset'], return_index=True)
 almanac = almanac[indx]
 almanac['night'] = np.arange(almanac['night'].size)
 
-np.savez('almanac.npz', almanac=almanac)
+np.savez('sunsets.npz', almanac=almanac)

@@ -14,6 +14,7 @@ from astropy.coordinates import get_sun, get_moon, EarthLocation, AltAz
 from astropy.time import Time
 from lsst.utils import getPackageDir
 import os
+from lsst.sims.almanac import Almanac
 
 
 __all__ = ['Mock_observatory']
@@ -37,11 +38,12 @@ class ExtendedObservatoryModel(ObservatoryModel):
         t1 = self.current_state.time + 0
         # Note, this slew assumes there is a readout that needs to be done.
         self.slew(target)
-        if not self.current_state.tracking:
-            ValueError('Telescope model stopped tracking, that seems bad.')
         t2 = self.current_state.time + 0
         self.expose(target)
         t3 = self.current_state.time + 0
+        if not self.current_state.tracking:
+            import pdb ; pdb.set_trace()
+            ValueError('Telescope model stopped tracking, that seems bad.')
         slewtime = t2 - t1
         visitime = t3 - t2
         return slewtime, visitime
@@ -151,7 +153,7 @@ class Mock_observatory(object):
         for key in self.filterlist:
             self.seeing_FWHMeff[key] = np.zeros(hp.nside2npix(self.nside), dtype=float)
 
-        self._load_almanac()
+        self.almanac = Almanac(mjd_start=mjd_start)
 
         # Let's make sure we're at an openable MJD
         good_mjd = False
@@ -161,17 +163,6 @@ class Mock_observatory(object):
         self.mjd = to_set_mjd
 
         self.obsID_counter = 0
-
-    def _load_almanac(self):
-        file = os.path.join(getPackageDir('sims_featureScheduler'),
-                            'python/lsst/sims/featureScheduler/mockTelem/almanac.npz')
-        temp = np.load(file)
-        self.almanac = temp['almanac'].copy()
-        temp.close()
-        # Set the night index based on the starting MJD
-        loc = np.searchsorted(self.almanac['sunset'], self.mjd_start)
-        # Set the start MJD to be night 1.
-        self.almanac['night'] -= self.almanac['night'][loc-1]
 
     def return_conditions(self):
         """
@@ -228,16 +219,17 @@ class Mock_observatory(object):
         self.conditions.slewtime = slewtimes
 
         # Let's get the sun and moon
-        sun, moon, sunAlt, sunAz, moonAlt, moonAz, moon_sun_sep, moonPhase = self.get_sun_moon_properties()
+        sun_moon_info = self.almanac.get_sun_moon_positions(self.mjd)
+        # convert these to scalars
+        for key in sun_moon_info:
+            sun_moon_info[key] = sun_moon_info[key].max()
+        self.conditions.moonPhase = sun_moon_info['moon_phase']
 
-        self.conditions.moonPhase = moonPhase
-
-        self.conditions.moonAlt = moonAlt.min()
-        self.conditions.moonAz = moonAz.min()
-        self.conditions.moonRA = moon.ra.rad
-        self.conditions.moonDec = moon.dec.rad
-
-        self.conditions.sunAlt = sunAlt.min()
+        self.conditions.moonAlt = sun_moon_info['moon_alt']
+        self.conditions.moonAz = sun_moon_info['moon_az']
+        self.conditions.moonRA = sun_moon_info['moon_RA']
+        self.conditions.moonDec = sun_moon_info['moon_dec']
+        self.conditions.sunAlt = sun_moon_info['sun_alt']
 
         self.conditions.lmst, last = calcLmstLast(self.mjd, self.site.longitude_rad)
 
@@ -248,38 +240,16 @@ class Mock_observatory(object):
 
         # Add in the almanac information
         self.conditions.night = self.night
-        self.conditions.sunset = self.almanac['sunset'][self.almanac_indx]
-        self.conditions.sun_n12_setting = self.almanac['sun_n12_setting'][self.almanac_indx]
-        self.conditions.sun_n18_setting = self.almanac['sun_n18_setting'][self.almanac_indx]
-        self.conditions.sun_n18_rising = self.almanac['sun_n18_rising'][self.almanac_indx]
-        self.conditions.sun_n12_rising = self.almanac['sun_n12_rising'][self.almanac_indx]
-        self.conditions.sunrise = self.almanac['sunrise'][self.almanac_indx]
-        self.conditions.moonrise = self.almanac['moonrise'][self.almanac_indx]
-        self.conditions.moonset = self.almanac['moonset'][self.almanac_indx]
+        self.conditions.sunset = self.almanac.sunsets['sunset'][self.almanac_indx]
+        self.conditions.sun_n12_setting = self.almanac.sunsets['sun_n12_setting'][self.almanac_indx]
+        self.conditions.sun_n18_setting = self.almanac.sunsets['sun_n18_setting'][self.almanac_indx]
+        self.conditions.sun_n18_rising = self.almanac.sunsets['sun_n18_rising'][self.almanac_indx]
+        self.conditions.sun_n12_rising = self.almanac.sunsets['sun_n12_rising'][self.almanac_indx]
+        self.conditions.sunrise = self.almanac.sunsets['sunrise'][self.almanac_indx]
+        self.conditions.moonrise = self.almanac.sunsets['moonrise'][self.almanac_indx]
+        self.conditions.moonset = self.almanac.sunsets['moonset'][self.almanac_indx]
 
         return self.conditions
-
-    def get_sun_moon_properties(self):
-        t = Time(self.mjd, format='mjd', location=self.location)
-        sun = get_sun(t)
-        moon = get_moon(t)
-
-        # Using fast alt,az
-        sunAlt, sunAz = _approx_RaDec2AltAz(np.array([sun.ra.rad]), np.array([sun.dec.rad]),
-                                            self.location.lat.rad,
-                                            self.location.lon.rad,
-                                            self.mjd)
-
-        moonAlt, moonAz = _approx_RaDec2AltAz(np.array([moon.ra.rad]), np.array([moon.dec.rad]),
-                                              self.location.lat.rad,
-                                              self.location.lon.rad,
-                                              self.mjd)
-
-        moon_sun_sep = _angularSeparation(sun.ra.rad, sun.dec.rad, moon.ra.rad, moon.dec.rad)
-        moonPhase = np.max(moon_sun_sep/np.pi*100.)
-
-        return sun, moon, sunAlt, sunAz, moonAlt, moonAz, moon_sun_sep, moonPhase
-
 
     @property
     def mjd(self):
@@ -288,8 +258,8 @@ class Mock_observatory(object):
     @mjd.setter
     def mjd(self, value):
         self._mjd = value
-        self.almanac_indx = np.searchsorted(self.almanac['sunset'], value) - 1
-        self.night = self.almanac['night'][self.almanac_indx]
+        self.almanac_indx = self.almanac.mjd_indx(value)
+        self.night = self.almanac.sunsets['night'][self.almanac_indx]
 
     def observation_add_data(self, observation):
         """
@@ -320,18 +290,18 @@ class Mock_observatory(object):
         lmst, last = calcLmstLast(self.mjd, self.site.longitude_rad)
         observation['lmst'] = lmst
 
-        sun, moon, sunAlt, sunAz, moonAlt, moonAz, moon_sun_sep, moonPhase = self.get_sun_moon_properties()
-        observation['sunAlt'] = sunAlt
-        observation['sunAz'] = sunAz
-        observation['moonAlt'] = moonAlt
-        observation['moonAz'] = moonAz
-        observation['moonRA'] = moon.ra.rad
-        observation['moonDec'] = moon.dec.rad
+        sun_moon_info = self.almanac.get_sun_moon_positions(self.mjd)
+        observation['sunAlt'] = sun_moon_info['sun_alt']
+        observation['sunAz'] = sun_moon_info['sun_az']
+        observation['moonAlt'] = sun_moon_info['moon_alt']
+        observation['moonAz'] = sun_moon_info['moon_az']
+        observation['moonRA'] = sun_moon_info['moon_RA']
+        observation['moonDec'] = sun_moon_info['moon_dec']
         observation['moonDist'] = _angularSeparation(observation['RA'], observation['dec'],
-                                                     moon.ra.rad, moon.dec.rad)
+                                                     observation['moonRA'], observation['moonDec'])
         observation['solarElong'] = _angularSeparation(observation['RA'], observation['dec'],
-                                                       sun.ra.rad, sun.dec.rad)
-        observation['moonPhase'] = moonPhase
+                                                       observation['sunRA'], observation['sunDec'])
+        observation['moonPhase'] = sun_moon_info['moon_phase']
 
         observation['ID'] = self.obsID_counter
         self.obsID_counter += 1
@@ -357,15 +327,15 @@ class Mock_observatory(object):
                                (self.cloud_model.cloud_values < self.cloud_limit))[0].min()
 
             return False, self.mjd_start + self.cloud_model.cloud_dates[jump_to]/24./3600.
-        alm_indx = np.searchsorted(self.almanac['sunset'], mjd) -1
+        alm_indx = np.searchsorted(self.almanac.sunsets['sunset'], mjd) - 1
         # at the end of the night, advance to the next setting twilight
-        if mjd > self.almanac['sun_n12_rising'][alm_indx]:
-            return False, self.almanac['sun_n12_setting'][alm_indx+1]
-        if mjd < self.almanac['sun_n12_setting'][alm_indx]:
-            return False, self.almanac['sun_n12_setting'][alm_indx+1]
+        if mjd > self.almanac.sunsets['sun_n12_rising'][alm_indx]:
+            return False, self.almanac.sunsets['sun_n12_setting'][alm_indx+1]
+        if mjd < self.almanac.sunsets['sun_n12_setting'][alm_indx]:
+            return False, self.almanac.sunsets['sun_n12_setting'][alm_indx+1]
         # We're in a down night, advance to next night
-        if self.almanac['night'][alm_indx] in self.down_nights:
-            return False, self.almanac['sun_n12_setting'][alm_indx+1]
+        if self.almanac.sunsets['night'][alm_indx] in self.down_nights:
+            return False, self.almanac.sunsets['sun_n12_setting'][alm_indx+1]
         return True, mjd
 
     def observe(self, observation):
@@ -417,6 +387,9 @@ class Mock_observatory(object):
             # Skip to next legitimate mjd
             self.mjd = new_mjd
             now_night = self.night
-            new_night = now_night != start_night
+            if now_night == start_night:
+                new_night = False
+            else:
+                new_night = True
 
         return observation_worked, result, new_night
