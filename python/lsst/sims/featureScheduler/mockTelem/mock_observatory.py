@@ -15,6 +15,7 @@ from astropy.time import Time
 from lsst.utils import getPackageDir
 import os
 from lsst.sims.almanac import Almanac
+import warnings
 
 
 __all__ = ['Mock_observatory']
@@ -41,9 +42,9 @@ class ExtendedObservatoryModel(ObservatoryModel):
         t2 = self.current_state.time + 0
         self.expose(target)
         t3 = self.current_state.time + 0
-        if not self.current_state.tracking:
-            import pdb ; pdb.set_trace()
-            ValueError('Telescope model stopped tracking, that seems bad.')
+        #if not self.current_state.tracking:
+        #    import pdb ; pdb.set_trace()
+        #    ValueError('Telescope model stopped tracking, that seems bad.')
         slewtime = t2 - t1
         visitime = t3 - t2
         return slewtime, visitime
@@ -352,16 +353,29 @@ class Mock_observatory(object):
         """
 
         start_night = self.night.copy()
+
+        # Make sure the kinematic model is set to the correct mjd
+        t = Time(self.mjd, format='mjd')
+        self.observatory.update_state(t.unix)
+
+        # XXX--temparary fix to keep the camera at rotation angle zero.
+        # XXX--TODO:  Move rotation logic to the scheeduler
+        position = self.observatory.radecang2position(self.observatory.dateprofile, observation['RA'],
+                                                      observation['dec'], 0., observation['filter'])
+        # ok, rotSkyPos should run between 0 and 360
+        warnings.warn('overriding requested rotSkyPos value')
+        observation['rotSkyPos'] = position.pa_rad  # 2.*np.pi-position.pa_rad  #divmod(-position.pa_rad, 2.*np.pi)[1]
+
+
         # slew to the target--note that one can't slew without also incurring a readtime penalty?
         target = Target(band_filter=observation['filter'], ra_rad=observation['RA'],
                         dec_rad=observation['dec'], ang_rad=observation['rotSkyPos'],
                         num_exp=observation['nexp'], exp_times=[observation['exptime']])
         start_ra = self.observatory.current_state.ra_rad
         start_dec = self.observatory.current_state.dec_rad
-        # Make sure the observatory has the proper time:
-        t = Time(self.mjd, format='mjd', location=self.location)
-        self.observatory.update_state(t.utc.value)
+
         slewtime, visittime = self.observatory.observe_times(target)
+
         # Check if the mjd after slewtime and visitime is fine:
         observation_worked, new_mjd = self.check_mjd(self.mjd + (slewtime + visittime)/24./3600.)
         if observation_worked:

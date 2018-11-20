@@ -38,11 +38,14 @@ class Conditions(object):
         mjd : float
             Modified Julian Date (days)
         alt : np.array
-            Altitude of each healpixel (radians). Recaclulated if mjd is updated.
+            Altitude of each healpixel (radians). Recaclulated if mjd is updated. Uses fast
+            approximate equation for converting RA,Dec to alt,az.
         az : np.array
-            Azimuth of each healpixel (radians). Recaclulated if mjd is updated.
+            Azimuth of each healpixel (radians). Recaclulated if mjd is updated. Uses fast
+            approximate equation for converting RA,Dec to alt,az.
         pa : np.array
             The parallactic angle of each healpixel (radians). Recaclulated if mjd is updated.
+            Based on the fast approximate alt,az values.
         clouds : float
             The fraction of sky covered by clouds. (In the future might update to transparency map)
         slewtime : np.array
@@ -223,7 +226,11 @@ class Conditions(object):
     def calc_pa(self):
         y = np.sin(-self.az)*np.cos(self.site.latitude_rad)
         x = np.cos(self.alt)*np.sin(self.site.latitude_rad) - np.sin(self.alt)*np.cos(self.site.latitude_rad)*np.cos(-self.az)
-        self._pa = np.arctan2(y, x)
+        pa = np.arctan2(y, x)
+        # Make it run from 0-360 deg insteaof of -180 to 180
+        to_flip = np.where(pa < 0)
+        pa[to_flip] = np.pi - pa[to_flip]
+        self._pa = pa
 
     @property
     def alt(self):
