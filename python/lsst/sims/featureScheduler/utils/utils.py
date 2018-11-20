@@ -160,15 +160,15 @@ class schema_converter(object):
                 os.remove(filename)
             except OSError:
                 pass
-        
+
         df = pd.DataFrame(obs_array)
-        df.rename(indx=str, columns=self.inv_map)
+        df = df.rename(index=str, columns=self.inv_map)
         for colname in self.angles_rad2deg:
             df[colname] = np.degrees(df[colname])
 
         if filename is not None:
             con = db.connect(filename)
-            df.to_sql('SummaryAllProps', con, index_label='observationId')
+            df.to_sql('SummaryAllProps', con, index=False)
             if info is not None:
                 df = pd.DataFrame(info)
                 df.to_sql('info', con)
@@ -182,7 +182,7 @@ class schema_converter(object):
         for key in self.angles_rad2deg:
             df[key] = np.radians(df[key])
 
-        df.rename(indx=str, columns=self.convert_dict)
+        df = df.rename(indx=str, columns=self.convert_dict)
 
         blank = empty_observation()
         result = df.as_matrix()

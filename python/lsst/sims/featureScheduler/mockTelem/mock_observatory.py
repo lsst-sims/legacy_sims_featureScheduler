@@ -16,6 +16,7 @@ from lsst.utils import getPackageDir
 import os
 from lsst.sims.almanac import Almanac
 import warnings
+import matplotlib.pylab as plt
 
 
 __all__ = ['Mock_observatory']
@@ -282,7 +283,8 @@ class Mock_observatory(object):
 
         hpid = _raDec2Hpid(self.sky_model.nside, observation['RA'], observation['dec'])
         observation['skybrightness'] = self.sky_model.returnMags(self.mjd,
-                                                                 indx=hpid)[observation['filter'][0]]
+                                                                 indx=hpid,
+                                                                 extrapolate=True)[observation['filter'][0]]
 
         observation['fivesigmadepth'] = m5_flat_sed(observation['filter'][0], observation['skybrightness'],
                                                     observation['FWHMeff'], observation['exptime'],
@@ -364,10 +366,8 @@ class Mock_observatory(object):
                                                       observation['dec'], 0., observation['filter'])
         # ok, rotSkyPos should run between 0 and 360
         warnings.warn('overriding requested rotSkyPos value')
-        observation['rotSkyPos'] = position.pa_rad  # 2.*np.pi-position.pa_rad  #divmod(-position.pa_rad, 2.*np.pi)[1]
+        observation['rotSkyPos'] = position.pa_rad
 
-
-        # slew to the target--note that one can't slew without also incurring a readtime penalty?
         target = Target(band_filter=observation['filter'], ra_rad=observation['RA'],
                         dec_rad=observation['dec'], ang_rad=observation['rotSkyPos'],
                         num_exp=observation['nexp'], exp_times=[observation['exptime']])
