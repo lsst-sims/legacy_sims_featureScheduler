@@ -41,6 +41,8 @@ class Conditions(object):
             Altitude of each healpixel (radians). Recaclulated if mjd is updated.
         az : np.array
             Azimuth of each healpixel (radians). Recaclulated if mjd is updated.
+        pa : np.array
+            The parallactic angle of each healpixel (radians). Recaclulated if mjd is updated.
         clouds : float
             The fraction of sky covered by clouds. (In the future might update to transparency map)
         slewtime : np.array
@@ -111,6 +113,7 @@ class Conditions(object):
         # Altitude and azimuth. Dict with degrees and radians
         self._alt = None
         self._az = None
+        self._pa = None
         # The cloud level. Fraction, but could upgrade to transparency map
         self.clouds = None
         self._slewtime = None
@@ -212,6 +215,17 @@ class Conditions(object):
         self._M5Depth = None
 
     @property
+    def pa(self):
+        if self._pa is None:
+            self.calc_pa()
+        return self._pa
+
+    def calc_pa(self):
+        y = np.sin(-self.az)*np.cos(self.site.latitude_rad)
+        x = np.cos(self.alt)*np.sin(self.site.latitude_rad) - np.sin(self.alt)*np.cos(self.site.latitude_rad)*np.cos(-self.az)
+        self._pa = np.arctan2(y, x)
+
+    @property
     def alt(self):
         if self._alt is None:
             self.calc_altAz()
@@ -238,6 +252,7 @@ class Conditions(object):
         # Set things that need to be recalculated to None
         self._az = None
         self._alt = None
+        self._pa = None
 
     @property
     def skybrightness(self):
