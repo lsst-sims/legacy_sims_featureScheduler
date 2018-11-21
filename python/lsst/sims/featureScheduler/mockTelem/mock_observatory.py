@@ -50,6 +50,66 @@ class ExtendedObservatoryModel(ObservatoryModel):
         visitime = t3 - t2
         return slewtime, visitime
 
+    def get_closest_angle_distance(self, target_rad, current_abs_rad,
+                                   min_abs_rad=None, max_abs_rad=None,
+                                   wrap_padding=0.873):
+        """Calculate the closest angular distance including handling \
+           cable wrap if necessary.
+
+        Parameters
+        ----------
+        target_rad : float
+            The destination angle (radians).
+        current_abs_rad : float
+            The current angle (radians).
+        min_abs_rad : float, optional
+            The minimum constraint angle (radians).
+        max_abs_rad : float, optional
+            The maximum constraint angle (radians).
+        wrap_padding : float (0.873)
+            The amount of padding to use to make sure we don't track into limits (radians).
+
+
+        Returns
+        -------
+        tuple(float, float)
+            (accumulated angle in radians, distance angle in radians)
+        """
+        # if there are wrap limits, normalizes the target angle
+        TWOPI = 2 * np.pi
+        if min_abs_rad is not None:
+            norm_target_rad = divmod(target_rad - min_abs_rad, TWOPI)[1] + min_abs_rad
+            if max_abs_rad is not None:
+                # if the target angle is unreachable
+                # then sets an arbitrary value
+                if norm_target_rad > max_abs_rad:
+                    norm_target_rad = max(min_abs_rad, norm_target_rad - np.pi)
+        else:
+            norm_target_rad = target_rad
+
+        # computes the distance clockwise
+        distance_rad = divmod(norm_target_rad - current_abs_rad, TWOPI)[1]
+
+        # take the counter-clockwise distance if shorter
+        if distance_rad > np.pi:
+            distance_rad = distance_rad - TWOPI
+
+        # if there are wrap limits
+        if (min_abs_rad is not None) and (max_abs_rad is not None):
+            # compute accumulated angle
+            accum_abs_rad = current_abs_rad + distance_rad
+
+            # if limits reached chose the other direction
+            if accum_abs_rad > max_abs_rad - wrap_padding:
+                distance_rad = distance_rad - TWOPI
+            if accum_abs_rad < min_abs_rad + wrap_padding:
+                distance_rad = distance_rad + TWOPI
+
+        # compute final accumulated angle
+        final_abs_rad = current_abs_rad + distance_rad
+
+        return (final_abs_rad, distance_rad)
+
 
 class dummy_time_handler(object):
     """
