@@ -43,9 +43,9 @@ class ExtendedObservatoryModel(ObservatoryModel):
         t2 = self.current_state.time + 0
         self.expose(target)
         t3 = self.current_state.time + 0
-        #if not self.current_state.tracking:
-        #    import pdb ; pdb.set_trace()
-        #    ValueError('Telescope model stopped tracking, that seems bad.')
+        if not self.current_state.tracking:
+            import pdb ; pdb.set_trace()
+            ValueError('Telescope model stopped tracking, that seems bad.')
         slewtime = t2 - t1
         visitime = t3 - t2
         return slewtime, visitime
@@ -142,6 +142,8 @@ class Mock_observatory(object):
 
         self.cloud_model = CloudModel(dth)
         self.cloud_model.read_data()
+        # XXX-argle bargle, really?!?!?
+        self.cloud_model.offset = 0
 
         self.sky_model = sb.SkyModelPre(speedLoad=quickTest)
 
@@ -180,8 +182,8 @@ class Mock_observatory(object):
         # Time since start of simulation
         delta_t = (self.mjd-self.mjd_start)*24.*3600.
 
-        # Clouds
-        self.conditions.bulk_cloud = self.cloud_model.get_cloud(delta_t)
+        # Clouds. Add a +0 because this might alter input!!!
+        self.conditions.bulk_cloud = self.cloud_model.get_cloud(delta_t+0)
 
         # use conditions object itself to get aprox altitude of each healpx
         alts = self.conditions.alt
@@ -323,7 +325,7 @@ class Mock_observatory(object):
         """
         # check the clouds
         delta_t = (mjd-self.mjd_start)*24.*3600.
-        clouds = self.cloud_model.get_cloud(delta_t)
+        clouds = self.cloud_model.get_cloud(delta_t+0.)
         if clouds > self.cloud_limit:
             # Let's just reach into the cloud model and see when it's not cloudy anymore
             jump_to = np.where((self.cloud_model.cloud_dates > delta_t) &
@@ -386,6 +388,7 @@ class Mock_observatory(object):
                                                          self.observatory.current_state.dec_rad)
             self.mjd = self.mjd + slewtime/24./3600.
             # Reach into the observatory model to pull out the relevant data it has calculated
+            # Note, this might be after the observation has been completed.
             observation['alt'] = self.observatory.current_state.alt_rad
             observation['az'] = self.observatory.current_state.az_rad
             observation['pa'] = self.observatory.current_state.pa_rad
