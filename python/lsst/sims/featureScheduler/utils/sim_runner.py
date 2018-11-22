@@ -3,6 +3,7 @@ import sys
 import numpy as np
 from lsst.sims.featureScheduler.utils import run_info_table, schema_converter
 from lsst.sims.featureScheduler.schedulers import simple_filter_sched
+import time
 
 __all__ = ['sim_runner']
 
@@ -19,6 +20,8 @@ def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, su
     step_none : float (15)
         The amount of time to advance if the scheduler fails to return a target (minutes).
     """
+
+    t0 = time.time()
 
     if filter_scheduler is None:
         filter_scheduler = simple_filter_sched()
@@ -79,9 +82,10 @@ def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, su
         # XXX--handy place to interupt and debug
         # if len(observations) > 3:
         #    import pdb ; pdb.set_trace()
-
+    runtime = time.time() - t0
     print('Skipped %i observations' % nskip)
     print('Completed %i observations' % len(observations))
+    print('ran in %i min = %.1f hours' % (runtime/60., runtime/3600.))
     observations = np.array(observations)[:, 0]
     if filename is not None:
         # don't crash just because some info stuff failed.

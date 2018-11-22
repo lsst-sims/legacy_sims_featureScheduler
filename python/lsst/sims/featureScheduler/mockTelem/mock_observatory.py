@@ -373,8 +373,13 @@ class Mock_observatory(object):
 
         return observation
 
-    def check_mjd(self, mjd):
+    def check_mjd(self, mjd, cloud_skip=20.):
         """See if an mjd is ok to observe
+        Parameters
+        ----------
+        cloud_skip : float (20)
+            How much time to skip ahead if it's cloudy (minutes)
+
 
         Returns
         -------
@@ -388,10 +393,10 @@ class Mock_observatory(object):
         clouds = self.cloud_model.get_cloud(delta_t+0.)
         if clouds > self.cloud_limit:
             # Let's just reach into the cloud model and see when it's not cloudy anymore
-            jump_to = np.where((self.cloud_model.cloud_dates > delta_t) &
-                               (self.cloud_model.cloud_values < self.cloud_limit))[0].min()
+            #jump_to = np.where((self.cloud_model.cloud_dates > delta_t) &
+            #                   (self.cloud_model.cloud_values < self.cloud_limit))[0].min()
 
-            return False, self.mjd_start + self.cloud_model.cloud_dates[jump_to]/24./3600.
+            return False, mjd + cloud_skip/60./24.
         alm_indx = np.searchsorted(self.almanac.sunsets['sunset'], mjd) - 1
         # at the end of the night, advance to the next setting twilight
         if mjd > self.almanac.sunsets['sun_n12_rising'][alm_indx]:

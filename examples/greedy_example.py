@@ -14,6 +14,7 @@ def gen_greedy_surveys(nside, add_DD=True):
     Make a quick set of greedy surveys
     """
     target_map = standard_goals(nside=nside)
+    norm_factor = calc_norm_factor(target_map)
     filters = ['u', 'g', 'r', 'i', 'z', 'y']
     surveys = []
     cloud_map = target_map['r'][0]*0 + 0.7
@@ -23,7 +24,8 @@ def gen_greedy_surveys(nside, add_DD=True):
         bfs.append(bf.M5_diff_basis_function(filtername=filtername, nside=nside))
         bfs.append(bf.Target_map_basis_function(filtername=filtername,
                                                 target_map=target_map[filtername],
-                                                out_of_bounds_val=np.nan, nside=nside))
+                                                out_of_bounds_val=np.nan, nside=nside,
+                                                norm_factor=norm_factor))
         bfs.append(bf.Slewtime_basis_function(filtername=filtername, nside=nside))
         bfs.append(bf.Strict_filter_basis_function(filtername=filtername))
         # Masks, give these 0 weight
@@ -47,7 +49,7 @@ def gen_greedy_surveys(nside, add_DD=True):
 
 if __name__ == "__main__":
     nside = 32
-    survey_length =366  # Days
+    survey_length = 366  # Days
     years = int(survey_length/365.25)
 
     surveys = gen_greedy_surveys(nside, add_DD=True)
