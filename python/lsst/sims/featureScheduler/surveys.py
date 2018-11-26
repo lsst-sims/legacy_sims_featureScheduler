@@ -2203,7 +2203,8 @@ class Pairs_different_filters_scripted(Pairs_survey_scripted):
 
             if check[4]:
                 result = self.observing_queue.pop(indx)
-                result['note'] = 'pair(%s[%i])' % (self.note, len(self.observing_queue))
+                note_id = int(result['note'][0].split('-')[1])
+                result['note'] = 'pair(%s[%i]) - %i' % (self.note, len(self.observing_queue), note_id)
                 # Make sure we are in a different filter and change it to the one with the highest need if need
                 log.debug('Current filter: {}  Original: {}'.format(self.extra_features['current_filter'].feature,
                                                                     result['filter']))
