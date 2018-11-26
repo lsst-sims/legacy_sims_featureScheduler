@@ -10,10 +10,8 @@ from lsst.sims.cloudModel import CloudModel
 from lsst.sims.featureScheduler.features import Conditions
 from lsst.sims.featureScheduler.utils import set_default_nside
 from lsst.ts.observatory.model import ObservatoryModel, Target
-from astropy.coordinates import get_sun, get_moon, EarthLocation, AltAz
+from astropy.coordinates import EarthLocation
 from astropy.time import Time
-from lsst.utils import getPackageDir
-import os
 from lsst.sims.almanac import Almanac
 import warnings
 import matplotlib.pylab as plt
@@ -44,7 +42,6 @@ class ExtendedObservatoryModel(ObservatoryModel):
         self.expose(target)
         t3 = self.current_state.time + 0
         if not self.current_state.tracking:
-            import pdb ; pdb.set_trace()
             ValueError('Telescope model stopped tracking, that seems bad.')
         slewtime = t2 - t1
         visitime = t3 - t2
@@ -388,25 +385,34 @@ class Mock_observatory(object):
         mdj : float
             If True, the input mjd. If false, a good mjd to skip forward to.
         """
-        # check the clouds
+        passed = True
+        new_mjd = mjd + 0
         delta_t = (mjd-self.mjd_start)*24.*3600.
         clouds = self.cloud_model.get_cloud(delta_t+0.)
+        # Maybe set this to a while loop to make sure we don't land on another cloudy time?
+        # or just make this an entire recursive call?
         if clouds > self.cloud_limit:
-            # Let's just reach into the cloud model and see when it's not cloudy anymore
-            #jump_to = np.where((self.cloud_model.cloud_dates > delta_t) &
-            #                   (self.cloud_model.cloud_values < self.cloud_limit))[0].min()
-
-            return False, mjd + cloud_skip/60./24.
+            passed = False
+            new_mjd = mjd + cloud_skip/60./24.
         alm_indx = np.searchsorted(self.almanac.sunsets['sunset'], mjd) - 1
         # at the end of the night, advance to the next setting twilight
         if mjd > self.almanac.sunsets['sun_n12_rising'][alm_indx]:
-            return False, self.almanac.sunsets['sun_n12_setting'][alm_indx+1]
+            passed = False
+            new_mjd = self.almanac.sunsets['sun_n12_setting'][alm_indx+1]
         if mjd < self.almanac.sunsets['sun_n12_setting'][alm_indx]:
-            return False, self.almanac.sunsets['sun_n12_setting'][alm_indx+1]
+            passed = False
+            new_mjd = self.almanac.sunsets['sun_n12_setting'][alm_indx+1]
         # We're in a down night, advance to next night
         if self.almanac.sunsets['night'][alm_indx] in self.down_nights:
-            return False, self.almanac.sunsets['sun_n12_setting'][alm_indx+1]
-        return True, mjd
+            passed = False
+            new_mjd = self.almanac.sunsets['sun_n12_setting'][alm_indx+1]
+        # recursive call to make sure we skip far enough ahead
+        if not passed:
+            while not passed:
+                passed, new_mjd = self.check_mjd(new_mjd)
+            return False, new_mjd
+        else:
+            return True, mjd
 
     def observe(self, observation):
         """Try to make an observation

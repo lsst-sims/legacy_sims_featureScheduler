@@ -49,7 +49,7 @@ def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, su
         if desired_obs is None:
             # No observation. Just step into the future and try again.
             warnings.warn('No observation. Step into the future and trying again.')
-            observatory.mjd(observatory.mjd + step_none)
+            observatory.mjd = observatory.mjd + step_none
             scheduler.update_conditions(observatory.return_status())
             nskip += 1
             continue
@@ -84,6 +84,7 @@ def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, su
         #    import pdb ; pdb.set_trace()
     runtime = time.time() - t0
     print('Skipped %i observations' % nskip)
+    print('Flushed %i observations from queue for being stale' % scheduler.flushed)
     print('Completed %i observations' % len(observations))
     print('ran in %i min = %.1f hours' % (runtime/60., runtime/3600.))
     observations = np.array(observations)[:, 0]

@@ -102,8 +102,6 @@ class Blob_survey(Greedy_survey):
     flush_time : float (30.)
         The time past the final expected exposure to flush the queue. Keeps observations
         from lingering past when they should be executed. (minutes)
-    sitename : str ('LSST')
-        The name of the site to lookup latitude and longitude.
     """
     def __init__(self, basis_functions, basis_weights,
                  filtername1='r', filtername2='g',
@@ -114,8 +112,7 @@ class Blob_survey(Greedy_survey):
                  flush_time=30.,
                  smoothing_kernel=None, nside=None,
                  dither=True, seed=42, ignore_obs='ack',
-                 survey_note='blob',
-                 sitename='LSST'):
+                 survey_note='blob'):
 
         if nside is None:
             nside = set_default_nside()
@@ -167,7 +164,7 @@ class Blob_survey(Greedy_survey):
         Update the block size if it's getting near the end of the night.
         """
 
-        available_time = conditions.next_twilight_start - conditions.mjd
+        available_time = conditions.sun_n18_rising - conditions.mjd
         available_time *= 24.*60.  # to minutes
 
         n_ideal_blocks = available_time / self.ideal_pair_time
@@ -206,7 +203,13 @@ class Blob_survey(Greedy_survey):
 
             # Select healpixels within some radius of the max
             # This is probably faster with a kd-tree.
-            peak_reward = np.min(np.where(self.reward == np.nanmax(self.reward))[0])
+
+            max_hp = np.where(self.reward == np.nanmax(self.reward))[0]
+            if np.size(max_hp) > 0:
+                peak_reward = np.min(max_hp)
+            else:
+                # Everything is masked, so get out
+                return -np.inf
 
             # Apply radius selection
             dists = _angularSeparation(self.ra[peak_reward], self.dec[peak_reward], self.ra, self.dec)

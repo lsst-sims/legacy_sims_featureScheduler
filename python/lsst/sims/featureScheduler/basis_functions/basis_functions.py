@@ -4,6 +4,7 @@ from lsst.sims.featureScheduler import utils
 import healpy as hp
 from lsst.sims.skybrightness_pre import M5percentiles
 import matplotlib.pylab as plt
+import warnings
 
 
 __all__ = ['Base_basis_function', 'Constant_basis_function', 'Target_map_basis_function',
@@ -123,12 +124,16 @@ class Target_map_basis_function(Base_basis_function):
         Reward value to give regions where there are no observations requested (unitless).
     """
     def __init__(self, filtername='r', nside=None, target_map=None,
-                 norm_factor=0.00010519,
+                 norm_factor=None,
                  out_of_bounds_val=-10.):
 
         super(Target_map_basis_function, self).__init__(nside=nside, filtername=filtername)
 
-        self.norm_factor = norm_factor
+        if norm_factor is None:
+            warnings.warn('No norm_factor set, use utils.calc_norm_factor if using multiple filters.')
+            self.norm_factor = 0.00010519
+        else:
+            self.norm_factor = norm_factor
 
         self.survey_features = {}
         # Map of the number of observations in filter

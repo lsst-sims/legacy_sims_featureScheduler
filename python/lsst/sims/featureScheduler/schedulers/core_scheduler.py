@@ -70,6 +70,9 @@ class Core_scheduler(object):
         else:
             raise ValueError('camera %s not implamented' % camera)
 
+        # keep track of how many observations get flushed from the queue
+        self.flushed = 0
+
     def flush_queue(self):
         """"
         Like it sounds, clear any currently queued desired observations.
@@ -137,7 +140,8 @@ class Core_scheduler(object):
         else:
             # If the queue has gone stale, flush and refill. Zero means no flush_by was set.
             if (self.conditions.mjd > self.queue[0]['flush_by_mjd']) & (self.queue[0]['flush_by_mjd'] != 0):
-                self.log.warning('Expired observations in queue, flushing and refilling')
+                #self.log.warning('Expired observations in queue, flushing and refilling')
+                self.flushed += len(self.queue)
                 self.flush_queue()
                 self._fill_queue()
             if len(self.queue) == 0:

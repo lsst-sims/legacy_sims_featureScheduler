@@ -6,7 +6,7 @@ from lsst.sims.featureScheduler.basis_functions import Base_basis_function
 
 
 __all__ = ['Zenith_mask_basis_function', 'Zenith_shadow_mask_basis_function',
-           'Moon_avoidance_basis_function', 'Bulk_cloud_basis_function']
+           'Moon_avoidance_basis_function', 'Map_cloud_basis_function']
 
 
 class Zenith_mask_basis_function(Base_basis_function):
@@ -113,6 +113,53 @@ class Moon_avoidance_basis_function(Base_basis_function):
 
 
 class Bulk_cloud_basis_function(Base_basis_function):
+    """Mark healpixels on a map if their cloud values are greater than
+    the same healpixels on a maximum cloud map.
+
+    Parameters
+    ----------
+    nside: int (default_nside)
+        The healpix resolution.
+    max_cloud_map : numpy array (None)
+        A healpix map showing the maximum allowed cloud values for all points on the sky
+    out_of_bounds_val : float (10.)
+        Point value to give regions where there are no observations requested
+    """
+
+    def __init__(self, nside=None, max_cloud_map=None, max_val=0.7,
+                 out_of_bounds_val=np.nan):
+        super(Bulk_cloud_basis_function, self).__init__(nside=nside)
+        self.update_on_newobs = False
+
+        if max_cloud_map is None:
+            self.max_cloud_map = np.zeros(hp.nside2npix(nside), dtype=float) + max_val
+        else:
+            self.max_cloud_map = max_cloud_map
+        self.out_of_bounds_area = np.where(self.max_cloud_map > 1.)[0]
+        self.out_of_bounds_val = out_of_bounds_val
+        self.result = np.ones(hp.nside2npix(self.nside))
+
+    def _calc_value(self, conditions, indx=None):
+        """
+        Parameters
+        ----------
+        indx : list (None)
+            Index values to compute, if None, full map is computed
+        Returns
+        -------
+        Healpix map where pixels with a cloud value greater than the max_cloud_map
+        value are marked as unseen.
+        """
+
+        result = self.result.copy()
+
+        clouded = np.where(self.max_cloud_map <= conditions.bulk_cloud)
+        result[clouded] = self.out_of_bounds_val
+
+        return result
+
+
+class Map_cloud_basis_function(Base_basis_function):
     """Mark healpixels on a map if their cloud values are greater than
     the same healpixels on a maximum cloud map.
 
