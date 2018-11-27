@@ -342,7 +342,7 @@ class Mock_observatory(object):
 
         hpid = _raDec2Hpid(self.sky_model.nside, observation['RA'], observation['dec'])
         observation['skybrightness'] = self.sky_model.returnMags(self.mjd,
-                                                                 indx=hpid,
+                                                                 indx=[hpid],
                                                                  extrapolate=True)[observation['filter'][0]]
 
         observation['fivesigmadepth'] = m5_flat_sed(observation['filter'][0], observation['skybrightness'],
@@ -355,6 +355,8 @@ class Mock_observatory(object):
         sun_moon_info = self.almanac.get_sun_moon_positions(self.mjd)
         observation['sunAlt'] = sun_moon_info['sun_alt']
         observation['sunAz'] = sun_moon_info['sun_az']
+        observation['sunRA'] = sun_moon_info['sun_RA']
+        observation['sunDec'] = sun_moon_info['sun_dec']
         observation['moonAlt'] = sun_moon_info['moon_alt']
         observation['moonAz'] = sun_moon_info['moon_az']
         observation['moonRA'] = sun_moon_info['moon_RA']

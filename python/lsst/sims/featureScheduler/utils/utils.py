@@ -182,15 +182,13 @@ class schema_converter(object):
         for key in self.angles_rad2deg:
             df[key] = np.radians(df[key])
 
-        df = df.rename(indx=str, columns=self.convert_dict)
+        df = df.rename(index=str, columns=self.convert_dict)
 
         blank = empty_observation()
-        result = df.as_matrix()
-        final_result = np.empty(result.shape[0], dtype=blank.dtype)
-
+        final_result = np.empty(df.shape[0], dtype=blank.dtype)
         # XXX-ugh, there has to be a better way.
-        for i, key in enumerate(blank.dtype.names):
-            final_result[key] = result[:, i+1]
+        for i, key in enumerate(df.columns):
+            final_result[key] = df[key].values
 
         return final_result
 

@@ -62,12 +62,12 @@ def generate_blobs(nside):
             bfs.append(bf.M5_diff_basis_function(filtername=filtername2, nside=nside))
         bfs.append(bf.Target_map_basis_function(filtername=filtername,
                                                 target_map=target_map[filtername],
-                                                out_of_bounds_val=hp.UNSEEN, nside=nside,
+                                                out_of_bounds_val=np.nan, nside=nside,
                                                 norm_factor=norm_factor))
         if filtername2 is not None:
             bfs.append(bf.Target_map_basis_function(filtername=filtername2,
                                                     target_map=target_map[filtername2],
-                                                    out_of_bounds_val=hp.UNSEEN, nside=nside,
+                                                    out_of_bounds_val=np.nan, nside=nside,
                                                     norm_factor=norm_factor))
         bfs.append(bf.Slewtime_basis_function(filtername=filtername, nside=nside))
         bfs.append(bf.Strict_filter_basis_function(filtername=filtername))
@@ -100,7 +100,7 @@ def generate_blobs(nside):
 
 if __name__ == "__main__":
     nside = 32
-    survey_length = 365.25  # 365.25*10  # Days
+    survey_length = 365.25*10  # Days
     years = int(survey_length/365.25)
 
     greedy = gen_greedy_surveys(nside)
