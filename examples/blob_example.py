@@ -3,10 +3,11 @@ import matplotlib.pylab as plt
 import healpy as hp
 from lsst.sims.featureScheduler.mockTelem import Mock_observatory
 from lsst.sims.featureScheduler.schedulers import Core_scheduler
-from lsst.sims.featureScheduler.utils import sim_runner, standard_goals, calc_norm_factor
+from lsst.sims.featureScheduler.utils import standard_goals, calc_norm_factor
 import lsst.sims.featureScheduler.basis_functions as bf
 from lsst.sims.featureScheduler.surveys import (generate_dd_surveys, Greedy_survey,
                                                 Blob_survey, Pairs_survey_scripted)
+from lsst.sims.featureScheduler import sim_runner
 
 
 def gen_greedy_surveys(nside):
