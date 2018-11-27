@@ -49,7 +49,7 @@ def gen_greedy_surveys(nside, add_DD=True):
 
 if __name__ == "__main__":
     nside = 32
-    survey_length = 365.25*10  # Days
+    survey_length = 20. #365.25*10  # Days
     years = int(survey_length/365.25)
 
     surveys = gen_greedy_surveys(nside, add_DD=True)
