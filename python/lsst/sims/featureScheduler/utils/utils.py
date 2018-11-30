@@ -137,7 +137,7 @@ class schema_converter(object):
                             'proposalId': 'survey_id', 'fieldId': 'field_id',
                             'fieldRA': 'RA', 'fieldDec': 'dec', 'altitude': 'alt', 'azimuth': 'az',
                             'filter': 'filter', 'airmass': 'airmass', 'skyBrightness': 'skybrightness',
-                            'cloud': 'cloud', 'seeingFwhm500': 'FWHM_500',
+                            'cloud': 'clouds', 'seeingFwhm500': 'FWHM_500',
                             'seeingFwhmGeom': 'FWHM_geometric', 'seeingFwhmEff': 'FWHMeff',
                             'fiveSigmaDepth': 'fivesigmadepth', 'slewTime': 'slewtime',
                             'slewDistance': 'slewdist', 'paraAngle': 'pa', 'rotTelPos': 'rotTelPos',
@@ -188,7 +188,8 @@ class schema_converter(object):
         final_result = np.empty(df.shape[0], dtype=blank.dtype)
         # XXX-ugh, there has to be a better way.
         for i, key in enumerate(df.columns):
-            final_result[key] = df[key].values
+            if key in self.inv_map.keys():
+                final_result[key] = df[key].values
 
         return final_result
 
