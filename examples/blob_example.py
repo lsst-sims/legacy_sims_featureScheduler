@@ -93,7 +93,7 @@ def generate_blobs(nside):
         else:
             survey_name = 'blob, %s%s' % (filtername, filtername2)
         surveys.append(Blob_survey(bfs, weights, filtername1=filtername, filtername2=filtername2,
-                                   ideal_pair_time=pair_time,
+                                   ideal_pair_time=pair_time, nside=nside,
                                    survey_note=survey_name, ignore_obs='DD', dither=True))
 
     return surveys

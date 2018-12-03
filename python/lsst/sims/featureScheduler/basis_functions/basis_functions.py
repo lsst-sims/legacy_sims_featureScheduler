@@ -731,8 +731,8 @@ class Cadence_enhance_basis_function(Base_basis_function):
         self.enhance_window = np.sort(enhance_window)
         self.enhance_val = enhance_val
 
-        survey_features = {}
-        survey_features['last_observed'] = features.Last_observed(filtername=filtername)
+        self.survey_features = {}
+        self.survey_features['last_observed'] = features.Last_observed(filtername=filtername)
 
         self.empty = np.zeros(hp.nside2npix(self.nside), dtype=float)
         # No map, try to drive the whole area
