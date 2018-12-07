@@ -30,6 +30,7 @@ def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, su
         mjd = observatory.mjd
         mjd_start = mjd + 0
     else:
+        mjd = mjd_start + 0
         observatory.mjd = mjd
 
     end_mjd = mjd + survey_length
@@ -92,11 +93,10 @@ def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, su
         # don't crash just because some info stuff failed.
         try:
             info = run_info_table(observatory)
-        except:
+        except Exception:
             info = None
             warnings.warn('Failed to get info about run, may need to run scons in some pacakges.')
 
         converter = schema_converter()
         converter.obs2opsim(observations, filename=filename, info=info, delete_past=delete_past)
     return observatory, scheduler, observations
-

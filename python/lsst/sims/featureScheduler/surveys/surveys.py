@@ -75,7 +75,7 @@ class Greedy_survey(BaseMarkovDF_survey):
 
 
 class Blob_survey(Greedy_survey):
-    """Select observations in large, mostly contiuguous, blobs.
+    """Select observations in large, mostly contiguous, blobs.
 
     Parameters
     ----------

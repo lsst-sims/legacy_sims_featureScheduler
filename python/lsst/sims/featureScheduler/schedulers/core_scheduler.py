@@ -11,12 +11,12 @@ __all__ = ['Core_scheduler']
 
 
 class Core_scheduler(object):
-    """Core scheduler that takes completed obsrevations and observatory status and requests observations
+    """Core scheduler that takes completed observations and observatory status and requests observations
 
     Parameters
     ----------
     surveys : list (or list of lists) of lsst.sims.featureScheduler.survey objects
-        A list of surveys to consider. If multiple surveys retrurn the same highest
+        A list of surveys to consider. If multiple surveys return the same highest
         reward value, the survey at the earliest position in the list will be selected.
         Can also be a list of lists to make heirarchical priorities.
     nside : int
@@ -34,7 +34,7 @@ class Core_scheduler(object):
         Parameters
         ----------
         surveys : list (or list of lists) of lsst.sims.featureScheduler.survey objects
-            A list of surveys to consider. If multiple surveys retrurn the same highest
+            A list of surveys to consider. If multiple surveys return the same highest
             reward value, the survey at the earliest position in the list will be selected.
             Can also be a list of lists to make heirarchical priorities.
         nside : int
