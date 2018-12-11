@@ -44,7 +44,7 @@ def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, su
 
     while mjd < end_mjd:
         # XXX--Note, this might not work well for "sequences"
-        if not scheduler.check_queue_mjd_only(observatory.mjd):
+        if not scheduler._check_queue_mjd_only(observatory.mjd):
             scheduler.update_conditions(observatory.return_conditions())
         desired_obs = scheduler.request_observation()
         if desired_obs is None:
@@ -54,11 +54,11 @@ def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, su
             scheduler.update_conditions(observatory.return_status())
             nskip += 1
             continue
-        observation_worked, attempted_obs, new_night = observatory.observe(desired_obs)
-        if observation_worked:
-            scheduler.add_observation(attempted_obs[0])
-            observations.append(attempted_obs)
-            filter_scheduler.add_observation(attempted_obs[0])
+        completed_obs, new_night = observatory.observe(desired_obs)
+        if completed_obs is not None:
+            scheduler.add_observation(completed_obs[0])
+            observations.append(completed_obs)
+            filter_scheduler.add_observation(completed_obs[0])
         else:
             scheduler.flush_queue()
         if new_night:

@@ -114,9 +114,11 @@ class Core_scheduler(object):
         # the surveys in the conditions object here. e.g., when a DDF plans to next request
         # observations.
 
-    def check_queue_mjd_only(self, mjd):
+    def _check_queue_mjd_only(self, mjd):
         """
-        Check if there are things in the queue that can be executed using only MJD and not full conditions
+        Check if there are things in the queue that can be executed using only MJD and not full conditions.
+        This is primarly used by sim_runner to reduce calls calculating updated conditions when they are not
+        needed.
         """
         result = False
         if len(self.queue) > 0:

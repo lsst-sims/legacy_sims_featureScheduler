@@ -1,7 +1,7 @@
 import numpy as np
 from lsst.sims.utils import _approx_RaDec2AltAz, Site, _hpid2RaDec, m5_flat_sed
 import healpy as hp
-from lsst.sims.featureScheduler.utils import set_default_nside
+from lsst.sims.featureScheduler.utils import set_default_nside, match_hp_resolution
 
 __all__ = ['Conditions']
 
@@ -12,6 +12,9 @@ class Conditions(object):
 
     If the incoming value is a healpix map, we use a setter to ensure the
     resolution matches.
+
+    Unless otherwise noted, all values are assumed to be valid at the time
+    given by self.mjd
     """
     def __init__(self, nside=None, site='LSST', exptime=30.):
         """
@@ -25,27 +28,22 @@ class Conditions(object):
         expTime : float (30)
             The exposure time to assume when computing the 5-sigma limiting depth
 
-        Attributes
-        ----------
+        Atributes (Set on init)
+        -----------
         nside : int
-            Healpix resolution
-        site : lsst.sims.Site object
-            Contains static site-specific data (lat, lon, altitude, etc)
+            Healpix resolution. All maps are set to this reslution.
+        site : lsst.sims.Site object ('LSST')
+            Contains static site-specific data (lat, lon, altitude, etc). Defaults to 'LSST'.
         ra : np.array
-            A healpix array with the RA of each healpixel center (radians).
+            A healpix array with the RA of each healpixel center (radians). Automatically
+            generated.
         dec : np.array
-            A healpix array with the Dec of each healpixel center (radians).
+            A healpix array with the Dec of each healpixel center (radians). Automatically generated.
+
+        Atributes (to be set by user/telemetry stream)
+        -------------------------------------------
         mjd : float
-            Modified Julian Date (days)
-        alt : np.array
-            Altitude of each healpixel (radians). Recaclulated if mjd is updated. Uses fast
-            approximate equation for converting RA,Dec to alt,az.
-        az : np.array
-            Azimuth of each healpixel (radians). Recaclulated if mjd is updated. Uses fast
-            approximate equation for converting RA,Dec to alt,az.
-        pa : np.array
-            The parallactic angle of each healpixel (radians). Recaclulated if mjd is updated.
-            Based on the fast approximate alt,az values.
+            Modified Julian Date (days).
         clouds : float
             The fraction of sky covered by clouds. (In the future might update to transparency map)
         slewtime : np.array
@@ -56,19 +54,12 @@ class Conditions(object):
             The filters that are currently mounted and thu available (expect 5 of u, g, r, i, z, y)
         night : int
             The current night number (days). Probably starts at 1.
-        lmst : float
-            The local mean sidearal time (hours). Updates is mjd is changed.
         skybrightness : dict of np.array
             Dictionary keyed by filtername. Values are healpix arrays with the sky brightness at each
             healpix center (mag/acsec^2)
         FWHMeff : dict of np.array
             Dictionary keyed by filtername. Values are the effective seeing FWHM at each healpix
             center (arcseconds)
-        M5Depth : dict of np.array
-            the 5-sigma limiting depth healpix maps, keyed by filtername (mags). Will be recalculated
-            if the skybrightness, seeing, or airmass are updated.
-        queue : list of observation objects
-            The current queue of observations waiting to be executed.
         moonAlt : float
             The altitude of the Moon (radians)
         moonAz : float
@@ -83,19 +74,60 @@ class Conditions(object):
             The altitude of the sun (radians).
         sunAz : float
             The Azimuth of the sun (radians).
-        last_twilight_end : float
-            The MJD when the last twilight ended. (days)
-        next_twilight_start : float
-            The MJD when the next twilight will start. (days) XXX--need to look up how this twilight is
-            defined! For speedObservatory it's sunAlt of -18 degrees
         telRA : float
             The current telescope RA pointing (radians).
         telDec : float
             The current telescope Declination
         cloud_map : np.array
             A healpix map with the cloud coverage. XXX-expand, is this bool map? Transparency map?
+        airmass : np.array
+            A healpix map with the airmass value of each healpixel. (unitless)
+        sunset : float
+            The MJD of sunset that starts the current night. Note MJDs of sunset, moonset, twilight times, etc
+            are from interpolations. This means the sun may actually be slightly above/below the horizon
+            at the given sunset time.
+        sun_n12_setting : float
+            The MJD of when the sun is at -12 degees altitude and setting during the
+            current night. From interpolation.
+        sun_n18_setting : float
+            The MJD when the sun is at -18 degrees altitude and setting during the current night.
+            From interpolation.
+        sun_n18_rising : float
+            The MJD when the sun is at -18 degrees altitude and rising during the current night.
+            From interpolation.
+        sun_n12_rising : float
+            The MJD when the sun is at -12 degrees altitude and rising during the current night.
+            From interpolation.
+        sunrise : float
+            The MJD of sunrise during the current night. From interpolation
+        moonrise : float
+            The MJD of moonrise during the current night. From interpolation.
+        moonset : float
+            The MJD of moonset during the current night. From interpolation.
+
+        Attributes (calculated on demand and cached)
+        ------------------------------------------
+        alt : np.array
+            Altitude of each healpixel (radians). Recaclulated if mjd is updated. Uses fast
+            approximate equation for converting RA,Dec to alt,az.
+        az : np.array
+            Azimuth of each healpixel (radians). Recaclulated if mjd is updated. Uses fast
+            approximate equation for converting RA,Dec to alt,az.
+        pa : np.array
+            The parallactic angle of each healpixel (radians). Recaclulated if mjd is updated.
+            Based on the fast approximate alt,az values.
+        lmst : float
+            The local mean sidearal time (hours). Updates is mjd is changed.
+        M5Depth : dict of np.array
+            the 5-sigma limiting depth healpix maps, keyed by filtername (mags). Will be recalculated
+            if the skybrightness, seeing, or airmass are updated.
         HA : np.array
             Healpix map of the hour angle of each healpixel (radians).
+
+        Attributes (set by the scheduler)
+        -------------------------------
+        queue : list of observation objects
+            The current queue of observations core_scheduler is waiting to execute.
 
         """
         if nside is None:
@@ -192,7 +224,7 @@ class Conditions(object):
 
     @cloud_map.setter
     def cloud_map(self, value):
-        self._cloud_map = hp.ud_grade(value, nside_out=self.nside)
+        self._cloud_map = match_hp_resolution(value, nside_out=self.nside)
 
     @property
     def slewtime(self):
@@ -204,9 +236,7 @@ class Conditions(object):
         if np.size(value) == 1:
             self._slewtime = value
         else:
-            self._slewtime = hp.ud_grade(value, nside_out=self.nside)
-            # Make sure there are no healpy UNSEENs creeping in
-            self._slewtime[np.where(self._slewtime == hp.UNSEEN)] = np.nan
+            self._slewtime = match_hp_resolution(value, nside_out=self.nside)
 
     @property
     def airmass(self):
@@ -214,7 +244,7 @@ class Conditions(object):
 
     @airmass.setter
     def airmass(self, value):
-        self._airmass = hp.ud_grade(value, nside_out=self.nside)
+        self._airmass = match_hp_resolution(value, nside_out=self.nside)
         self._M5Depth = None
 
     @property
@@ -260,6 +290,8 @@ class Conditions(object):
         self._az = None
         self._alt = None
         self._pa = None
+        self._HA = None
+        self._lmst = None
 
     @property
     def skybrightness(self):
@@ -268,9 +300,8 @@ class Conditions(object):
     @skybrightness.setter
     def skybrightness(self, indict):
         for key in indict:
-            self._skybrightness[key] = hp.ud_grade(indict[key], nside_out=self.nside)
-            # Swap any healpy.UNSEEN values to nans.
-            self._skybrightness[key][np.where(self._skybrightness[key] == hp.UNSEEN)] = np.nan
+
+            self._skybrightness[key] = match_hp_resolution(indict[key], nside_out=self.nside)
         # If sky brightness changes, need to recalc M5 depth.
         self._M5Depth = None
 
@@ -281,7 +312,7 @@ class Conditions(object):
     @FWHMeff.setter
     def FWHMeff(self, indict):
         for key in indict:
-            self._FWHMeff[key] = hp.ud_grade(indict[key], nside_out=self.nside)
+            self._FWHMeff[key] = match_hp_resolution(indict[key], nside_out=self.nside)
         self._M5Depth = None
 
     @property

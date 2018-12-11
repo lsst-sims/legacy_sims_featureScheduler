@@ -79,6 +79,29 @@ def gnomonic_project_tosky(x, y, RAcen, Deccen):
     return RA, Dec
 
 
+def match_hp_resolution(in_map, nside_out, UNSEEN2nan=True):
+    """Utility to convert healpix map resolution if needed and change hp.UNSEEN values to
+    np.nan.
+
+    Parameters
+    ----------
+    in_map : np.array
+        A valie healpix map
+    nside_out : int
+        The desired resolution to convert in_map to
+    UNSEEN2nan : bool (True)
+        If True, convert any hp.UNSEEN values to np.nan
+    """
+    current_nside = hp.npix2nside(np.size(in_map))
+    if current_nside != nside_out:
+        out_map = hp.ud_grade(in_map, nside_out=nside_out)
+    else:
+        out_map = in_map
+    if UNSEEN2nan:
+        out_map[np.where(out_map == hp.UNSEEN)] = np.nan
+    return out_map
+
+
 def raster_sort(x0, order=['x', 'y'], xbin=1.):
     """XXXX--depriciated, use tsp instead.
 
@@ -869,7 +892,6 @@ def run_info_table(observatory):
     except:
         pass
     return result
-
 
 
 def observations2sqlite(observations, filename='observations.db', delete_past=False, info=None):

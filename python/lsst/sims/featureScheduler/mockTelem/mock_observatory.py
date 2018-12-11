@@ -421,8 +421,6 @@ class Mock_observatory(object):
 
         Returns
         -------
-        status : bool
-            Result of if the observation worked
         observation : observation object
             None if there was no observation taken. Completed observation with meta data filled in.
         new_night : bool
@@ -482,4 +480,4 @@ class Mock_observatory(object):
             else:
                 new_night = True
 
-        return observation_worked, result, new_night
+        return result, new_night

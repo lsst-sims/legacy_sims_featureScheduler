@@ -37,7 +37,7 @@ class Zenith_mask_basis_function(Base_basis_function):
 
 class Zenith_shadow_mask_basis_function(Base_basis_function):
     """Mask the zenith, and things that will soon pass near zenith. Useful for making sure
-    observations will be able to be too close to zenith when they need to be observed again (e.g. for a pair)
+    observations will not be too close to zenith when they need to be observed again (e.g. for a pair).
 
     Parameters
     ----------
@@ -161,7 +161,8 @@ class Bulk_cloud_basis_function(Base_basis_function):
 
 class Map_cloud_basis_function(Base_basis_function):
     """Mark healpixels on a map if their cloud values are greater than
-    the same healpixels on a maximum cloud map.
+    the same healpixels on a maximum cloud map. Currently a placeholder for
+    when the telemetry stream can include a full sky cloud map.
 
     Parameters
     ----------

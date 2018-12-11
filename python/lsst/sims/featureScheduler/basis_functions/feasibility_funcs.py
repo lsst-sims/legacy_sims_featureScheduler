@@ -41,13 +41,16 @@ class Time_to_twilight_basis_function(Base_basis_function):
     ----------
     time_needed : float (30.)
         The time needed to run a survey (mintues).
+    alt_limit : int (18)
+        The sun altitude limit to use. Must be 12 or 18
     """
-    def __init__(self, time_needed=30.):
+    def __init__(self, time_needed=30., alt_limit=18):
         super(Time_to_twilight_basis_function, self).__init__()
         self.time_needed = time_needed/60./24.  # To days
+        self.alt_limit = str(alt_limit)
 
     def check_feasibility(self, conditions):
-        available_time = conditions.sun_n18_rising - conditions.mjd
+        available_time = getattr(conditions, 'sun_n' + self.alt_limit + '_rising') - conditions.mjd
         result = available_time > self.time_needed
         return result
 
