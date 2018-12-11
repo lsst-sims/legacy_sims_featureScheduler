@@ -101,7 +101,7 @@ def generate_blobs(nside):
 
 if __name__ == "__main__":
     nside = 32
-    survey_length = 200. #365.25*10  # Days
+    survey_length = 365.25*10  # Days
     years = int(survey_length/365.25)
 
     greedy = gen_greedy_surveys(nside)
