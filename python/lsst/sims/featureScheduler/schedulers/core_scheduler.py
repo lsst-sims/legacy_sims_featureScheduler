@@ -142,7 +142,6 @@ class Core_scheduler(object):
         else:
             # If the queue has gone stale, flush and refill. Zero means no flush_by was set.
             if (self.conditions.mjd > self.queue[0]['flush_by_mjd']) & (self.queue[0]['flush_by_mjd'] != 0):
-                #self.log.warning('Expired observations in queue, flushing and refilling')
                 self.flushed += len(self.queue)
                 self.flush_queue()
                 self._fill_queue()
@@ -189,7 +188,7 @@ class Core_scheduler(object):
             self.survey_index[1] = np.min(np.where(rewards == np.nanmax(rewards)))
 
             # Survey return list of observations
-            result = self.survey_lists[self.survey_index[0]][self.survey_index[1]](self.conditions)
+            result = self.survey_lists[self.survey_index[0]][self.survey_index[1]].genrate_observations(self.conditions)
             self.queue = result
             self.queue_is_sequence = self.survey_lists[self.survey_index[0]][self.survey_index[1]].sequence
 

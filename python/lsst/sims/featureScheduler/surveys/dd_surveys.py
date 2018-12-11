@@ -108,7 +108,7 @@ class Deep_drilling_survey(BaseSurvey):
             result = self.reward_value
         return result
 
-    def __call__(self, conditions):
+    def genrate_observations(self, conditions):
         result = []
         if self._check_feasibility(conditions):
             result = copy.deepcopy(self.observations)

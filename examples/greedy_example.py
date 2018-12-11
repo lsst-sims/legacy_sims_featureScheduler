@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pylab as plt
 import healpy as hp
-from lsst.sims.featureScheduler.mockTelem import Mock_observatory
+from lsst.sims.featureScheduler.modelObservatory import Model_observatory
 from lsst.sims.featureScheduler.schedulers import Core_scheduler
 from lsst.sims.featureScheduler.utils import standard_goals, calc_norm_factor
 import lsst.sims.featureScheduler.basis_functions as bf
@@ -56,7 +56,7 @@ if __name__ == "__main__":
 
     n_visit_limit = None
     scheduler = Core_scheduler(surveys, nside=nside)
-    observatory = Mock_observatory(nside=nside)
+    observatory = Model_observatory(nside=nside)
     observatory, scheduler, observations = sim_runner(observatory, scheduler,
                                                       survey_length=survey_length,
                                                       filename='greedy_%i.db' % years,

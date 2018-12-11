@@ -147,7 +147,7 @@ class LastFilterChange(BaseSurveyFeature):
 
 class N_observations(BaseSurveyFeature):
     """
-    Track the number of observations that have been made accross the sky.
+    Track the number of observations that have been made across the sky.
 
     Parameters
     ----------

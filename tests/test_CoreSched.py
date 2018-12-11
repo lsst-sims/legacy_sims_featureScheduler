@@ -5,7 +5,7 @@ import lsst.sims.featureScheduler.basis_functions as basis_functions
 import lsst.sims.featureScheduler.surveys as surveys
 import lsst.utils.tests
 from lsst.sims.featureScheduler.utils import standard_goals
-from lsst.sims.featureScheduler.mockTelem import Mock_observatory
+from lsst.sims.featureScheduler.modelObservatory import Model_observatory
 
 
 class TestCoreSched(unittest.TestCase):
@@ -20,7 +20,7 @@ class TestCoreSched(unittest.TestCase):
         survey = surveys.Greedy_survey(bfs, weights)
         scheduler = Core_scheduler([survey])
 
-        observatory = Mock_observatory()
+        observatory = Model_observatory()
 
         # Check that we can update conditions
         scheduler.update_conditions(observatory.return_conditions())

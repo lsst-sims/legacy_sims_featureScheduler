@@ -8,7 +8,7 @@ from lsst.sims.featureScheduler.schedulers import Core_scheduler
 import lsst.utils.tests
 import healpy as hp
 from lsst.sims.featureScheduler import sim_runner
-from lsst.sims.featureScheduler.mockTelem import Mock_observatory
+from lsst.sims.featureScheduler.modelObservatory import Model_observatory
 
 
 def gen_greedy_surveys(nside):
@@ -110,7 +110,7 @@ class TestFeatures(unittest.TestCase):
         surveys.extend(dd_surveys)
 
         scheduler = Core_scheduler(surveys, nside=nside)
-        observatory = Mock_observatory(nside=nside)
+        observatory = Model_observatory(nside=nside)
         observatory, scheduler, observations = sim_runner(observatory, scheduler,
                                                           survey_length=survey_length,
                                                           filename=None)
@@ -144,7 +144,7 @@ class TestFeatures(unittest.TestCase):
         surveys.append(gen_greedy_surveys(nside))
 
         scheduler = Core_scheduler(surveys, nside=nside)
-        observatory = Mock_observatory(nside=nside)
+        observatory = Model_observatory(nside=nside)
         observatory, scheduler, observations = sim_runner(observatory, scheduler,
                                                           survey_length=survey_length,
                                                           filename=None)

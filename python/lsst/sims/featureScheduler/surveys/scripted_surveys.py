@@ -50,7 +50,9 @@ class Scripted_survey(BaseSurvey):
             time_matches = np.where((np.abs(dt) < self.mjd_tol) & (~self.obs_log))[0]
             for match in time_matches:
                 # Might need to change this to an angular distance calc and add another tolerance?
-                if (self.obs_wanted[match]['RA'] == observation['RA']) & (self.obs_wanted[match]['dec'] == observation['dec']) & (self.obs_wanted[match]['filter'] == observation['filter']):
+                if (self.obs_wanted[match]['RA'] == observation['RA']) & \
+                   (self.obs_wanted[match]['dec'] == observation['dec']) & \
+                   (self.obs_wanted[match]['filter'] == observation['filter']):
                     self.obs_log[match] = True
                     break
 
@@ -131,7 +133,7 @@ class Scripted_survey(BaseSurvey):
         # XXX-note, there's currently nothing that flushes this, so adding
         # observations can pile up nonstop. Should prob flush nightly or something
 
-    def __call__(self, conditions):
+    def genrate_observations(self, conditions):
         observation = self._check_list(conditions)
         return [observation]
 
@@ -314,7 +316,7 @@ class Pairs_survey_scripted(Scripted_survey):
                 in_slew_window,
                 is_observable)
 
-    def __call__(self, conditions):
+    def genrate_observations(self, conditions):
         # Toss anything in the queue that is too old to pair up:
         self._purge_queue(conditions)
         # Check for something I want a pair of

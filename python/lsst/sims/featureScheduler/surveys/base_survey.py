@@ -88,7 +88,7 @@ class BaseSurvey(object):
         self.reward_checked = True
         return self.reward
 
-    def __call__(self, conditions):
+    def genrate_observations(self, conditions):
         """
         Returns
         -------
@@ -260,7 +260,7 @@ class BaseMarkovDF_survey(BaseSurvey):
         else:
             return self.reward
 
-    def __call__(self, conditions):
+    def genrate_observations(self, conditions):
 
         self.reward = self.calc_reward_function(conditions)
 

@@ -17,7 +17,7 @@ import warnings
 import matplotlib.pylab as plt
 
 
-__all__ = ['Mock_observatory']
+__all__ = ['Model_observatory']
 
 
 class ExtendedObservatoryModel(ObservatoryModel):
@@ -135,7 +135,7 @@ class dummy_time_handler(object):
             return (datetime2 - datetime1).total_seconds()
 
 
-class Mock_observatory(object):
+class Model_observatory(object):
     """A class to generate a realistic telemetry stream for the scheduler
     """
 
