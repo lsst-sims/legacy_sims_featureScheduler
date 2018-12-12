@@ -1,13 +1,14 @@
 import numpy as np
 import unittest
-import lsst.sims.featureScheduler as fs
+import lsst.sims.featureScheduler.features as features
+from lsst.sims.featureScheduler.utils import empty_observation
 import lsst.utils.tests
 
 
 class TestFeatures(unittest.TestCase):
 
     def testPair_in_night(self):
-        pin = fs.Pair_in_night(gap_min=25., gap_max=45.)
+        pin = features.Pair_in_night(gap_min=25., gap_max=45.)
         self.assertEqual(np.max(pin.feature), 0.)
 
         indx = np.array([1000])
@@ -15,7 +16,7 @@ class TestFeatures(unittest.TestCase):
         delta = 30./60./24.
 
         # Add 1st observation, feature should still be zero
-        obs = fs.empty_observation()
+        obs = empty_observation()
         obs['filter'] = 'r'
         obs['mjd'] = 59000.
         pin.add_observation(obs, indx=indx)
@@ -29,8 +30,6 @@ class TestFeatures(unittest.TestCase):
         obs['mjd'] += delta
         pin.add_observation(obs, indx=indx)
         self.assertEqual(np.max(pin.feature), 2.)
-
-        # XXX--test that it clears if a new night rolls over
 
 
 class TestMemory(lsst.utils.tests.MemoryTestCase):

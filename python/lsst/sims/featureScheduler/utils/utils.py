@@ -1,6 +1,3 @@
-from __future__ import print_function
-from builtins import zip
-from builtins import object
 import numpy as np
 import healpy as hp
 import pandas as pd
@@ -11,23 +8,15 @@ from astropy.coordinates import SkyCoord
 from astropy import units as u
 import os
 import sys
-from lsst.utils import getPackageDir
 import sqlite3 as db
 import matplotlib.pylab as plt
 import time
 import datetime
-from . import version
+from lsst.sims.featureScheduler import version
 import warnings
+from lsst.sims.survey.fields import FieldsDatabase
 
 log = logging.getLogger(__name__)
-
-_load_local_fieldlist = False
-try:
-    from lsst.ts.scheduler.fields import FieldsDatabase
-except ImportError as err:
-    warnings.warn('''Could not import ts.scheduler. This is required to load the FieldsDatabase. In this case
-it will fallback to loading fields from the local "fieldID.lis" file.''')
-    _load_local_fieldlist = True
 
 
 def set_default_nside(nside=None):
@@ -43,44 +32,11 @@ def set_default_nside(nside=None):
     """
     if not hasattr(set_default_nside, 'nside'):
         if nside is None:
-            nside = 64
+            nside = 32
         set_default_nside.nside = nside
     if nside is not None:
         set_default_nside.nside = nside
     return set_default_nside.nside
-
-
-def haversine(long1, lat1, long2, lat2):
-    """sims.utils turned off numpy broadcasting for some reason?
-    """
-    t1 = np.sin(lat2/2.0 - lat1/2.0)**2
-    t2 = np.cos(lat1)*np.cos(lat2)*np.sin(long2/2.0 - long1/2.0)**2
-    _sum = t1 + t2
-    _sum = np.where(_sum < 0.0, 0.0, _sum)
-
-    return 2.0*np.arcsin(np.sqrt(_sum))
-
-
-def sum_reject(inarr, reject_val=hp.UNSEEN):
-    """
-    compute the sum of an array but retrun -inf if reject_val present
-    """
-    if reject_val in inarr:
-        return -np.inf
-
-    else:
-        return np.sum(inarr)
-
-
-def max_reject(inarr, reject_val=hp.UNSEEN):
-    """
-    compute the max of an array but retrun -inf if reject_val present
-    """
-    if reject_val in inarr:
-        return -np.inf
-
-    else:
-        return np.max(inarr)
 
 
 def int_binned_stat(ids, values, statistic=np.mean):
@@ -104,7 +60,6 @@ def int_binned_stat(ids, values, statistic=np.mean):
     return uids, np.array(stat_results)
 
 
-
 def gnomonic_project_toxy(RA1, Dec1, RAcen, Deccen):
     """Calculate x/y projection of RA1/Dec1 in system with center at RAcen, Deccen.
     Input radians. Grabbed from sims_selfcal"""
@@ -122,6 +77,29 @@ def gnomonic_project_tosky(x, y, RAcen, Deccen):
     RA = RAcen + np.arctan2(x, denom)
     Dec = np.arctan2(np.sin(Deccen) + y * np.cos(Deccen), np.sqrt(x*x + denom*denom))
     return RA, Dec
+
+
+def match_hp_resolution(in_map, nside_out, UNSEEN2nan=True):
+    """Utility to convert healpix map resolution if needed and change hp.UNSEEN values to
+    np.nan.
+
+    Parameters
+    ----------
+    in_map : np.array
+        A valie healpix map
+    nside_out : int
+        The desired resolution to convert in_map to
+    UNSEEN2nan : bool (True)
+        If True, convert any hp.UNSEEN values to np.nan
+    """
+    current_nside = hp.npix2nside(np.size(in_map))
+    if current_nside != nside_out:
+        out_map = hp.ud_grade(in_map, nside_out=nside_out)
+    else:
+        out_map = in_map
+    if UNSEEN2nan:
+        out_map[np.where(out_map == hp.UNSEEN)] = np.nan
+    return out_map
 
 
 def raster_sort(x0, order=['x', 'y'], xbin=1.):
@@ -169,6 +147,76 @@ def raster_sort(x0, order=['x', 'y'], xbin=1.):
         return order1
 
 
+class schema_converter(object):
+    """
+    Record how to convert an observation array to the standard opsim schema
+    """
+    def __init__(self):
+        # Conversion dictionary, keys are opsim schema, values are observation dtype names
+        self.convert_dict = {'observationId': 'ID', 'night': 'night',
+                            'observationStartMJD': 'mjd',
+                            'observationStartLST': 'lmst', 'numExposures': 'nexp',
+                            'visitTime': 'visittime', 'visitExposureTime': 'exptime',
+                            'proposalId': 'survey_id', 'fieldId': 'field_id',
+                            'fieldRA': 'RA', 'fieldDec': 'dec', 'altitude': 'alt', 'azimuth': 'az',
+                            'filter': 'filter', 'airmass': 'airmass', 'skyBrightness': 'skybrightness',
+                            'cloud': 'clouds', 'seeingFwhm500': 'FWHM_500',
+                            'seeingFwhmGeom': 'FWHM_geometric', 'seeingFwhmEff': 'FWHMeff',
+                            'fiveSigmaDepth': 'fivesigmadepth', 'slewTime': 'slewtime',
+                            'slewDistance': 'slewdist', 'paraAngle': 'pa', 'rotTelPos': 'rotTelPos',
+                            'rotSkyPos': 'rotSkyPos', 'moonRA': 'moonRA',
+                            'moonDec': 'moonDec', 'moonAlt': 'moonAlt', 'moonAz': 'moonAz',
+                            'moonDistance': 'moonDist', 'moonPhase': 'moonPhase',
+                            'sunAlt': 'sunAlt', 'sunAz': 'sunAz', 'solarElong': 'solarElong'}
+        # Column(s) not bothering to remap:  'observationStartTime': None,
+        self.inv_map = {v: k for k, v in self.convert_dict.items()}
+        # angles to converts
+        self.angles_rad2deg = ['fieldRA', 'fieldDec', 'altitude', 'azimuth', 'slewDistance',
+                               'paraAngle', 'rotTelPos', 'rotSkyPos', 'moonRA', 'moonDec',
+                               'moonAlt', 'moonAz', 'moonDistance', 'sunAlt', 'sunAz', 'solarElong']
+
+    def obs2opsim(self, obs_array, filename=None, info=None, delete_past=False):
+        """convert an array of observations into a pandas dataframe with Opsim schema
+        """
+        if delete_past:
+            try:
+                os.remove(filename)
+            except OSError:
+                pass
+
+        df = pd.DataFrame(obs_array)
+        df = df.rename(index=str, columns=self.inv_map)
+        for colname in self.angles_rad2deg:
+            df[colname] = np.degrees(df[colname])
+
+        if filename is not None:
+            con = db.connect(filename)
+            df.to_sql('SummaryAllProps', con, index=False)
+            if info is not None:
+                df = pd.DataFrame(info)
+                df.to_sql('info', con)
+
+    def opsim2obs(self, filename):
+        """convert an opsim schema datarfame into an observation array.
+        """
+
+        con = db.connect(filename)
+        df = pd.read_sql('select * from SummaryAllProps;', con)
+        for key in self.angles_rad2deg:
+            df[key] = np.radians(df[key])
+
+        df = df.rename(index=str, columns=self.convert_dict)
+
+        blank = empty_observation()
+        final_result = np.empty(df.shape[0], dtype=blank.dtype)
+        # XXX-ugh, there has to be a better way.
+        for i, key in enumerate(df.columns):
+            if key in self.inv_map.keys():
+                final_result[key] = df[key].values
+
+        return final_result
+
+
 def empty_observation():
     """
     Return a numpy array that could be a handy observation record
@@ -213,13 +261,25 @@ def empty_observation():
         field. (mag/sq arcsec)
     night : int
         The night number of the observation (days)
+    flush_by_mjd : float
+        If we hit this MJD, we should flush the queue and refill it.
     """
-    names = ['RA', 'dec', 'mjd', 'exptime', 'filter', 'rotSkyPos', 'nexp',
-             'airmass', 'FWHMeff', 'FWHM_geometric', 'skybrightness', 'night', 'slewtime', 'fivesigmadepth',
-             'alt', 'az', 'clouds', 'moonAlt', 'sunAlt', 'note', 'field_id', 'survey_id', 'block_id']
-    # units of rad, rad,   days,  seconds,   string, radians (E of N?)
-    types = [float, float, float, float, '|U1', float, int, float, float, float, float, int, float, float,
-             float, float, float, float, float, '|U40', int, int, int]
+
+    names = ['ID', 'RA', 'dec', 'mjd', 'flush_by_mjd', 'exptime', 'filter', 'rotSkyPos', 'nexp',
+             'airmass', 'FWHM_500', 'FWHMeff', 'FWHM_geometric', 'skybrightness', 'night',
+             'slewtime', 'visittime', 'slewdist', 'fivesigmadepth',
+             'alt', 'az', 'pa', 'clouds', 'moonAlt', 'sunAlt', 'note',
+             'field_id', 'survey_id', 'block_id',
+             'lmst', 'rotTelPos', 'moonAz', 'sunAz', 'sunRA', 'sunDec', 'moonRA', 'moonDec',
+             'moonDist', 'solarElong', 'moonPhase']
+
+    types = [int, float, float, float, float, float, 'U1', float, int,
+             float, float, float, float, float, int,
+             float, float, float, float,
+             float, float, float, float, float, float, 'U40',
+             int, int, int,
+             float, float, float, float, float, float, float, float,
+             float, float, float]
     result = np.zeros(1, dtype=list(zip(names, types)))
     return result
 
@@ -280,48 +340,19 @@ def read_fields():
     numpy.array
         With RA and dec in radians.
     """
-    if _load_local_fieldlist:
-        return read_fields_from_localfile()
-    else:
-        return read_fields_from_tscheduler()
+    query = 'select fieldId, fieldRA, fieldDEC from Field;'
+    fd = FieldsDatabase()
+    fields = np.array(list(fd.get_field_set(query)))
+    # order by field ID
+    fields = fields[fields[:,0].argsort()]
 
-
-def read_fields_from_localfile():
     names = ['RA', 'dec']
     types = [float, float]
-    data_dir = os.path.join(getPackageDir('sims_featureScheduler'), 'python/lsst/sims/featureScheduler/')
-    filepath = os.path.join(data_dir, 'fieldID.lis')
-    field_coords = np.loadtxt(filepath, dtype=list(zip(names, types)))
+    result = np.zeros(np.size(fields[:, 1]), dtype=list(zip(names, types)))
+    result['RA'] = np.radians(fields[:, 1])
+    result['dec'] = np.radians(fields[:, 2])
 
-    field_names = ['field_id', 'fov_rad', 'RA', 'dec', 'gl', 'gb', 'el', 'eb', 'tag']
-    field_types = [int, float, float, float, float, float, float, float, int]
-    fields = np.zeros(len(field_coords['RA']), dtype=list(zip(field_names, field_types)))
-
-    fields['RA'] = np.radians(field_coords['RA'])
-    fields['dec'] = np.radians(field_coords['dec'])
-
-    return fields
-
-
-def read_fields_from_tscheduler():
-    sql = "select * from Field"
-    db = FieldsDatabase()
-    res = db.query(sql)
-    names = ['field_id', 'fov_rad', 'RA', 'dec', 'gl', 'gb', 'el', 'eb', 'tag']
-    types = [int, float, float, float, float, float, float, float, int]
-    fields = np.zeros(len(res), dtype=list(zip(names, types)))
-
-    for i, row in enumerate(res):
-        fields['field_id'][i] = row[0]
-        fields['fov_rad'][i] = row[1]
-        fields['RA'][i] = np.radians(row[2])
-        fields['dec'][i] = np.radians(row[3])
-        fields['gl'][i] = row[4]
-        fields['gb'][i] = row[5]
-        fields['el'][i] = row[6]
-        fields['eb'][i] = row[7]
-
-    return fields
+    return result
 
 
 def hp_kd_tree(nside=None, leafsize=100):
@@ -847,7 +878,7 @@ def run_info_table(observatory):
     Make a little table for recording the information of a run
     """
     names = ['time', 'datetime', 'ymd', 'version', 'fingerprint', 'observatory_class', 'obs_finger']
-    types = [float, '|U20', '|U20', '|U20', '|U50', '|U20', '|U50']
+    types = [float, '', 'U20', '', 'U20', '', 'U20', '', 'U50', '', 'U20', '', 'U50']
     result = np.zeros(1, dtype=list(zip(names, types)))
     result['time'] = np.float(time.time())
     now = datetime.datetime.now()
@@ -861,83 +892,6 @@ def run_info_table(observatory):
     except:
         pass
     return result
-
-
-def sim_runner(observatory, scheduler, mjd_start=None, survey_length=3.,
-               filename=None, delete_past=True, n_visit_limit=None, step_none=15.):
-    """
-    run a simulation
-
-    Parameters
-    ----------
-    survey_length : float (3.)
-        The length of the survey ot run (days)
-    step_none : float (15)
-        The amount of time to advance if the scheduler fails to return a target (minutes).
-    """
-
-    if mjd_start is None:
-        mjd = observatory.mjd
-        mjd_start = mjd + 0
-    else:
-        observatory.mjd = mjd
-        observatory.ra = None
-        observatory.dec = None
-        observatory.status = None
-        observatory.filtername = None
-
-    end_mjd = mjd + survey_length
-    scheduler.update_conditions(observatory.return_status())
-    observations = []
-    mjd_track = mjd + 0
-    step = 1./24.
-    step_none = step_none/60./24.  # to days
-    mjd_run = end_mjd-mjd_start
-    nskip = 0
-
-    while mjd < end_mjd:
-        desired_obs = scheduler.request_observation()
-        if desired_obs is None:
-            # No observation. Just step into the future and try again.
-            warnings.warn('No observation. Step into the future and trying again.')
-            observatory.set_mjd(observatory.mjd + step_none)
-            scheduler.update_conditions(observatory.return_status())
-            nskip += 1
-            continue
-
-        attempted_obs = observatory.attempt_observe(desired_obs)
-        if attempted_obs is not None:
-            scheduler.add_observation(attempted_obs[0])
-            observations.append(attempted_obs)
-        else:
-            scheduler.flush_queue()
-        scheduler.update_conditions(observatory.return_status())
-        mjd = observatory.mjd
-        if (mjd-mjd_track) > step:
-            progress = float(mjd-mjd_start)/mjd_run*100
-            text = "\rprogress = %.1f%%" % progress
-            sys.stdout.write(text)
-            sys.stdout.flush()
-            mjd_track = mjd+0
-        if n_visit_limit is not None:
-            if len(observations) == n_visit_limit:
-                break
-        # XXX--handy place to interupt and debug
-        # if len(observations) > 3:
-        #    import pdb ; pdb.set_trace()
-
-    print('Skipped %i observations' % nskip)
-    print('Completed %i observations' % len(observations))
-    observations = np.array(observations)[:, 0]
-    if filename is not None:
-        # don't crash just because some info stuff failed.
-        try:
-            info = run_info_table(observatory)
-        except:
-            info = None
-            warnings.warn('Failed to get info about run, may need to run scons in some pacakges.')
-        observations2sqlite(observations, filename=filename, delete_past=delete_past, info=info)
-    return observatory, scheduler, observations
 
 
 def observations2sqlite(observations, filename='observations.db', delete_past=False, info=None):
@@ -963,8 +917,6 @@ def observations2sqlite(observations, filename='observations.db', delete_past=Fa
         any added columns
     """
 
-    # XXX--Here is a good place to add any missing columns, e.g., alt,az
-
     if delete_past:
         try:
             os.remove(filename)
@@ -988,7 +940,7 @@ def observations2sqlite(observations, filename='observations.db', delete_past=Fa
 
 def sqlite2observations(filename='observations.db'):
     """
-    Restore a databse of observations.
+    Restore a database of observations.
     """
     con = db.connect(filename)
     df = pd.read_sql('select * from observations;', con)
