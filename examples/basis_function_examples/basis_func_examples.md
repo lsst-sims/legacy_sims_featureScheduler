@@ -23,5 +23,5 @@ The notebook xxx-path runs a serries of simulated surveys where the weight on ea
 | | Baseline  | Slewtime | m5  | Target Map  | 
 |-- | :--------:  | :-------: | :----: | :------: |
 | N obs| 24,611 |  25,012 | 24,010 | 23,106  |
-|Alt-az | <img src="./1filter/default/thumb.default_Count_observationStartMJD_HEAL_SkyMap.png", width=150> | 
-|RA,Dec |  <img src="./1filter/default/thumb.default_Count_observationStartMJD_r_HEAL_SkyMap.png", width=150>| 
+|Alt-az | <img src="1filter/default/thumb.default_Count_observationStartMJD_HEAL_SkyMap.png" width="150" /> | 
+|RA,Dec |  <img src="1filter/default/thumb.default_Count_observationStartMJD_r_HEAL_SkyMap.png" width="150" />| 
