@@ -1,8 +1,8 @@
-
+# Basis Functions
 
 The feature-based scheduler uses a modified Markov Decision Process to select where the best spot on the sky to observe would be. In these sub directories, we run a few simplified surveys to illustrate how they effect the decision process.
 
-There are three basis functions that we tend to always use.
+There are three basis functions that we tend to use.
 
 1. The `M5_diff_basis_function` combines the current skybrightness, seeing, and airmass all-sky maps to compute the 5-sigma depth at every point in the sky. It then computes the difference between the current 5-sigma map and an all-sky map that has the expected "best" 5-sigma depth a healpixel would reach. This can be thought of as computing how large a penalty one incurrs by observing any particular point in the sky. This basis function helps ensure reasonable filter choices are made, the penalty for observing in bright time is much lower in red filters than in blue filters.
 
@@ -17,7 +17,7 @@ The final reward map is a linear combination of the above basis functions. The f
 
 ## Single Filter
 
-The notebook xxx-path runs a serries of simulated surveys where the weight on each basis function is increased
+The 1filter example notebook runs a serries of simulated surveys where the weight on each basis function is increased. 
 
 | | Baseline  | Slewtime | m5  | Target Map  | 
 |-- | :--------:  | :-------: | :----: | :------: |
@@ -38,11 +38,14 @@ The Baseline column shows the results of manually balancing the weights of the b
 
 We can see what happens if we attempt to observe with 2 filters. Now the `Strict_filter_basis_function` becomes relevant, and the final column shows what happens if we give no weight to restricting filter changes.
 
-| | Baseline  | Slewtime | m5  | Target Map  | Filter Change |
+| | Baseline  | Slewtime | m5  | Target Map  | Filter Change (removed) |
 |-- | :--------:  | :-------: | :----: | :------: | :------: |
-| N obs| 24,621 |  24,960 | 24,059 | 23,206  | 24,621 |
+| N obs| 24,621 |  24,960 | 24,059 | 23,206  | 24,003 |
 |Alt-az | <img src="2filter/default/thumb.default_Count_observationStartMJD_HEAL_SkyMap.png" width="200" /> |  <img src="2filter/HeavySlew/thumb.HeavySlew_Count_observationStartMJD_HEAL_SkyMap.png" width="200" /> | <img src="2filter/HeavyM5/thumb.HeavyM5_Count_observationStartMJD_HEAL_SkyMap.png" width="200" /> | <img src="2filter/HeavyUniform/thumb.HeavyUniform_Count_observationStartMJD_HEAL_SkyMap.png" width="200" /> | <img src="2filter/LightFilterChange/thumb.LightFilterChange_Count_observationStartMJD_HEAL_SkyMap.png" width="200" /> | 
 |RA,Dec g |  <img src="2filter/default/thumb.default_Count_observationStartMJD_g_HEAL_SkyMap.png" width="200" />|  <img src="2filter/HeavySlew/thumb.HeavySlew_Count_observationStartMJD_g_HEAL_SkyMap.png" width="200" />|  <img src="2filter/HeavyM5/thumb.HeavyM5_Count_observationStartMJD_g_HEAL_SkyMap.png" width="200" />|  <img src="2filter/HeavyUniform/thumb.HeavyUniform_Count_observationStartMJD_g_HEAL_SkyMap.png" width="200" />| <img src="2filter/LightFilterChange/thumb.LightFilterChange_Count_observationStartMJD_g_HEAL_SkyMap.png" width="200" />| 
 |RA,Dec z |  <img src="2filter/default/thumb.default_Count_observationStartMJD_z_HEAL_SkyMap.png" width="200" />|  <img src="2filter/HeavySlew/thumb.HeavySlew_Count_observationStartMJD_z_HEAL_SkyMap.png" width="200" />|  <img src="2filter/HeavyM5/thumb.HeavyM5_Count_observationStartMJD_z_HEAL_SkyMap.png" width="200" />|  <img src="2filter/HeavyUniform/thumb.HeavyUniform_Count_observationStartMJD_z_HEAL_SkyMap.png" width="200" />| <img src="2filter/LightFilterChange/thumb.LightFilterChange_Count_observationStartMJD_z_HEAL_SkyMap.png" width="200" />| 
 Hourglass | <img src="2filter/default/thumb.default_Hourglass_HOUR_Hourglass.png" width="200" />|  <img src="2filter/HeavySlew/thumb.HeavySlew_Hourglass_HOUR_Hourglass.png" width="200" />|  <img src="2filter/HeavyM5/thumb.HeavyM5_Hourglass_HOUR_Hourglass.png" width="200" />|  <img src="2filter/HeavyUniform/thumb.HeavyUniform_Hourglass_HOUR_Hourglass.png" width="200" />| <img src="2filter/LightFilterChange/thumb.LightFilterChange_Hourglass_HOUR_Hourglass.png" width="200" />| 
+
+Many of the behaviors we saw in the one-fitler example still apply here. Now, putting a large emphasis on survey uniformity causes numerous filter changes that lowers the overall efficeincy. Removing the weight on the basis function that supresses filter changes results in several periods of filter thrashing. Thus the Filter Change plots look similar to the Baseline, but the total number of observations is lower due to the lost time changing filters.
+
 
