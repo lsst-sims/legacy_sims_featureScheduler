@@ -26,3 +26,23 @@ The notebook xxx-path runs a serries of simulated surveys where the weight on ea
 |RA,Dec |  <img src="1filter/default/thumb.default_Count_observationStartMJD_r_HEAL_SkyMap.png" width="200" />|  <img src="1filter/HeavySlew/thumb.HeavySlew_Count_observationStartMJD_r_HEAL_SkyMap.png" width="200" />|  <img src="1filter/HeavyM5/thumb.HeavyM5_Count_observationStartMJD_r_HEAL_SkyMap.png" width="200" />|  <img src="1filter/HeavyUniform/thumb.HeavyUniform_Count_observationStartMJD_r_HEAL_SkyMap.png" width="200" />| 
 
 Hopefully it is clear that if any one basis function is set to dominate, the resulting survey has some undesireable features. 
+
+* When the slewtime dominates, the number of observations is maximized, but part of the galactic plane has been very over-observed (the moon masked a large part of the sky, and the algorithm refused to make a large slew around it).
+* When the 5-sigma depth dominates, observations are taken very close to the meridian (that's good), but 
+* When the target map dominates, the scheduler falls to the airmass limit to try and observe areas that have not yet been observed. But the resulting RA,Dec map is very smooth and a good match to the desired ratio of observations in the different regions.
+
+The Baseline column shows the results of manually balancing the weights of the basis functions to try and find a balance.
+
+
+## Two filters
+
+We can see what happens if we attempt to observe with 2 filters. Now the `Strict_filter_basis_function` becomes relevant, and the final column shows what happens if we give no weight to restricting filter changes.
+
+| | Baseline  | Slewtime | m5  | Target Map  | Filter Change |
+|-- | :--------:  | :-------: | :----: | :------: | :------: |
+| N obs| 24,621 |  24,960 | 24,059 | 23,206  | 24,621 |
+|Alt-az | <img src="2filter/default/thumb.default_Count_observationStartMJD_HEAL_SkyMap.png" width="200" /> |  <img src="2filter/HeavySlew/thumb.HeavySlew_Count_observationStartMJD_HEAL_SkyMap.png" width="200" /> | <img src="2filter/HeavyM5/thumb.HeavyM5_Count_observationStartMJD_HEAL_SkyMap.png" width="200" /> | <img src="2filter/HeavyUniform/thumb.HeavyUniform_Count_observationStartMJD_HEAL_SkyMap.png" width="200" /> | <img src="2filter/LightFilterChange/thumb.LightFilterChange_Count_observationStartMJD_HEAL_SkyMap.png" width="200" /> | 
+|RA,Dec g |  <img src="2filter/default/thumb.default_Count_observationStartMJD_g_HEAL_SkyMap.png" width="200" />|  <img src="2filter/HeavySlew/thumb.HeavySlew_Count_observationStartMJD_g_HEAL_SkyMap.png" width="200" />|  <img src="2filter/HeavyM5/thumb.HeavyM5_Count_observationStartMJD_g_HEAL_SkyMap.png" width="200" />|  <img src="2filter/HeavyUniform/thumb.HeavyUniform_Count_observationStartMJD_g_HEAL_SkyMap.png" width="200" />| <img src="2filter/LightFilterChange/thumb.LightFilterChange_Count_observationStartMJD_g_HEAL_SkyMap.png" width="200" />| 
+|RA,Dec z |  <img src="2filter/default/thumb.default_Count_observationStartMJD_z_HEAL_SkyMap.png" width="200" />|  <img src="2filter/HeavySlew/thumb.HeavySlew_Count_observationStartMJD_z_HEAL_SkyMap.png" width="200" />|  <img src="2filter/HeavyM5/thumb.HeavyM5_Count_observationStartMJD_z_HEAL_SkyMap.png" width="200" />|  <img src="2filter/HeavyUniform/thumb.HeavyUniform_Count_observationStartMJD_z_HEAL_SkyMap.png" width="200" />| <img src="2filter/LightFilterChange/thumb.LightFilterChange_Count_observationStartMJD_z_HEAL_SkyMap.png" width="200" />| 
+Hourglass | <img src="2filter/default/thumb.default_Hourglass_HOUR_Hourglass.png" width="200" />|  <img src="2filter/HeavySlew/thumb.HeavySlew_Hourglass_HOUR_Hourglass.png" width="200" />|  <img src="2filter/HeavyM5/thumb.HeavyM5_Hourglass_HOUR_Hourglass.png" width="200" />|  <img src="2filter/HeavyUniform/thumb.HeavyUniform_Hourglass_HOUR_Hourglass.png" width="200" />| <img src="2filter/LightFilterChange/thumb.LightFilterChange_Hourglass_HOUR_Hourglass.png" width="200" />| 
+
