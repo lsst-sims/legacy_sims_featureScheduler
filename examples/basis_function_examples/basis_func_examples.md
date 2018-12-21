@@ -16,12 +16,14 @@ The final reward map is a linear combination of the above basis functions. The f
 
 
 ## Single Filter
-----------------
 
 The notebook xxx-path runs a serries of simulated surveys where the weight on each basis function is increased
 
 | | Baseline  | Slewtime | m5  | Target Map  | 
 |-- | :--------:  | :-------: | :----: | :------: |
 | N obs| 24,611 |  25,012 | 24,010 | 23,106  |
-|Alt-az | <img src="1filter/default/thumb.default_Count_observationStartMJD_HEAL_SkyMap.png" width="150" /> | 
-|RA,Dec |  <img src="1filter/default/thumb.default_Count_observationStartMJD_r_HEAL_SkyMap.png" width="150" />| 
+|Alt-az | <img src="1filter/default/thumb.default_Count_observationStartMJD_HEAL_SkyMap.png" width="200" /> |  <img src="1filter/HeavySlew/thumb.default_Count_observationStartMJD_HEAL_SkyMap.png" width="200" /> | <img src="1filter/HeavyM5/thumb.default_Count_observationStartMJD_HEAL_SkyMap.png" width="200" /> | <img src="1filter/HeavyUniform/thumb.default_Count_observationStartMJD_HEAL_SkyMap.png" width="200" /> |
+
+|RA,Dec |  <img src="1filter/default/thumb.default_Count_observationStartMJD_r_HEAL_SkyMap.png" width="200" />|  <img src="1filter/HeavySlew/thumb.default_Count_observationStartMJD_r_HEAL_SkyMap.png" width="200" />|  <img src="1filter/HeavyM5/thumb.default_Count_observationStartMJD_r_HEAL_SkyMap.png" width="200" />|  <img src="1filter/HeavyUniform/thumb.default_Count_observationStartMJD_r_HEAL_SkyMap.png" width="200" />| 
+
+Hopefully it is clear that if any one basis function is set to dominate, the resulting survey has some undesireable features. 
