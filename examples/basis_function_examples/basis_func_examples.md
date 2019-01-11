@@ -12,14 +12,14 @@ There are three basis functions that we tend to use.
 
 Other basis functions used in these examples include `Strict_filter_basis_function` that rewards staying in the same filter (to prevent excessive filter changing), and some functions that mask the zenith and region around the moon.
 
-The final reward map is a linear combination of the above basis functions. The free parameters of the scheduler are the weights given to each basis function. The weights can be thought of as converting the different units of our observing desires to a common ground. The weights allow us to speciy that X magnitudes of lost depth is equal to observing a part of the sky that is Y observations behind. 
+The final reward map is a linear combination of the above basis functions. The free parameters of the scheduler are the weights given to each basis function. The weights can be thought of as converting the different units of our observing desires to a common ground. The weights allow us to specify that X magnitudes of lost depth is equal to observing a part of the sky that is Y observations behind. 
 
 
 ## Single Filter
 
 The 1filter example notebook runs a series of simulated surveys where the weight on each basis function is increased. 
 
-| | Baseline  | Slewtime | m5  | Target Map  | 
+| Dominant basis function| Baseline  | Slewtime | m5  | Target Map  | 
 |-- | :--------:  | :-------: | :----: | :------: |
 | N obs| 24,611 |  25,012 | 24,010 | 23,106  |
 |Alt-az | <img src="1filter/default/thumb.default_Count_observationStartMJD_HEAL_SkyMap.png" width="200" /> |  <img src="1filter/HeavySlew/thumb.HeavySlew_Count_observationStartMJD_HEAL_SkyMap.png" width="200" /> | <img src="1filter/HeavyM5/thumb.HeavyM5_Count_observationStartMJD_HEAL_SkyMap.png" width="200" /> | <img src="1filter/HeavyUniform/thumb.HeavyUniform_Count_observationStartMJD_HEAL_SkyMap.png" width="200" /> |
@@ -28,17 +28,17 @@ The 1filter example notebook runs a series of simulated surveys where the weight
 Hopefully it is clear that if any one basis function is set to dominate, the resulting survey has some undesirable features. 
 
 * When the slewtime dominates, the number of observations is maximized, but part of the galactic plane has been very over-observed (the moon masked a large part of the sky, and the algorithm refused to make a large slew around it).
-* When the 5-sigma depth dominates, observations are taken very close to the meridian (that's good), but 
-* When the target map dominates, the scheduler falls to the airmass limit to try and observe areas that have not yet been observed. But the resulting RA,Dec map is very smooth and a good match to the desired ratio of observations in the different regions.
+* When the 5-sigma depth dominates, observations are taken very close to the meridian (that's good), but there are fewer observations and a band of under-observed area that passes through zenith.
+* When the target map dominates, the scheduler falls to the airmass limit to try and observe areas that have not yet been observed. But the resulting RA,Dec map is very smooth and a good match to the desired ratio of observations in the different regions. 
 
-The Baseline column shows the results of manually balancing the weights of the basis functions to try and find a balance.
+The Baseline column shows the results of manually balancing the weights of the basis functions. The result is similar to the slewtime-dominated run, but with a slightly smoother spatial distribution of visits and only a small penalty in the total number of visits.
 
 
 ## Two filters
 
 We can see what happens if we attempt to observe with 2 filters. Now the `Strict_filter_basis_function` becomes relevant, and the final column shows what happens if we give no weight to restricting filter changes.
 
-| | Baseline  | Slewtime | m5  | Target Map  | Filter Change (removed) |
+| Dominant basis function | Baseline  | Slewtime | m5  | Target Map  | Filter Change (removed) |
 |-- | :--------:  | :-------: | :----: | :------: | :------: |
 | N obs| 24,621 |  24,960 | 24,059 | 23,206  | 24,003 |
 |Alt-az | <img src="2filter/default/thumb.default_Count_observationStartMJD_HEAL_SkyMap.png" width="200" /> |  <img src="2filter/HeavySlew/thumb.HeavySlew_Count_observationStartMJD_HEAL_SkyMap.png" width="200" /> | <img src="2filter/HeavyM5/thumb.HeavyM5_Count_observationStartMJD_HEAL_SkyMap.png" width="200" /> | <img src="2filter/HeavyUniform/thumb.HeavyUniform_Count_observationStartMJD_HEAL_SkyMap.png" width="200" /> | <img src="2filter/LightFilterChange/thumb.LightFilterChange_Count_observationStartMJD_HEAL_SkyMap.png" width="200" /> | 
