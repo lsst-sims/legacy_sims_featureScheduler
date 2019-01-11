@@ -4,7 +4,7 @@ The feature-based scheduler uses a modified Markov Decision Process to select wh
 
 There are three basis functions that we tend to use.
 
-1. The `M5_diff_basis_function` combines the current skybrightness, seeing, and airmass all-sky maps to compute the 5-sigma depth at every point in the sky. It then computes the difference between the current 5-sigma map and an all-sky map that has the expected "best" 5-sigma depth a healpixel would reach. This can be thought of as computing how large a penalty one incurrs by observing any particular point in the sky. This basis function helps ensure reasonable filter choices are made, the penalty for observing in bright time is much lower in red filters than in blue filters.
+1. The `M5_diff_basis_function` combines the current skybrightness, seeing, and airmass all-sky maps to compute the 5-sigma depth at every point in the sky. It then computes the difference between the current 5-sigma map and an all-sky map that has the expected "best" 5-sigma depth a healpixel would reach. This can be thought of as computing how large a penalty one incurs by observing any particular point in the sky. This basis function helps ensure reasonable filter choices are made, the penalty for observing in bright time is much lower in red filters than in blue filters.
 
 2. The `Target_map_basis_function` tracks the progress of the survey and compares it to the goal map. This basis function rewards areas that have been under-observed and penalizes those that have been over-observed.
 
@@ -17,7 +17,7 @@ The final reward map is a linear combination of the above basis functions. The f
 
 ## Single Filter
 
-The 1filter example notebook runs a serries of simulated surveys where the weight on each basis function is increased. 
+The 1filter example notebook runs a series of simulated surveys where the weight on each basis function is increased. 
 
 | | Baseline  | Slewtime | m5  | Target Map  | 
 |-- | :--------:  | :-------: | :----: | :------: |
@@ -25,7 +25,7 @@ The 1filter example notebook runs a serries of simulated surveys where the weigh
 |Alt-az | <img src="1filter/default/thumb.default_Count_observationStartMJD_HEAL_SkyMap.png" width="200" /> |  <img src="1filter/HeavySlew/thumb.HeavySlew_Count_observationStartMJD_HEAL_SkyMap.png" width="200" /> | <img src="1filter/HeavyM5/thumb.HeavyM5_Count_observationStartMJD_HEAL_SkyMap.png" width="200" /> | <img src="1filter/HeavyUniform/thumb.HeavyUniform_Count_observationStartMJD_HEAL_SkyMap.png" width="200" /> |
 |RA,Dec |  <img src="1filter/default/thumb.default_Count_observationStartMJD_r_HEAL_SkyMap.png" width="200" />|  <img src="1filter/HeavySlew/thumb.HeavySlew_Count_observationStartMJD_r_HEAL_SkyMap.png" width="200" />|  <img src="1filter/HeavyM5/thumb.HeavyM5_Count_observationStartMJD_r_HEAL_SkyMap.png" width="200" />|  <img src="1filter/HeavyUniform/thumb.HeavyUniform_Count_observationStartMJD_r_HEAL_SkyMap.png" width="200" />| 
 
-Hopefully it is clear that if any one basis function is set to dominate, the resulting survey has some undesireable features. 
+Hopefully it is clear that if any one basis function is set to dominate, the resulting survey has some undesirable features. 
 
 * When the slewtime dominates, the number of observations is maximized, but part of the galactic plane has been very over-observed (the moon masked a large part of the sky, and the algorithm refused to make a large slew around it).
 * When the 5-sigma depth dominates, observations are taken very close to the meridian (that's good), but 
@@ -46,6 +46,6 @@ We can see what happens if we attempt to observe with 2 filters. Now the `Strict
 |RA,Dec z |  <img src="2filter/default/thumb.default_Count_observationStartMJD_z_HEAL_SkyMap.png" width="200" />|  <img src="2filter/HeavySlew/thumb.HeavySlew_Count_observationStartMJD_z_HEAL_SkyMap.png" width="200" />|  <img src="2filter/HeavyM5/thumb.HeavyM5_Count_observationStartMJD_z_HEAL_SkyMap.png" width="200" />|  <img src="2filter/HeavyUniform/thumb.HeavyUniform_Count_observationStartMJD_z_HEAL_SkyMap.png" width="200" />| <img src="2filter/LightFilterChange/thumb.LightFilterChange_Count_observationStartMJD_z_HEAL_SkyMap.png" width="200" />| 
 Hourglass | <img src="2filter/default/thumb.default_Hourglass_HOUR_Hourglass.png" width="200" />|  <img src="2filter/HeavySlew/thumb.HeavySlew_Hourglass_HOUR_Hourglass.png" width="200" />|  <img src="2filter/HeavyM5/thumb.HeavyM5_Hourglass_HOUR_Hourglass.png" width="200" />|  <img src="2filter/HeavyUniform/thumb.HeavyUniform_Hourglass_HOUR_Hourglass.png" width="200" />| <img src="2filter/LightFilterChange/thumb.LightFilterChange_Hourglass_HOUR_Hourglass.png" width="200" />| 
 
-Many of the behaviors we saw in the one-fitler example still apply here. Now, putting a large emphasis on survey uniformity causes numerous filter changes that lowers the overall efficeincy. Removing the weight on the basis function that supresses filter changes results in several periods of filter thrashing. Thus the Filter Change plots look similar to the Baseline, but the total number of observations is lower due to the lost time changing filters.
+Many of the behaviors we saw in the one-filter example still apply here. Now, putting a large emphasis on survey uniformity causes numerous filter changes that lowers the overall efficiency. Removing the weight on the basis function that suppress filter changes results in several periods of filter thrashing. Thus the Filter Change plots look similar to the Baseline, but the total number of observations is lower due to the lost time changing filters.
 
 
