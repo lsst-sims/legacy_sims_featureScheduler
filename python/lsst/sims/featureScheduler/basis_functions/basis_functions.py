@@ -159,7 +159,7 @@ class Target_map_basis_function(Base_basis_function):
         -------
         Healpix reward map
         """
-        # Should probably update this to be as masked array.
+        
         result = self.result.copy()
         if indx is None:
             indx = self.all_indx
