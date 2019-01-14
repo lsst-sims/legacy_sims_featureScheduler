@@ -23,7 +23,8 @@ class Target_map_modulo_basis_function(Base_basis_function):
     nside: int (default_nside)
         The healpix resolution.
     target_maps : list of numpy array (None)
-        healpix maps showing the ratio of observations desired for all points on the sky
+        healpix maps showing the ratio of observations desired for all points on the sky. Last map will be used
+        for season -1. Probably shouldn't support going to season less than -1.
     norm_factor : float (0.00010519)
         for converting target map to number of observations. Should be the area of the camera
         divided by the area of a healpixel divided by the sum of all your goal maps. Default
@@ -33,7 +34,7 @@ class Target_map_modulo_basis_function(Base_basis_function):
     out_of_bounds_val : float (-10.)
         Reward value to give regions where there are no observations requested (unitless).
     season_modulo : int (2)
-        The value to modulate the season by (years). 
+        The value to modulate the season by (years).
 
     """
     def __init__(self, day_offset=None, filtername='r', nside=None, target_maps=None,
@@ -51,14 +52,18 @@ class Target_map_modulo_basis_function(Base_basis_function):
         # Map of the number of observations in filter
 
         # XXX--need to convert these features to track by season.
-        self.survey_features['N_obs'] = features.N_observations(filtername=filtername, nside=self.nside)
-        # Count of all the observations
-        self.survey_features['N_obs_count_all'] = features.N_obs_count(filtername=None)
+        for i, temp in enumerate(target_maps):
+            self.survey_features['N_obs_%i' % i] = features.N_observations_season(i, filtername=filtername, nside=self.nside,
+                                                                                  modulo=season_modulo, offset=day_offset)
+            # Count of all the observations taken in a season
+            self.survey_features['N_obs_count_all_%i' % i] = features.N_obs_count_season(i, filtername=None,
+                                                                                         season_modulo=season_modulo)
         if target_maps is None:
-            self.target_map = utils.generate_goal_map(filtername=filtername, nside=self.nside)
+            self.target_maps = utils.generate_goal_map(filtername=filtername, nside=self.nside)
         else:
-            self.target_map = target_maps
-        self.out_of_bounds_area = np.where(self.target_map == 0)[0]
+            self.target_maps = target_maps
+        # should probably actually loop over all the target maps?
+        self.out_of_bounds_area = np.where(self.target_maps[0] == 0)[0]
         self.out_of_bounds_val = out_of_bounds_val
         self.result = np.zeros(hp.nside2npix(self.nside), dtype=float)
         self.all_indx = np.arange(self.result.size)
@@ -87,21 +92,24 @@ class Target_map_modulo_basis_function(Base_basis_function):
             indx = self.all_indx
 
         # Compute what season it is at each pixel
-        season = np.floor((self.day_offset[indx] + conditions.night)/365.25)
-        zeroth = np.where(season < 0)[0]
-        non_zero = np.where(season >= 0)[0]
-        season = season % self.season_modulo
+        seasons = utils.season_calc(conditions.night, offset=self.day_offset,
+                                    modulo=self.season_modulo)
 
         composite_target = self.result.copy()[indx]
-        composite_target[zeroth] = self.target_maps[indx][zeroth]
-        for val in np.unique(season[non_zero]):
-            season_indx = np.where(season == val)[0]
-            composite_target[season_indx] = self.target_maps[val+1][indx][season_indx]
+        composite_nobs = self.result.copy()[indx]
+        composiite_count_all = self.result.copy()[indx]
+
+        for season in np.unique(seasons):
+            season_indx = np.where(seasons == season)[0]
+            composite_target[season_indx] = self.target_maps[season][season_indx]
+            composite_nobs[season_indx] = self.survey_features['N_obs_%i' % season].feature[season_indx]
+            composiite_count_all[season_indx] = self.survey_features['N_obs_count_all_%i' % season].feature
 
         # Find out how many observations we want now at those points
-        goal_N = composite_target * self.survey_features['N_obs_count_all'].feature * self.norm_factor
+        # XXX--I think I need to composite [N_obs_count_all] as well
+        goal_N = composite_target * composiite_count_all * self.norm_factor
 
-        result[indx] = goal_N - self.survey_features['N_obs'].feature[indx]
+        result[indx] = goal_N - composite_nobs[indx]
         result[self.out_of_bounds_area] = self.out_of_bounds_val
 
         return result
