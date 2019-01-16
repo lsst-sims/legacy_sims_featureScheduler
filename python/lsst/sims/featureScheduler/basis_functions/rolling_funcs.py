@@ -52,12 +52,19 @@ class Target_map_modulo_basis_function(Base_basis_function):
         # Map of the number of observations in filter
 
         # XXX--need to convert these features to track by season.
-        for i, temp in enumerate(target_maps):
+        for i, temp in enumerate(target_maps[0:-1]):
             self.survey_features['N_obs_%i' % i] = features.N_observations_season(i, filtername=filtername, nside=self.nside,
                                                                                   modulo=season_modulo, offset=day_offset)
             # Count of all the observations taken in a season
             self.survey_features['N_obs_count_all_%i' % i] = features.N_obs_count_season(i, filtername=None,
-                                                                                         season_modulo=season_modulo)
+                                                                                         season_modulo=season_modulo, offset=day_offset)
+        # Set the final one to be -1
+        self.survey_features['N_obs_%i' % -1] = features.N_observations_season(-1, filtername=filtername,
+                                                                               nside=self.nside,
+                                                                               modulo=season_modulo,
+                                                                               offset=day_offset)
+        self.survey_features['N_obs_count_all_%i' % -1] = features.N_obs_count_season(-1, filtername=None,
+                                                                                      season_modulo=season_modulo, offset=day_offset)
         if target_maps is None:
             self.target_maps = utils.generate_goal_map(filtername=filtername, nside=self.nside)
         else:
@@ -97,19 +104,25 @@ class Target_map_modulo_basis_function(Base_basis_function):
 
         composite_target = self.result.copy()[indx]
         composite_nobs = self.result.copy()[indx]
-        composiite_count_all = self.result.copy()[indx]
+        composite_count_all = self.result.copy()[indx]
+
+        composite_goal_N = self.result.copy()[indx]
 
         for season in np.unique(seasons):
             season_indx = np.where(seasons == season)[0]
             composite_target[season_indx] = self.target_maps[season][season_indx]
             composite_nobs[season_indx] = self.survey_features['N_obs_%i' % season].feature[season_indx]
-            composiite_count_all[season_indx] = self.survey_features['N_obs_count_all_%i' % season].feature
+            #composite_count_all[season_indx] = self.survey_features['N_obs_count_all_%i' % season].feature
+            composite_goal_N[season_indx] = composite_target[season_indx] * self.survey_features['N_obs_count_all_%i' % season].feature * self.norm_factor
 
         # Find out how many observations we want now at those points
+        # XXX--to remove
+        #if self.survey_features['N_obs_count_all_-1'].feature > 2000:
+        #    import pdb ; pdb.set_trace()
         # XXX--I think I need to composite [N_obs_count_all] as well
-        goal_N = composite_target * composiite_count_all * self.norm_factor
+        #goal_N = composite_target * composite_count_all * self.norm_factor
 
-        result[indx] = goal_N - composite_nobs[indx]
+        result[indx] = composite_goal_N - composite_nobs[indx]
         result[self.out_of_bounds_area] = self.out_of_bounds_val
 
         return result

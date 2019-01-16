@@ -71,24 +71,28 @@ class N_obs_count(BaseSurveyFeature):
 
 
 class N_obs_count_season(BaseSurveyFeature):
-    """Count the number of observations. Total number, not tracked over sky
+    """Count the number of observations. 
 
     Parameters
     ----------
     filtername : str (None)
         The filter to count (if None, all filters counted)
     """
-    def __init__(self, season, filtername=None, tag=None, season_modulo=2):
+    def __init__(self, season, filtername=None, tag=None, season_modulo=2, offset=None):
         self.feature = 0
         self.filtername = filtername
         self.tag = tag
         self.season = season
         self.season_modulo = season_modulo
+        if offset is None:
+            self.offset = 0
+        else:
+            self.offset = offset
 
     def add_observation(self, observation, indx=None):
 
-        season = utils.calc_season(observation['night'], modulo=self.season_modulo)
-        if season == self.season:
+        season = utils.season_calc(observation['night'], modulo=self.season_modulo, offset=self.offset[indx])
+        if self.season in season:
             if (self.filtername is None) and (self.tag is None):
                 # Track all observations
                 self.feature += 1
@@ -222,7 +226,7 @@ class N_observations(BaseSurveyFeature):
 
 class N_observations_season(BaseSurveyFeature):
     """
-    Track the number of observations that have been made across the sky.
+    Track the number of observations that have been made across sky
 
     Parameters
     ----------
@@ -239,6 +243,8 @@ class N_observations_season(BaseSurveyFeature):
 
     """
     def __init__(self, season, filtername=None, nside=None, offset=0, modulo=None):
+        if offset is None:
+            offset = 0
         if nside is None:
             nside = utils.set_default_nside()
 
@@ -256,9 +262,9 @@ class N_observations_season(BaseSurveyFeature):
             The indices of the healpixel map that have been observed by observation
         """
 
-        observation_season = utils.season_calc(observation['night'], offset=self.offset,
+        observation_season = utils.season_calc(observation['night'], offset=self.offset[indx],
                                                modulo = self.modulo)
-        if observation_season == self.season:
+        if self.season in observation_season:
             if self.filtername is None or observation['filter'][0] in self.filtername:
                 self.feature[indx] += 1
 

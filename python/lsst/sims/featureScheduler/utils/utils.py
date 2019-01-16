@@ -1012,6 +1012,18 @@ def season_calc(night, offset=0, modulo=None):
     if modulo is not None:
         neg = np.where(result < 0)
         result = result % modulo
-        result[neg] *= -1
-    return int(result)
+        result[neg] = -1
+    return result.astype(int)
+
+def create_season_offset(nside, sun_RA_rad):
+    """
+    Make an offset map so seasons roll properly
+    """
+    hpindx = np.arange(hp.nside2npix(nside))
+    ra, dec = _hpid2RaDec(nside, hpindx)
+    offset = ra - sun_RA_rad +2.*np.pi
+    offset = offset % (np.pi*2)
+    offset = offset *365.25/(np.pi*2)
+    offset = -offset - 365.25
+    return offset
 
