@@ -35,10 +35,12 @@ class Target_map_modulo_basis_function(Base_basis_function):
         Reward value to give regions where there are no observations requested (unitless).
     season_modulo : int (2)
         The value to modulate the season by (years).
+    max_season : int (None)
+        For seasons higher than this value, the final target map is used.
 
     """
     def __init__(self, day_offset=None, filtername='r', nside=None, target_maps=None,
-                 norm_factor=None, out_of_bounds_val=-10., season_modulo=2):
+                 norm_factor=None, out_of_bounds_val=-10., season_modulo=2, max_season=None):
 
         super(Target_map_modulo_basis_function, self).__init__(nside=nside, filtername=filtername)
 
@@ -57,14 +59,18 @@ class Target_map_modulo_basis_function(Base_basis_function):
                                                                                   modulo=season_modulo, offset=day_offset)
             # Count of all the observations taken in a season
             self.survey_features['N_obs_count_all_%i' % i] = features.N_obs_count_season(i, filtername=None,
-                                                                                         season_modulo=season_modulo, offset=day_offset)
+                                                                                         season_modulo=season_modulo,
+                                                                                         offset=day_offset,
+                                                                                         nside=self.nside)
         # Set the final one to be -1
         self.survey_features['N_obs_%i' % -1] = features.N_observations_season(-1, filtername=filtername,
                                                                                nside=self.nside,
                                                                                modulo=season_modulo,
                                                                                offset=day_offset)
         self.survey_features['N_obs_count_all_%i' % -1] = features.N_obs_count_season(-1, filtername=None,
-                                                                                      season_modulo=season_modulo, offset=day_offset)
+                                                                                      season_modulo=season_modulo,
+                                                                                      offset=day_offset,
+                                                                                      nside=self.nside)
         if target_maps is None:
             self.target_maps = utils.generate_goal_map(filtername=filtername, nside=self.nside)
         else:
@@ -82,6 +88,7 @@ class Target_map_modulo_basis_function(Base_basis_function):
             self.day_offset = day_offset
 
         self.season_modulo = season_modulo
+        self.max_season = max_season
 
     def _calc_value(self, conditions, indx=None):
         """
@@ -100,7 +107,7 @@ class Target_map_modulo_basis_function(Base_basis_function):
 
         # Compute what season it is at each pixel
         seasons = utils.season_calc(conditions.night, offset=self.day_offset,
-                                    modulo=self.season_modulo)
+                                    modulo=self.season_modulo, max_season=self.max_season)
 
         composite_target = self.result.copy()[indx]
         composite_nobs = self.result.copy()[indx]
