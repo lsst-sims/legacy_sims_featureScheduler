@@ -36,7 +36,7 @@ class Target_map_modulo_basis_function(Base_basis_function):
     season_modulo : int (2)
         The value to modulate the season by (years).
     max_season : int (None)
-        For seasons higher than this value, the final target map is used.
+        For seasons higher than this value (pre-modulo), the final target map is used.
 
     """
     def __init__(self, day_offset=None, filtername='r', nside=None, target_maps=None,
