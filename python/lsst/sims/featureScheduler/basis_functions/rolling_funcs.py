@@ -55,22 +55,28 @@ class Target_map_modulo_basis_function(Base_basis_function):
 
         # XXX--need to convert these features to track by season.
         for i, temp in enumerate(target_maps[0:-1]):
-            self.survey_features['N_obs_%i' % i] = features.N_observations_season(i, filtername=filtername, nside=self.nside,
-                                                                                  modulo=season_modulo, offset=day_offset)
+            self.survey_features['N_obs_%i' % i] = features.N_observations_season(i, filtername=filtername,
+                                                                                  nside=self.nside,
+                                                                                  modulo=season_modulo,
+                                                                                  offset=day_offset,
+                                                                                  max_season=max_season)
             # Count of all the observations taken in a season
             self.survey_features['N_obs_count_all_%i' % i] = features.N_obs_count_season(i, filtername=None,
                                                                                          season_modulo=season_modulo,
                                                                                          offset=day_offset,
-                                                                                         nside=self.nside)
+                                                                                         nside=self.nside,
+                                                                                         max_season=max_season)
         # Set the final one to be -1
         self.survey_features['N_obs_%i' % -1] = features.N_observations_season(-1, filtername=filtername,
                                                                                nside=self.nside,
                                                                                modulo=season_modulo,
-                                                                               offset=day_offset)
+                                                                               offset=day_offset,
+                                                                               max_season=max_season)
         self.survey_features['N_obs_count_all_%i' % -1] = features.N_obs_count_season(-1, filtername=None,
                                                                                       season_modulo=season_modulo,
                                                                                       offset=day_offset,
-                                                                                      nside=self.nside)
+                                                                                      nside=self.nside,
+                                                                                      max_season=max_season)
         if target_maps is None:
             self.target_maps = utils.generate_goal_map(filtername=filtername, nside=self.nside)
         else:
