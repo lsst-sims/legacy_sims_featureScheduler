@@ -8,7 +8,7 @@ import lsst.sims.featureScheduler.basis_functions as bf
 import lsst.sims.featureScheduler.surveys as surveys
 
 
-survey_length = 365.25*6 #365.25*10  # days
+survey_length = 365.25*10  # days
 nside = 32
 years = np.round(survey_length/365.25)
 t0 = time.time()
@@ -18,8 +18,8 @@ t0 = time.time()
 sun_ra_0 = 3.277  # radians
 offset = fs.utils.create_season_offset(nside, sun_ra_0)
 # when night + offset > max_season, go back to uniform target map
-#max_season = 7
-max_season = 3
+# Note, season have zero indexing?
+max_season = 7
 
 even_year_target = fs.utils.standard_goals(nside=nside)
 odd_year_target = fs.utils.standard_goals(nside=nside)

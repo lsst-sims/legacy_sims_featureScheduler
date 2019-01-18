@@ -1012,7 +1012,7 @@ def season_calc(night, offset=0, modulo=None, max_season=None):
     result = night + offset
     result = np.floor(result/365.25)
     if max_season is not None:
-        over_indx = np.where(result > max_season)
+        over_indx = np.where(result >= max_season)
 
     if modulo is not None:
         neg = np.where(result < 0)
