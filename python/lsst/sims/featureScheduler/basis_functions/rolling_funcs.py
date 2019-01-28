@@ -40,7 +40,8 @@ class Target_map_modulo_basis_function(Base_basis_function):
 
     """
     def __init__(self, day_offset=None, filtername='r', nside=None, target_maps=None,
-                 norm_factor=None, out_of_bounds_val=-10., season_modulo=2, max_season=None):
+                 norm_factor=None, out_of_bounds_val=-10., season_modulo=2, max_season=None,
+                 season_length=365.25):
 
         super(Target_map_modulo_basis_function, self).__init__(nside=nside, filtername=filtername)
 
@@ -59,24 +60,28 @@ class Target_map_modulo_basis_function(Base_basis_function):
                                                                                   nside=self.nside,
                                                                                   modulo=season_modulo,
                                                                                   offset=day_offset,
-                                                                                  max_season=max_season)
+                                                                                  max_season=max_season,
+                                                                                  season_length=season_length)
             # Count of all the observations taken in a season
             self.survey_features['N_obs_count_all_%i' % i] = features.N_obs_count_season(i, filtername=None,
                                                                                          season_modulo=season_modulo,
                                                                                          offset=day_offset,
                                                                                          nside=self.nside,
-                                                                                         max_season=max_season)
+                                                                                         max_season=max_season,
+                                                                                         season_length=season_length)
         # Set the final one to be -1
         self.survey_features['N_obs_%i' % -1] = features.N_observations_season(-1, filtername=filtername,
                                                                                nside=self.nside,
                                                                                modulo=season_modulo,
                                                                                offset=day_offset,
-                                                                               max_season=max_season)
+                                                                               max_season=max_season,
+                                                                               season_length=season_length)
         self.survey_features['N_obs_count_all_%i' % -1] = features.N_obs_count_season(-1, filtername=None,
                                                                                       season_modulo=season_modulo,
                                                                                       offset=day_offset,
                                                                                       nside=self.nside,
-                                                                                      max_season=max_season)
+                                                                                      max_season=max_season,
+                                                                                      season_length=season_length)
         if target_maps is None:
             self.target_maps = utils.generate_goal_map(filtername=filtername, nside=self.nside)
         else:
@@ -95,6 +100,7 @@ class Target_map_modulo_basis_function(Base_basis_function):
 
         self.season_modulo = season_modulo
         self.max_season = max_season
+        self.season_length = season_length
 
     def _calc_value(self, conditions, indx=None):
         """
@@ -113,11 +119,11 @@ class Target_map_modulo_basis_function(Base_basis_function):
 
         # Compute what season it is at each pixel
         seasons = utils.season_calc(conditions.night, offset=self.day_offset,
-                                    modulo=self.season_modulo, max_season=self.max_season)
+                                    modulo=self.season_modulo, max_season=self.max_season,
+                                    season_length=self.season_length)
 
         composite_target = self.result.copy()[indx]
         composite_nobs = self.result.copy()[indx]
-        composite_count_all = self.result.copy()[indx]
 
         composite_goal_N = self.result.copy()[indx]
 
@@ -125,15 +131,7 @@ class Target_map_modulo_basis_function(Base_basis_function):
             season_indx = np.where(seasons == season)[0]
             composite_target[season_indx] = self.target_maps[season][season_indx]
             composite_nobs[season_indx] = self.survey_features['N_obs_%i' % season].feature[season_indx]
-            #composite_count_all[season_indx] = self.survey_features['N_obs_count_all_%i' % season].feature
             composite_goal_N[season_indx] = composite_target[season_indx] * self.survey_features['N_obs_count_all_%i' % season].feature * self.norm_factor
-
-        # Find out how many observations we want now at those points
-        # XXX--to remove
-        #if self.survey_features['N_obs_count_all_-1'].feature > 2000:
-        #    import pdb ; pdb.set_trace()
-        # XXX--I think I need to composite [N_obs_count_all] as well
-        #goal_N = composite_target * composite_count_all * self.norm_factor
 
         result[indx] = composite_goal_N - composite_nobs[indx]
         result[self.out_of_bounds_area] = self.out_of_bounds_val

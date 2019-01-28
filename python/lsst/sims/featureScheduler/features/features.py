@@ -71,7 +71,7 @@ class N_obs_count(BaseSurveyFeature):
 
 
 class N_obs_count_season(BaseSurveyFeature):
-    """Count the number of observations. 
+    """Count the number of observations.
 
     Parameters
     ----------
@@ -79,7 +79,7 @@ class N_obs_count_season(BaseSurveyFeature):
         The filter to count (if None, all filters counted)
     """
     def __init__(self, season, nside=None, filtername=None, tag=None,
-                 season_modulo=2, offset=None, max_season=None):
+                 season_modulo=2, offset=None, max_season=None, season_length=365.25):
         self.feature = 0
         self.filtername = filtername
         self.tag = tag
@@ -90,11 +90,13 @@ class N_obs_count_season(BaseSurveyFeature):
         else:
             self.offset = offset
         self.max_season = max_season
+        self.season_length = season_length
 
     def add_observation(self, observation, indx=None):
 
         season = utils.season_calc(observation['night'], modulo=self.season_modulo,
-                                   offset=self.offset[indx], max_season=self.max_season)
+                                   offset=self.offset[indx], max_season=self.max_season,
+                                   season_length=self.season_length)
         if self.season in season:
             if (self.filtername is None) and (self.tag is None):
                 # Track all observations
@@ -246,7 +248,7 @@ class N_observations_season(BaseSurveyFeature):
 
     """
     def __init__(self, season, filtername=None, nside=None, offset=0, modulo=None,
-                 max_season=None):
+                 max_season=None, season_length=365.25):
         if offset is None:
             offset = np.zeros(hp.nside2npix(nside), dtype=int)
         if nside is None:
@@ -258,6 +260,7 @@ class N_observations_season(BaseSurveyFeature):
         self.modulo = modulo
         self.season = season
         self.max_season = max_season
+        self.season_length = season_length
 
     def add_observation(self, observation, indx=None):
         """
@@ -268,7 +271,8 @@ class N_observations_season(BaseSurveyFeature):
         """
 
         observation_season = utils.season_calc(observation['night'], offset=self.offset[indx],
-                                               modulo=self.modulo, max_season=self.max_season)
+                                               modulo=self.modulo, max_season=self.max_season,
+                                               season_length=self.season_length)
         if self.season in observation_season:
             if self.filtername is None or observation['filter'][0] in self.filtername:
                 self.feature[indx] += 1

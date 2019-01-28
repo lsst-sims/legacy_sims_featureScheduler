@@ -19,7 +19,7 @@ sun_ra_0 = 3.277  # radians
 offset = fs.utils.create_season_offset(nside, sun_ra_0)
 # when night + offset > max_season, go back to uniform target map
 # Note, season have zero indexing?
-max_season = 7
+max_season = 6
 
 even_year_target = fs.utils.standard_goals(nside=nside)
 odd_year_target = fs.utils.standard_goals(nside=nside)
