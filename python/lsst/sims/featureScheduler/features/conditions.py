@@ -74,6 +74,10 @@ class Conditions(object):
             The altitude of the sun (radians).
         sunAz : float
             The Azimuth of the sun (radians).
+        sunRA : float
+            The RA of the sun (radians).
+        sunDec : float
+            The Dec of the sun (radians).
         telRA : float
             The current telescope RA pointing (radians).
         telDec : float
@@ -175,6 +179,8 @@ class Conditions(object):
         # Sun
         self.sunAlt = None
         self.sunAz = None
+        self.sunRA = None
+        self.sunDec = None
 
         # Almanac information
         self.sunset = None

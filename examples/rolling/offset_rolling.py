@@ -13,9 +13,12 @@ nside = 32
 years = np.round(survey_length/365.25)
 t0 = time.time()
 
+observatory = Model_observatory(nside=nside)
+conditions = observatory.return_conditions()
+
 # Mark position of the sun at the start of the survey.
 # This is the RA where we will swap target maps
-sun_ra_0 = 3.277  # radians
+sun_ra_0 = conditions.sunRA  # radians
 offset = fs.utils.create_season_offset(nside, sun_ra_0)
 # when night + offset > max_season, go back to uniform target map
 # Note, season have zero indexing?
@@ -144,7 +147,7 @@ survey_list_o_lists = [dd_surveys, survey_list, greedy_surveys]
 
 scheduler = fs.schedulers.Core_scheduler(survey_list_o_lists, nside=nside)
 n_visit_limit = None
-observatory = Model_observatory(nside=nside)
+
 observatory, scheduler, observations = fs.sim_runner(observatory, scheduler,
                                                      survey_length=survey_length,
                                                      filename='offset_rolling_%iyrs.db' % years,
