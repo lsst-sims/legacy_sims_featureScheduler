@@ -286,8 +286,11 @@ class Strict_filter_basis_function(Base_basis_function):
         If there is a gap between observations longer than this, let the filter change (minutes)
     twi_change : float (-18.)
         The sun altitude to consider twilight starting/ending (degrees)
+    note_free : str ('DD')
+        No penalty for changing filters if the last observation note field includes string. 
+        Useful for giving a free filter change after deep drilling sequence
     """
-    def __init__(self, time_lag=10., filtername='r', twi_change=-18.):
+    def __init__(self, time_lag=10., filtername='r', twi_change=-18., note_free='DD'):
 
         super(Strict_filter_basis_function, self).__init__(filtername=filtername)
 
@@ -296,6 +299,7 @@ class Strict_filter_basis_function(Base_basis_function):
 
         self.survey_features = {}
         self.survey_features['Last_observation'] = features.Last_observation()
+        self.note_free = note_free
 
     def _calc_value(self, conditions, **kwargs):
         # Did the moon set or rise since last observation?
@@ -311,7 +315,7 @@ class Strict_filter_basis_function(Base_basis_function):
         twi_changed = (conditions.sunAlt - self.twi_change) * (self.survey_features['Last_observation'].feature['sunAlt']- self.twi_change) < 0
 
         # Did we just finish a DD sequence
-        wasDD = self.survey_features['Last_observation'].feature['note'] == 'DD'
+        wasDD = self.note_free in self.survey_features['Last_observation'].feature['note']
 
         # Is the filter mounted?
         mounted = self.filtername in conditions.mounted_filters
@@ -500,7 +504,7 @@ class Slewtime_basis_function(Base_basis_function):
     ----------
     max_time : float (135)
          The estimated maximum slewtime (seconds). Used to normalize so the basis function
-         spans ~0-1 in reward units.
+         spans ~ -1-0 in reward units.
     """
     def __init__(self, max_time=135., filtername='r', nside=None):
         super(Slewtime_basis_function, self).__init__(nside=nside, filtername=filtername)
@@ -517,15 +521,15 @@ class Slewtime_basis_function(Base_basis_function):
     def _calc_value(self, conditions, indx=None):
         # If we are in a different filter, the Filter_change_basis_function will take it
         if conditions.current_filter != self.filtername:
-            result = 0.
+            result = 0
         else:
             # Need to make sure smaller slewtime is larger reward.
             if np.size(conditions.slewtime) > 1:
                 result = self.result.copy()
                 good = ~np.isnan(conditions.slewtime)
-                result[good] = (self.maxtime - conditions.slewtime[good])/self.maxtime
+                result[good] = -conditions.slewtime[good]/self.maxtime
             else:
-                result = (self.maxtime - conditions.slewtime)/self.maxtime
+                result = -conditions.slewtime/self.maxtime
         return result
 
 
