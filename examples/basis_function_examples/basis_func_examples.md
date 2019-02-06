@@ -17,7 +17,7 @@ The final reward map is a linear combination of the above basis functions. The f
 
 ## Single Filter
 
-The 1filter example notebook runs a series of simulated surveys where the weight on each basis function is increased. 
+The 1filter example notebook runs a series of simulated surveys where the weight on each basis function is increased. These are all 30-day simulations.
 
 | Dominant basis function| Baseline  | Slewtime | m5  | Target Map  | 
 |-- | :--------:  | :-------: | :----: | :------: |
@@ -36,7 +36,7 @@ The Baseline column shows the results of manually balancing the weights of the b
 
 ## Two filters
 
-We can see what happens if we attempt to observe with 2 filters. Now the `Strict_filter_basis_function` becomes relevant, and the final column shows what happens if we give no weight to restricting filter changes.
+We can see what happens if we attempt to observe with 2 filters. Now the `Strict_filter_basis_function` becomes relevant, and the final column shows what happens if we give no weight to restricting filter changes. Again, these are 30-day simulations.
 
 | Dominant basis function | Baseline  | Slewtime | m5  | Target Map  | Filter Change (removed) |
 |-- | :--------:  | :-------: | :----: | :------: | :------: |
