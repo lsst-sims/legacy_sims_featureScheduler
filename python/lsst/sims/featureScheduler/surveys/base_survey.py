@@ -3,7 +3,7 @@ from lsst.sims.featureScheduler.utils import (empty_observation, set_default_nsi
                                               hp_in_lsst_fov, read_fields)
 import healpy as hp
 from lsst.sims.featureScheduler.thomson import xyz2thetaphi, thetaphi2xyz
-
+from lsst.sims.featureScheduler.detailers import Zero_rot_detailer
 
 __all__ = ['BaseSurvey', 'BaseMarkovDF_survey']
 
@@ -51,6 +51,12 @@ class BaseSurvey(object):
         # Attribute to track if the reward function is up-to-date.
         self.reward_checked = False
 
+        # If there's no detailers, add one to set rotation to near zero
+        if detailers is None:
+            self.detailers = [Zero_rot_detailer(nside=nside)]
+        else:
+            self.detailers = detailers
+
     def add_observation(self, observation, **kwargs):
         # ugh, I think here I have to assume observation is an array and not a dict.
         if self.ignore_obs not in str(observation['note']):
@@ -92,7 +98,7 @@ class BaseSurvey(object):
         self.reward_checked = True
         return self.reward
 
-    def genrate_observations_rough(self, conditions):
+    def generate_observations_rough(self, conditions):
         """
         Returns
         -------
@@ -109,10 +115,11 @@ class BaseSurvey(object):
 
     def generate_observations(self, conditions):
         observations = self.generate_observations_rough(conditions)
+        if observations[0]['filter'] == '':
+            import pdb ; pdb.set_trace()
         for detailer in self.detailers:
             observations = detailer(observations, conditions)
         return observations
-
 
     def viz_config(self):
         # XXX--zomg, we should have a method that goes through all the objects and
@@ -147,12 +154,12 @@ class BaseMarkovDF_survey(BaseSurvey):
     def __init__(self, basis_functions, basis_weights, extra_features=None,
                  smoothing_kernel=None,
                  ignore_obs='dummy', survey_name='', nside=None, seed=42,
-                 dither=True):
+                 dither=True, detailers=None):
 
         super(BaseMarkovDF_survey, self).__init__(basis_functions=basis_functions,
                                                   extra_features=extra_features,
                                                   ignore_obs=ignore_obs, survey_name=survey_name,
-                                                  nside=nside)
+                                                  nside=nside, detailers=detailers)
 
         self.basis_weights = basis_weights
         # Check that weights and basis functions are same length
@@ -271,7 +278,7 @@ class BaseMarkovDF_survey(BaseSurvey):
         else:
             return self.reward
 
-    def genrate_observations_rough(self, conditions):
+    def generate_observations_rough(self, conditions):
 
         self.reward = self.calc_reward_function(conditions)
 

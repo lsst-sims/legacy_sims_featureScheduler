@@ -34,7 +34,7 @@ class Greedy_survey(BaseMarkovDF_survey):
         self.nexp = nexp
         self.exptime = exptime
 
-    def genrate_observation_rough(self, conditions):
+    def generate_observations_rough(self, conditions):
         """
         Just point at the highest reward healpix
         """
@@ -228,7 +228,7 @@ class Blob_survey(Greedy_survey):
         self.reward_checked = True
         return self.reward
 
-    def genrate_observations_rough(self, conditions):
+    def generate_observations_rough(self, conditions):
         """
         Find a good block of observations.
         """
@@ -328,5 +328,4 @@ class Blob_survey(Greedy_survey):
                 result[i]['note'] = '%s, a' % (self.survey_note)
             for i in range(int(np.size(result)/2), np.size(result), 1):
                 result[i]['note'] = '%s, b' % (self.survey_note)
-
         return result

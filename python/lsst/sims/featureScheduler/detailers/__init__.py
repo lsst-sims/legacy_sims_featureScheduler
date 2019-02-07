@@ -1,2 +1,2 @@
-from .detailers import *
+from .detailer import *
 

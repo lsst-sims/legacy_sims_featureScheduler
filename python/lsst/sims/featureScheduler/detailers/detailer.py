@@ -1,4 +1,3 @@
-import lsst.sims.featureScheduler.utils as utils
 from lsst.sims.utils import _raDec2Hpid
 
 __all__ = ["Base_detailer", "Zero_rot_detailer"]
@@ -59,7 +58,7 @@ class Zero_rot_detailer(Base_detailer):
             hpid = _raDec2Hpid(self.nside, obs['RA'], obs['dec'])
             # Note there's no logic here to predict what the position angle will
             # be when the observation actually gets executed. We may want to make
-            # it possible to specify either rotSkyPos OR rotTelPos. 
+            # it possible to specify either rotSkyPos OR rotTelPos.
             obs['rotSkyPos'] = conditions.pa[hpid]
 
         return observation_list
