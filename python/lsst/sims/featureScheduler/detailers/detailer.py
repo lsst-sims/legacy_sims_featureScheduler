@@ -39,6 +39,10 @@ class Base_detailer(object):
         observation_list : list of observations
             The observations to detail.
         conditions : lsst.sims.featureScheduler.conditions object
+
+        Returns
+        -------
+        List of observations.
         """
 
         return observation_list
@@ -46,19 +50,20 @@ class Base_detailer(object):
 
 class Zero_rot_detailer(Base_detailer):
     """
-    Detailer to set the camera rotation to be apporximately zero in rotTelPos. That is, Rotate the
-    camera so North is always up.
+    Detailer to set the camera rotation to be apporximately zero in rotTelPos.
+    Because it can never be written too many times:
+    rotSkyPos = rotTelPos - ParallacticAngle
     """
 
     def __call__(self, observation_list, conditions):
 
-        # XXX--should I make things arrays?
+        # XXX--should I convert the list into an array and get rid of this loop?
         for obs in observation_list:
             # find the healpixel closest to the pointing
             hpid = _raDec2Hpid(self.nside, obs['RA'], obs['dec'])
             # Note there's no logic here to predict what the position angle will
             # be when the observation actually gets executed. We may want to make
             # it possible to specify either rotSkyPos OR rotTelPos.
-            obs['rotSkyPos'] = conditions.pa[hpid]
+            obs['rotSkyPos'] = -1.*conditions.pa[hpid]
 
         return observation_list
