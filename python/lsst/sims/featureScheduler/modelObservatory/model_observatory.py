@@ -433,14 +433,6 @@ class Model_observatory(object):
         t = Time(self.mjd, format='mjd')
         self.observatory.update_state(t.unix)
 
-        # XXX--temparary fix to keep the camera at rotation angle zero.
-        # XXX--TODO:  Move rotation logic to the scheeduler
-        position = self.observatory.radecang2position(self.observatory.dateprofile, observation['RA'],
-                                                      observation['dec'], 0., observation['filter'])
-        # ok, rotSkyPos should run between 0 and 360
-        warnings.warn('overriding requested rotSkyPos value')
-        observation['rotSkyPos'] = position.pa_rad
-
         target = Target(band_filter=observation['filter'], ra_rad=observation['RA'],
                         dec_rad=observation['dec'], ang_rad=observation['rotSkyPos'],
                         num_exp=observation['nexp'], exp_times=[observation['exptime']])

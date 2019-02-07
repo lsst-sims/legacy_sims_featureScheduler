@@ -115,8 +115,6 @@ class BaseSurvey(object):
 
     def generate_observations(self, conditions):
         observations = self.generate_observations_rough(conditions)
-        if observations[0]['filter'] == '':
-            import pdb ; pdb.set_trace()
         for detailer in self.detailers:
             observations = detailer(observations, conditions)
         return observations
