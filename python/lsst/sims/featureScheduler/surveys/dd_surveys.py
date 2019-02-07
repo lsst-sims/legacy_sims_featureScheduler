@@ -45,8 +45,9 @@ class Deep_drilling_survey(BaseSurvey):
                  nvis=[20, 10, 20, 26, 20],
                  exptime=30., nexp=2, ignore_obs='dummy', survey_name='DD',
                  reward_value=101., readtime=2., filter_change_time=120.,
-                 nside=None, filter_match_shuffle=True, flush_pad=30., seed=42):
-        super(Deep_drilling_survey, self).__init__(nside=nside, basis_functions=basis_functions)
+                 nside=None, filter_match_shuffle=True, flush_pad=30., seed=42, detailers=None):
+        super(Deep_drilling_survey, self).__init__(nside=nside, basis_functions=basis_functions,
+                                                   detailers=detailers)
         random.seed(a=seed)
 
         self.ra = np.radians(RA)

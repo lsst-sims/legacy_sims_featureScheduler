@@ -23,9 +23,11 @@ class BaseSurvey(object):
         one wants to ignore DD fields or observations requested by self. Take note,
         if a survey is called 'mysurvey23', setting ignore_obs to 'mysurvey2' will
         ignore it because 'mysurvey2' is a substring of 'mysurvey23'.
+    detailers : list of lsst.sims.featureScheduler.detailers objects
+        The detailers to apply to the list of observations.
     """
     def __init__(self, basis_functions, extra_features=None,
-                 ignore_obs='dummy', survey_name='', nside=None):
+                 ignore_obs='dummy', survey_name='', nside=None, detailers=None):
         if nside is None:
             nside = set_default_nside()
 
@@ -56,6 +58,8 @@ class BaseSurvey(object):
                 self.extra_features[feature].add_observation(observation, **kwargs)
             for bf in self.basis_functions:
                 bf.add_observation(observation, **kwargs)
+            for detailer in self.detailers:
+                detailer.add_observation(observation, **kwargs)
             self.reward_checked = False
 
     def _check_feasibility(self, conditions):
@@ -88,7 +92,7 @@ class BaseSurvey(object):
         self.reward_checked = True
         return self.reward
 
-    def genrate_observations(self, conditions):
+    def genrate_observations_rough(self, conditions):
         """
         Returns
         -------
@@ -102,6 +106,13 @@ class BaseSurvey(object):
             self.reward = self.calc_reward_function(conditions)
         obs = empty_observation()
         return [obs]
+
+    def generate_observations(self, conditions):
+        observations = self.generate_observations_rough(conditions)
+        for detailer in self.detailers:
+            observations = detailer(observations, conditions)
+        return observations
+
 
     def viz_config(self):
         # XXX--zomg, we should have a method that goes through all the objects and
@@ -260,7 +271,7 @@ class BaseMarkovDF_survey(BaseSurvey):
         else:
             return self.reward
 
-    def genrate_observations(self, conditions):
+    def genrate_observations_rough(self, conditions):
 
         self.reward = self.calc_reward_function(conditions)
 
