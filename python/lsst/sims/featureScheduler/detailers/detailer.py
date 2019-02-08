@@ -1,4 +1,6 @@
-from lsst.sims.utils import _raDec2Hpid
+from lsst.sims.utils import _raDec2Hpid, _approx_RaDec2AltAz
+import numpy as np
+from lsst.sims.featureScheduler.utils import approx_altaz2pa
 
 __all__ = ["Base_detailer", "Zero_rot_detailer"]
 
@@ -53,17 +55,23 @@ class Zero_rot_detailer(Base_detailer):
     Detailer to set the camera rotation to be apporximately zero in rotTelPos.
     Because it can never be written too many times:
     rotSkyPos = rotTelPos - ParallacticAngle
+    But, wait, what? Is it really the other way?
     """
+
+    def __init__(self, nside=32):
+        """
+        """
+        # Dict to hold all the features we want to track
+        self.survey_features = {}
+        self.nside = nside
 
     def __call__(self, observation_list, conditions):
 
         # XXX--should I convert the list into an array and get rid of this loop?
         for obs in observation_list:
-            # find the healpixel closest to the pointing
-            hpid = _raDec2Hpid(self.nside, obs['RA'], obs['dec'])
-            # Note there's no logic here to predict what the position angle will
-            # be when the observation actually gets executed. We may want to make
-            # it possible to specify either rotSkyPos OR rotTelPos.
-            obs['rotSkyPos'] = -1.*conditions.pa[hpid]
+            alt, az = _approx_RaDec2AltAz(obs['RA'], obs['dec'], conditions.site.latitude_rad,
+                                          conditions.site.longitude_rad, conditions.mjd)
+            obs_pa = approx_altaz2pa(alt, az, conditions.site.latitude_rad)
+            obs['rotSkyPos'] = obs_pa
 
         return observation_list

@@ -33,7 +33,6 @@ class BaseSurvey(object):
 
         self.nside = nside
         self.survey_name = survey_name
-        self.nside = nside
         self.ignore_obs = ignore_obs
 
         self.reward = None
