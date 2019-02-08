@@ -433,10 +433,6 @@ class Model_observatory(object):
         t = Time(self.mjd, format='mjd')
         self.observatory.update_state(t.unix)
 
-        # Old calc:
-        position = self.observatory.radecang2position(self.observatory.dateprofile, observation['RA'],
-                                                      observation['dec'], 0., observation['filter'])
-
         target = Target(band_filter=observation['filter'], ra_rad=observation['RA'],
                         dec_rad=observation['dec'], ang_rad=observation['rotSkyPos'],
                         num_exp=observation['nexp'], exp_times=[observation['exptime']])
