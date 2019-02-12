@@ -73,7 +73,7 @@ def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, su
         mjd = observatory.mjd
         if (mjd-mjd_track) > step:
             progress = float(mjd-mjd_start)/mjd_run*100
-            text = "\rprogress = %.1f%%" % progress
+            text = "\rprogress = %.2f%%" % progress
             sys.stdout.write(text)
             sys.stdout.flush()
             mjd_track = mjd+0

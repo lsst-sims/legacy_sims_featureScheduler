@@ -5,13 +5,18 @@ def comcamTessellate(side_length=0.7, overlap=0.11):
     """Tesselate the sphere with a square footprint
 
     XXX--TODO:  This really sucks at the poles, should add some different pole cap behavior.
-    
+
     Parameters
     ----------
     side_length : float (0.7)
         The length of a side of the square (degrees)
     overlap : float (0.11)
         How much overlap to have in pointings
+
+    Returns
+    -------
+    fields : numpy array
+       With 'RA' and 'dec' keys that have the field positions in radians
     """
 
     # Convert to radians for all internal work
@@ -48,4 +53,10 @@ def comcamTessellate(side_length=0.7, overlap=0.11):
     new_ras = new_ras % (2.*np.pi)
     ras.extend(new_ras.tolist())
 
-    return np.array(ras), np.array(decs)
+    names = ['RA', 'dec']
+    types = [float, float]
+    fields = np.empty(len(ras), dtype=list(zip(names, types)))
+    fields['RA'] = np.array(ras)
+    fields['dec'] = np.array(decs)
+
+    return fields

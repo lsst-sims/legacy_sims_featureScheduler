@@ -1,6 +1,7 @@
 import numpy as np
 from lsst.sims.featureScheduler.utils import (empty_observation, set_default_nside,
-                                              hp_in_lsst_fov, read_fields)
+                                              hp_in_lsst_fov, read_fields, hp_in_comcam_fov,
+                                              comcamTessellate)
 import healpy as hp
 from lsst.sims.featureScheduler.thomson import xyz2thetaphi, thetaphi2xyz
 from lsst.sims.featureScheduler.detailers import Zero_rot_detailer
@@ -147,11 +148,13 @@ class BaseMarkovDF_survey(BaseSurvey):
         Must be same length as basis_function
     seed : hashable
         Random number seed, used for randomly orienting sky tessellation.
+    camera : str ('LSST')
+        Should be 'LSST' or 'comcam'
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None,
                  smoothing_kernel=None,
                  ignore_obs='dummy', survey_name='', nside=None, seed=42,
-                 dither=True, detailers=None):
+                 dither=True, detailers=None, camera='LSST'):
 
         super(BaseMarkovDF_survey, self).__init__(basis_functions=basis_functions,
                                                   extra_features=extra_features,
@@ -162,8 +165,15 @@ class BaseMarkovDF_survey(BaseSurvey):
         # Check that weights and basis functions are same length
         if len(basis_functions) != np.size(basis_weights):
             raise ValueError('basis_functions and basis_weights must be same length.')
+
+        self.camera = camera
         # Load the OpSim field tesselation and map healpix to fields
-        self.fields_init = read_fields()
+        if self.camera == 'LSST':
+            self.fields_init = read_fields()
+        elif self.camera == 'comcam':
+            self.fields_init = comcamTessellate()
+        else:
+            ValueError('camera %s unknown, should be "LSST" or "comcam"' %camera)
         self.fields = self.fields_init.copy()
         self.hp2fields = np.array([])
         self._hp2fieldsetup(self.fields['RA'], self.fields['dec'])
@@ -194,10 +204,14 @@ class BaseMarkovDF_survey(BaseSurvey):
         """Map each healpixel to nearest field. This will only work if healpix
         resolution is higher than field resolution.
         """
-        pointing2hpindx = hp_in_lsst_fov(nside=self.nside)
+        if self.camera == 'LSST':
+            pointing2hpindx = hp_in_lsst_fov(nside=self.nside)
+        elif self.camera == 'comcam':
+            pointing2hpindx = hp_in_comcam_fov(nside=self.nside)
+
         self.hp2fields = np.zeros(hp.nside2npix(self.nside), dtype=np.int)
         for i in range(len(ra)):
-            hpindx = pointing2hpindx(ra[i], dec[i])
+            hpindx = pointing2hpindx(ra[i], dec[i], rotSkyPos=0.)
             self.hp2fields[hpindx] = i
 
     def _spin_fields(self, lon=None, lat=None, lon2=None):

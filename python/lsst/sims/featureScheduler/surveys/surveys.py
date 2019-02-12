@@ -17,7 +17,7 @@ class Greedy_survey(BaseMarkovDF_survey):
     def __init__(self, basis_functions, basis_weights, filtername='r',
                  block_size=1, smoothing_kernel=None, nside=None,
                  dither=True, seed=42, ignore_obs='ack', survey_name='',
-                 nexp=2, exptime=30., detailers=None):
+                 nexp=2, exptime=30., detailers=None, camera='LSST'):
 
         extra_features = {}
 
@@ -28,7 +28,7 @@ class Greedy_survey(BaseMarkovDF_survey):
                                             ignore_obs=ignore_obs,
                                             nside=nside,
                                             survey_name=survey_name, dither=dither,
-                                            detailers=detailers)
+                                            detailers=detailers, camera=camera)
         self.filtername = filtername
         self.block_size = block_size
         self.nexp = nexp
@@ -71,7 +71,6 @@ class Greedy_survey(BaseMarkovDF_survey):
             iter += 1
             if len(observations) > 0 or (iter+2)*self.block_size > len(order):
                 break
-
         return observations
 
 
@@ -113,7 +112,7 @@ class Blob_survey(Greedy_survey):
                  flush_time=30.,
                  smoothing_kernel=None, nside=None,
                  dither=True, seed=42, ignore_obs='ack',
-                 survey_note='blob', detailers=None):
+                 survey_note='blob', detailers=None, camera='LSST'):
 
         if nside is None:
             nside = set_default_nside()
@@ -123,7 +122,7 @@ class Blob_survey(Greedy_survey):
                                           filtername=None,
                                           block_size=0, smoothing_kernel=smoothing_kernel,
                                           dither=dither, seed=seed, ignore_obs=ignore_obs,
-                                          nside=nside, detailers=detailers)
+                                          nside=nside, detailers=detailers, camera=camera)
         self.flush_time = flush_time/60./24.  # convert to days
         self.nexp = nexp
         self.exptime = exptime
