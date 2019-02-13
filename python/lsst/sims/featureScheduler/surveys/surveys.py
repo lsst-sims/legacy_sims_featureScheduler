@@ -240,9 +240,11 @@ class Blob_survey(Greedy_survey):
             self.night = conditions.night.copy()
 
         # Now that we have the reward map,
+        # Note, using nanmax, so masked pixels might be included in the pointing.
         potential_hp = np.where(~np.isnan(self.reward) == True)
         ufields, reward_by_field = int_binned_stat(self.hp2fields[potential_hp],
-                                                   self.reward[potential_hp], statistic=np.max)
+                                                   self.reward[potential_hp],
+                                                   statistic=np.nanmax)
         # chop off any nans
         not_nans = np.where(~np.isnan(reward_by_field) == True)
         ufields = ufields[not_nans]
@@ -251,6 +253,11 @@ class Blob_survey(Greedy_survey):
         order = np.argsort(reward_by_field)
         ufields = ufields[order][::-1][0:self.nvisit_block]
         self.best_fields = ufields
+
+        if len(self.best_fields) == 0:
+            # The reward map had positive values, but they also included masked pixels
+            return []
+
         # Let's find the alt, az coords of the points (right now, hopefully doesn't change much in time block)
         pointing_alt, pointing_az = _approx_RaDec2AltAz(self.fields['RA'][self.best_fields],
                                                         self.fields['dec'][self.best_fields],

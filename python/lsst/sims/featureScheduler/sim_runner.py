@@ -51,7 +51,7 @@ def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, su
             # No observation. Just step into the future and try again.
             warnings.warn('No observation. Step into the future and trying again.')
             observatory.mjd = observatory.mjd + step_none
-            scheduler.update_conditions(observatory.return_status())
+            scheduler.update_conditions(observatory.return_conditions())
             nskip += 1
             continue
         completed_obs, new_night = observatory.observe(desired_obs)

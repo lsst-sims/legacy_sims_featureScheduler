@@ -418,7 +418,7 @@ class hp_in_lsst_fov(object):
         self.tree = hp_kd_tree(nside=nside)
         self.radius = xyz_angular_radius(fov_radius)
 
-    def __call__(self, ra, dec, *args):
+    def __call__(self, ra, dec, **kwargs):
         """
         Parameters
         ----------
