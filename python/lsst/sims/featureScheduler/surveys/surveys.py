@@ -255,8 +255,8 @@ class Blob_survey(Greedy_survey):
         self.best_fields = ufields
 
         if len(self.best_fields) == 0:
-            # The reward map had positive values, but they also included masked pixels
-            return []
+            # everything was nans, or blocksize was zero
+            return None
 
         # Let's find the alt, az coords of the points (right now, hopefully doesn't change much in time block)
         pointing_alt, pointing_az = _approx_RaDec2AltAz(self.fields['RA'][self.best_fields],
