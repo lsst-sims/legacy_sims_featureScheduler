@@ -190,16 +190,6 @@ class BaseMarkovDF_survey(BaseSurvey):
         np.random.seed(seed)
         self.dither = dither
 
-    def add_observation(self, observation, **kwargs):
-        """
-        """
-        if self.ignore_obs not in str(observation['note']):
-            for bf in self.basis_functions:
-                bf.add_observation(observation, **kwargs)
-            for feature in self.extra_features:
-                self.extra_features[feature].add_observation(observation, **kwargs)
-            self.reward_checked = False
-
     def _hp2fieldsetup(self, ra, dec, leafsize=100):
         """Map each healpixel to nearest field. This will only work if healpix
         resolution is higher than field resolution.
