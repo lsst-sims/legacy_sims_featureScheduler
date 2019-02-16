@@ -19,7 +19,7 @@ class BaseSurvey(object):
     extra_features : list XXX--should this be a dict for clarity?
         List of any additional features the survey may want to use
         e.g., for computing final dither positions.
-    ignore_obs : str ('dummy')
+    ignore_obs : str ('dummy') or list of str
         If an incoming observation has this string in the note, ignore it. Handy if
         one wants to ignore DD fields or observations requested by self. Take note,
         if a survey is called 'mysurvey23', setting ignore_obs to 'mysurvey2' will
@@ -31,6 +31,9 @@ class BaseSurvey(object):
                  ignore_obs='dummy', survey_name='', nside=None, detailers=None):
         if nside is None:
             nside = set_default_nside()
+
+        if isinstance(ignore_obs, str):
+            ignore_obs = [ignore_obs]
 
         self.nside = nside
         self.survey_name = survey_name
@@ -58,8 +61,10 @@ class BaseSurvey(object):
             self.detailers = detailers
 
     def add_observation(self, observation, **kwargs):
+        # Check each posible ignore string
+        checks = [io not in str(observation['note']) for io in self.ignore_obs]
         # ugh, I think here I have to assume observation is an array and not a dict.
-        if self.ignore_obs not in str(observation['note']):
+        if all(checks):
             for feature in self.extra_features:
                 self.extra_features[feature].add_observation(observation, **kwargs)
             for bf in self.basis_functions:
