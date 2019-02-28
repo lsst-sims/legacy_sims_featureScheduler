@@ -9,7 +9,7 @@ from lsst.sims.utils import m5_flat_sed
 __all__ = ['BaseFeature', 'BaseSurveyFeature', 'N_obs_count', 'N_obs_survey',
            'Last_observation', 'LastSequence_observation', 'LastFilterChange',
            'N_observations', 'Coadded_depth', 'Last_observed', 'N_obs_night', 'Pair_in_night',
-           'Rotator_angle']
+           'Rotator_angle', 'N_observations_season', 'N_obs_count_season']
 
 
 class BaseFeature(object):
@@ -68,6 +68,49 @@ class N_obs_count(BaseSurveyFeature):
               # Track all observations on a specified filter on a specified tag
               (observation['filter'][0] in self.filtername) and (observation['tag'][0] in self.tag)):
             self.feature += 1
+
+
+class N_obs_count_season(BaseSurveyFeature):
+    """Count the number of observations.
+
+    Parameters
+    ----------
+    filtername : str (None)
+        The filter to count (if None, all filters counted)
+    """
+    def __init__(self, season, nside=None, filtername=None, tag=None,
+                 season_modulo=2, offset=None, max_season=None, season_length=365.25):
+        self.feature = 0
+        self.filtername = filtername
+        self.tag = tag
+        self.season = season
+        self.season_modulo = season_modulo
+        if offset is None:
+            self.offset = np.zeros(hp.nside2npix(nside), dtype=int)
+        else:
+            self.offset = offset
+        self.max_season = max_season
+        self.season_length = season_length
+
+    def add_observation(self, observation, indx=None):
+
+        season = utils.season_calc(observation['night'], modulo=self.season_modulo,
+                                   offset=self.offset[indx], max_season=self.max_season,
+                                   season_length=self.season_length)
+        if self.season in season:
+            if (self.filtername is None) and (self.tag is None):
+                # Track all observations
+                self.feature += 1
+            elif (self.filtername is not None) and (self.tag is None) and (observation['filter'][0] in self.filtername):
+                # Track all observations on a specified filter
+                self.feature += 1
+            elif (self.filtername is None) and (self.tag is not None) and (observation['tag'][0] in self.tag):
+                # Track all observations on a specified tag
+                self.feature += 1
+            elif ((self.filtername is None) and (self.tag is not None) and
+                  # Track all observations on a specified filter on a specified tag
+                  (observation['filter'][0] in self.filtername) and (observation['tag'][0] in self.tag)):
+                self.feature += 1
 
 
 class N_obs_survey(BaseSurveyFeature):
@@ -184,6 +227,55 @@ class N_observations(BaseSurveyFeature):
                 # XXX.  Do I need to kdtree this? Maybe make a dict on init
                 # to lookup the N closest non-masked pixels, then do weighted average.
                 pass
+
+
+class N_observations_season(BaseSurveyFeature):
+    """
+    Track the number of observations that have been made across sky
+
+    Parameters
+    ----------
+    season : int
+        Only count observations in this season (year).
+    filtername : str ('r')
+        String or list that has all the filters that can count.
+    nside : int (32)
+        The nside of the healpixel map to use
+    offset : int (0)
+        The offset to use when computing the season (days)
+    modulo : int (None)
+        How to mod the years when computing season
+
+    """
+    def __init__(self, season, filtername=None, nside=None, offset=0, modulo=None,
+                 max_season=None, season_length=365.25):
+        if offset is None:
+            offset = np.zeros(hp.nside2npix(nside), dtype=int)
+        if nside is None:
+            nside = utils.set_default_nside()
+
+        self.feature = np.zeros(hp.nside2npix(nside), dtype=float)
+        self.filtername = filtername
+        self.offset = offset
+        self.modulo = modulo
+        self.season = season
+        self.max_season = max_season
+        self.season_length = season_length
+
+    def add_observation(self, observation, indx=None):
+        """
+        Parameters
+        ----------
+        indx : ints
+            The indices of the healpixel map that have been observed by observation
+        """
+
+        observation_season = utils.season_calc(observation['night'], offset=self.offset[indx],
+                                               modulo=self.modulo, max_season=self.max_season,
+                                               season_length=self.season_length)
+        if self.season in observation_season:
+            if self.filtername is None or observation['filter'][0] in self.filtername:
+                self.feature[indx] += 1
 
 
 class Coadded_depth(BaseSurveyFeature):

@@ -988,3 +988,52 @@ def warm_start(scheduler, observations, mjd_key='mjd'):
         scheduler.add_observation(observation)
 
     return scheduler
+
+
+def season_calc(night, offset=0, modulo=None, max_season=None, season_length=365.25):
+    """
+    Compute what season a night is in with possible offset and modulo
+
+    using convention that night -365 to 0 is season -1.
+
+    Parameters
+    ----------
+    night : int or array
+        The night we want to convert to a season
+    offset : float or array (0)
+        Offset to be applied to night (days)
+    modulo : int (None)
+        If the season should be modulated (i.e., so we can get all even years)
+        (seasons, years w/default season_length)
+    max_season : int (None)
+        For any season above this value (before modulo), set to -1
+    season_length : float (365.25)
+        How long to consider one season (nights)
+    """
+    if np.size(night) == 1:
+        night = np.ravel(np.array([night]))
+    result = night + offset
+    result = np.floor(result/season_length)
+    if max_season is not None:
+        over_indx = np.where(result >= max_season)
+
+    if modulo is not None:
+        neg = np.where(result < 0)
+        result = result % modulo
+        result[neg] = -1
+    if max_season is not None:
+        result[over_indx] = -1
+    return result.astype(int)
+
+
+def create_season_offset(nside, sun_RA_rad):
+    """
+    Make an offset map so seasons roll properly
+    """
+    hpindx = np.arange(hp.nside2npix(nside))
+    ra, dec = _hpid2RaDec(nside, hpindx)
+    offset = ra - sun_RA_rad + 2.*np.pi
+    offset = offset % (np.pi*2)
+    offset = offset * 365.25/(np.pi*2)
+    offset = -offset - 365.25
+    return offset

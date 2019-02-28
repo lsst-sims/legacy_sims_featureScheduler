@@ -291,6 +291,8 @@ class Model_observatory(object):
         self.conditions.moonRA = sun_moon_info['moon_RA']
         self.conditions.moonDec = sun_moon_info['moon_dec']
         self.conditions.sunAlt = sun_moon_info['sun_alt']
+        self.conditions.sunRA = sun_moon_info['sun_RA']
+        self.conditions.sunDec = sun_moon_info['sun_dec']
 
         self.conditions.lmst, last = calcLmstLast(self.mjd, self.site.longitude_rad)
 
