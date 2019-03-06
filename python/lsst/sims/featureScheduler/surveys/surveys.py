@@ -16,7 +16,7 @@ class Greedy_survey(BaseMarkovDF_survey):
     """
     def __init__(self, basis_functions, basis_weights, filtername='r',
                  block_size=1, smoothing_kernel=None, nside=None,
-                 dither=True, seed=42, ignore_obs='ack', survey_name='',
+                 dither=True, seed=42, ignore_obs=None, survey_name='',
                  nexp=2, exptime=30., detailers=None, camera='LSST'):
 
         extra_features = {}
@@ -111,7 +111,7 @@ class Blob_survey(Greedy_survey):
                  search_radius=30., alt_max=85., az_range=90.,
                  flush_time=30.,
                  smoothing_kernel=None, nside=None,
-                 dither=True, seed=42, ignore_obs='ack',
+                 dither=True, seed=42, ignore_obs=None,
                  survey_note='blob', detailers=None, camera='LSST'):
 
         if nside is None:

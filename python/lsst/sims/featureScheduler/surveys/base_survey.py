@@ -19,7 +19,7 @@ class BaseSurvey(object):
     extra_features : list XXX--should this be a dict for clarity?
         List of any additional features the survey may want to use
         e.g., for computing final dither positions.
-    ignore_obs : str ('dummy') or list of str
+    ignore_obs : list of str (None)
         If an incoming observation has this string in the note, ignore it. Handy if
         one wants to ignore DD fields or observations requested by self. Take note,
         if a survey is called 'mysurvey23', setting ignore_obs to 'mysurvey2' will
@@ -28,9 +28,11 @@ class BaseSurvey(object):
         The detailers to apply to the list of observations.
     """
     def __init__(self, basis_functions, extra_features=None,
-                 ignore_obs='dummy', survey_name='', nside=None, detailers=None):
+                 ignore_obs=None, survey_name='', nside=None, detailers=None):
         if nside is None:
             nside = set_default_nside()
+        if ignore_obs is None:
+            ignore_obs = []
 
         if isinstance(ignore_obs, str):
             ignore_obs = [ignore_obs]
@@ -158,7 +160,7 @@ class BaseMarkovDF_survey(BaseSurvey):
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None,
                  smoothing_kernel=None,
-                 ignore_obs='dummy', survey_name='', nside=None, seed=42,
+                 ignore_obs=None, survey_name='', nside=None, seed=42,
                  dither=True, detailers=None, camera='LSST'):
 
         super(BaseMarkovDF_survey, self).__init__(basis_functions=basis_functions,
