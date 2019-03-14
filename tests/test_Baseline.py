@@ -46,7 +46,6 @@ def gen_blob_surveys(nside):
     """
     target_map = standard_goals(nside=nside)
     norm_factor = calc_norm_factor(target_map)
-    cloud_map = target_map['r'][0]*0 + 0.7
 
     filter1s = ['u', 'g']  # , 'r', 'i', 'z', 'y']
     filter2s = [None, 'g']  # , 'r', 'i', None, None]

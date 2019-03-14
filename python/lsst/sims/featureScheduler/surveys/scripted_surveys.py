@@ -133,7 +133,7 @@ class Scripted_survey(BaseSurvey):
         # XXX-note, there's currently nothing that flushes this, so adding
         # observations can pile up nonstop. Should prob flush nightly or something
 
-    def genrate_observations(self, conditions):
+    def generate_observations(self, conditions):
         observation = self._check_list(conditions)
         return [observation]
 
@@ -316,7 +316,7 @@ class Pairs_survey_scripted(Scripted_survey):
                 in_slew_window,
                 is_observable)
 
-    def genrate_observations(self, conditions):
+    def generate_observations(self, conditions):
         # Toss anything in the queue that is too old to pair up:
         self._purge_queue(conditions)
         # Check for something I want a pair of

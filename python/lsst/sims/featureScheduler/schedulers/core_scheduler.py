@@ -188,7 +188,7 @@ class Core_scheduler(object):
             self.survey_index[1] = np.min(np.where(rewards == np.nanmax(rewards)))
 
             # Survey return list of observations
-            result = self.survey_lists[self.survey_index[0]][self.survey_index[1]].genrate_observations(self.conditions)
+            result = self.survey_lists[self.survey_index[0]][self.survey_index[1]].generate_observations(self.conditions)
             self.queue = result
             self.queue_is_sequence = self.survey_lists[self.survey_index[0]][self.survey_index[1]].sequence
 

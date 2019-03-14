@@ -3,7 +3,7 @@ from lsst.sims.featureScheduler.utils import (empty_observation, set_default_nsi
                                               hp_in_lsst_fov, read_fields)
 import healpy as hp
 from lsst.sims.featureScheduler.thomson import xyz2thetaphi, thetaphi2xyz
-
+from lsst.sims.featureScheduler.detailers import Zero_rot_detailer
 
 __all__ = ['BaseSurvey', 'BaseMarkovDF_survey']
 
@@ -23,15 +23,16 @@ class BaseSurvey(object):
         one wants to ignore DD fields or observations requested by self. Take note,
         if a survey is called 'mysurvey23', setting ignore_obs to 'mysurvey2' will
         ignore it because 'mysurvey2' is a substring of 'mysurvey23'.
+    detailers : list of lsst.sims.featureScheduler.detailers objects
+        The detailers to apply to the list of observations.
     """
     def __init__(self, basis_functions, extra_features=None,
-                 ignore_obs='dummy', survey_name='', nside=None):
+                 ignore_obs='dummy', survey_name='', nside=None, detailers=None):
         if nside is None:
             nside = set_default_nside()
 
         self.nside = nside
         self.survey_name = survey_name
-        self.nside = nside
         self.ignore_obs = ignore_obs
 
         self.reward = None
@@ -49,6 +50,12 @@ class BaseSurvey(object):
         # Attribute to track if the reward function is up-to-date.
         self.reward_checked = False
 
+        # If there's no detailers, add one to set rotation to near zero
+        if detailers is None:
+            self.detailers = [Zero_rot_detailer(nside=nside)]
+        else:
+            self.detailers = detailers
+
     def add_observation(self, observation, **kwargs):
         # ugh, I think here I have to assume observation is an array and not a dict.
         if self.ignore_obs not in str(observation['note']):
@@ -56,6 +63,8 @@ class BaseSurvey(object):
                 self.extra_features[feature].add_observation(observation, **kwargs)
             for bf in self.basis_functions:
                 bf.add_observation(observation, **kwargs)
+            for detailer in self.detailers:
+                detailer.add_observation(observation, **kwargs)
             self.reward_checked = False
 
     def _check_feasibility(self, conditions):
@@ -88,7 +97,7 @@ class BaseSurvey(object):
         self.reward_checked = True
         return self.reward
 
-    def genrate_observations(self, conditions):
+    def generate_observations_rough(self, conditions):
         """
         Returns
         -------
@@ -102,6 +111,12 @@ class BaseSurvey(object):
             self.reward = self.calc_reward_function(conditions)
         obs = empty_observation()
         return [obs]
+
+    def generate_observations(self, conditions):
+        observations = self.generate_observations_rough(conditions)
+        for detailer in self.detailers:
+            observations = detailer(observations, conditions)
+        return observations
 
     def viz_config(self):
         # XXX--zomg, we should have a method that goes through all the objects and
@@ -136,12 +151,12 @@ class BaseMarkovDF_survey(BaseSurvey):
     def __init__(self, basis_functions, basis_weights, extra_features=None,
                  smoothing_kernel=None,
                  ignore_obs='dummy', survey_name='', nside=None, seed=42,
-                 dither=True):
+                 dither=True, detailers=None):
 
         super(BaseMarkovDF_survey, self).__init__(basis_functions=basis_functions,
                                                   extra_features=extra_features,
                                                   ignore_obs=ignore_obs, survey_name=survey_name,
-                                                  nside=nside)
+                                                  nside=nside, detailers=detailers)
 
         self.basis_weights = basis_weights
         # Check that weights and basis functions are same length
@@ -260,7 +275,7 @@ class BaseMarkovDF_survey(BaseSurvey):
         else:
             return self.reward
 
-    def genrate_observations(self, conditions):
+    def generate_observations_rough(self, conditions):
 
         self.reward = self.calc_reward_function(conditions)
 

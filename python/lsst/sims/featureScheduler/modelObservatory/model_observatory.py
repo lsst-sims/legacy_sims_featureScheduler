@@ -435,14 +435,6 @@ class Model_observatory(object):
         t = Time(self.mjd, format='mjd')
         self.observatory.update_state(t.unix)
 
-        # XXX--temparary fix to keep the camera at rotation angle zero.
-        # XXX--TODO:  Move rotation logic to the scheeduler
-        position = self.observatory.radecang2position(self.observatory.dateprofile, observation['RA'],
-                                                      observation['dec'], 0., observation['filter'])
-        # ok, rotSkyPos should run between 0 and 360
-        warnings.warn('overriding requested rotSkyPos value')
-        observation['rotSkyPos'] = position.pa_rad
-
         target = Target(band_filter=observation['filter'], ra_rad=observation['RA'],
                         dec_rad=observation['dec'], ang_rad=observation['rotSkyPos'],
                         num_exp=observation['nexp'], exp_times=[observation['exptime']])
@@ -467,6 +459,7 @@ class Model_observatory(object):
             observation['pa'] = self.observatory.current_state.pa_rad
             observation['rotTelPos'] = self.observatory.current_state.rot_rad
             observation['rotSkyPos'] = self.observatory.current_state.ang_rad
+
             # Metadata on observation is after slew and settle, so at start of exposure.
             result = self.observation_add_data(observation)
             self.mjd = self.mjd + visittime/24./3600.

@@ -17,7 +17,7 @@ class Greedy_survey(BaseMarkovDF_survey):
     def __init__(self, basis_functions, basis_weights, filtername='r',
                  block_size=1, smoothing_kernel=None, nside=None,
                  dither=True, seed=42, ignore_obs='ack', survey_name='',
-                 nexp=2, exptime=30.):
+                 nexp=2, exptime=30., detailers=None):
 
         extra_features = {}
 
@@ -27,13 +27,14 @@ class Greedy_survey(BaseMarkovDF_survey):
                                             smoothing_kernel=smoothing_kernel,
                                             ignore_obs=ignore_obs,
                                             nside=nside,
-                                            survey_name=survey_name, dither=dither)
+                                            survey_name=survey_name, dither=dither,
+                                            detailers=detailers)
         self.filtername = filtername
         self.block_size = block_size
         self.nexp = nexp
         self.exptime = exptime
 
-    def genrate_observations(self, conditions):
+    def generate_observations_rough(self, conditions):
         """
         Just point at the highest reward healpix
         """
@@ -112,7 +113,7 @@ class Blob_survey(Greedy_survey):
                  flush_time=30.,
                  smoothing_kernel=None, nside=None,
                  dither=True, seed=42, ignore_obs='ack',
-                 survey_note='blob'):
+                 survey_note='blob', detailers=None):
 
         if nside is None:
             nside = set_default_nside()
@@ -122,7 +123,7 @@ class Blob_survey(Greedy_survey):
                                           filtername=None,
                                           block_size=0, smoothing_kernel=smoothing_kernel,
                                           dither=dither, seed=seed, ignore_obs=ignore_obs,
-                                          nside=nside)
+                                          nside=nside, detailers=detailers)
         self.flush_time = flush_time/60./24.  # convert to days
         self.nexp = nexp
         self.exptime = exptime
@@ -227,7 +228,7 @@ class Blob_survey(Greedy_survey):
         self.reward_checked = True
         return self.reward
 
-    def genrate_observations(self, conditions):
+    def generate_observations_rough(self, conditions):
         """
         Find a good block of observations.
         """
@@ -327,5 +328,4 @@ class Blob_survey(Greedy_survey):
                 result[i]['note'] = '%s, a' % (self.survey_note)
             for i in range(int(np.size(result)/2), np.size(result), 1):
                 result[i]['note'] = '%s, b' % (self.survey_note)
-
         return result

@@ -1,7 +1,7 @@
 import numpy as np
 from lsst.sims.utils import _approx_RaDec2AltAz, Site, _hpid2RaDec, m5_flat_sed
 import healpy as hp
-from lsst.sims.featureScheduler.utils import set_default_nside, match_hp_resolution
+from lsst.sims.featureScheduler.utils import set_default_nside, match_hp_resolution, approx_altaz2pa
 
 __all__ = ['Conditions']
 
@@ -260,13 +260,7 @@ class Conditions(object):
         return self._pa
 
     def calc_pa(self):
-        y = np.sin(-self.az)*np.cos(self.site.latitude_rad)
-        x = np.cos(self.alt)*np.sin(self.site.latitude_rad) - np.sin(self.alt)*np.cos(self.site.latitude_rad)*np.cos(-self.az)
-        pa = np.arctan2(y, x)
-        # Make it run from 0-360 deg insteaof of -180 to 180
-        to_flip = np.where(pa < 0)
-        pa[to_flip] = np.pi - pa[to_flip]
-        self._pa = pa
+        self._pa = approx_altaz2pa(self.alt, self.az, self.site.latitude_rad)
 
     @property
     def alt(self):
