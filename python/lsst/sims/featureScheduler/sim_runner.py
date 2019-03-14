@@ -9,7 +9,7 @@ __all__ = ['sim_runner']
 
 
 def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, survey_length=3.,
-               filename=None, delete_past=True, n_visit_limit=None, step_none=15.):
+               filename=None, delete_past=True, n_visit_limit=None, step_none=15., verbose=True):
     """
     run a simulation
 
@@ -71,12 +71,13 @@ def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, su
                 observatory.observatory.swap_filter(filtername)
 
         mjd = observatory.mjd
-        if (mjd-mjd_track) > step:
-            progress = float(mjd-mjd_start)/mjd_run*100
-            text = "\rprogress = %.2f%%" % progress
-            sys.stdout.write(text)
-            sys.stdout.flush()
-            mjd_track = mjd+0
+        if verbose:
+            if (mjd-mjd_track) > step:
+                progress = float(mjd-mjd_start)/mjd_run*100
+                text = "\rprogress = %.2f%%" % progress
+                sys.stdout.write(text)
+                sys.stdout.flush()
+                mjd_track = mjd+0
         if n_visit_limit is not None:
             if len(observations) == n_visit_limit:
                 break
