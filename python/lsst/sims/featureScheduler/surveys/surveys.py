@@ -16,8 +16,8 @@ class Greedy_survey(BaseMarkovDF_survey):
     """
     def __init__(self, basis_functions, basis_weights, filtername='r',
                  block_size=1, smoothing_kernel=None, nside=None,
-                 dither=True, seed=42, ignore_obs='ack', survey_name='',
-                 nexp=2, exptime=30., detailers=None):
+                 dither=True, seed=42, ignore_obs=None, survey_name='',
+                 nexp=2, exptime=30., detailers=None, camera='LSST'):
 
         extra_features = {}
 
@@ -28,7 +28,7 @@ class Greedy_survey(BaseMarkovDF_survey):
                                             ignore_obs=ignore_obs,
                                             nside=nside,
                                             survey_name=survey_name, dither=dither,
-                                            detailers=detailers)
+                                            detailers=detailers, camera=camera)
         self.filtername = filtername
         self.block_size = block_size
         self.nexp = nexp
@@ -71,7 +71,6 @@ class Greedy_survey(BaseMarkovDF_survey):
             iter += 1
             if len(observations) > 0 or (iter+2)*self.block_size > len(order):
                 break
-
         return observations
 
 
@@ -112,8 +111,8 @@ class Blob_survey(Greedy_survey):
                  search_radius=30., alt_max=85., az_range=90.,
                  flush_time=30.,
                  smoothing_kernel=None, nside=None,
-                 dither=True, seed=42, ignore_obs='ack',
-                 survey_note='blob', detailers=None):
+                 dither=True, seed=42, ignore_obs=None,
+                 survey_note='blob', detailers=None, camera='LSST'):
 
         if nside is None:
             nside = set_default_nside()
@@ -123,7 +122,7 @@ class Blob_survey(Greedy_survey):
                                           filtername=None,
                                           block_size=0, smoothing_kernel=smoothing_kernel,
                                           dither=dither, seed=seed, ignore_obs=ignore_obs,
-                                          nside=nside, detailers=detailers)
+                                          nside=nside, detailers=detailers, camera=camera)
         self.flush_time = flush_time/60./24.  # convert to days
         self.nexp = nexp
         self.exptime = exptime
@@ -241,9 +240,11 @@ class Blob_survey(Greedy_survey):
             self.night = conditions.night.copy()
 
         # Now that we have the reward map,
+        # Note, using nanmax, so masked pixels might be included in the pointing.
         potential_hp = np.where(~np.isnan(self.reward) == True)
         ufields, reward_by_field = int_binned_stat(self.hp2fields[potential_hp],
-                                                   self.reward[potential_hp], statistic=np.max)
+                                                   self.reward[potential_hp],
+                                                   statistic=np.nanmax)
         # chop off any nans
         not_nans = np.where(~np.isnan(reward_by_field) == True)
         ufields = ufields[not_nans]
@@ -252,6 +253,11 @@ class Blob_survey(Greedy_survey):
         order = np.argsort(reward_by_field)
         ufields = ufields[order][::-1][0:self.nvisit_block]
         self.best_fields = ufields
+
+        if len(self.best_fields) == 0:
+            # everything was nans, or blocksize was zero
+            return None
+
         # Let's find the alt, az coords of the points (right now, hopefully doesn't change much in time block)
         pointing_alt, pointing_az = _approx_RaDec2AltAz(self.fields['RA'][self.best_fields],
                                                         self.fields['dec'][self.best_fields],

@@ -2,7 +2,7 @@ from lsst.sims.utils import _raDec2Hpid, _approx_RaDec2AltAz
 import numpy as np
 from lsst.sims.featureScheduler.utils import approx_altaz2pa
 
-__all__ = ["Base_detailer", "Zero_rot_detailer"]
+__all__ = ["Base_detailer", "Zero_rot_detailer", "Comcam_90rot_detailer"]
 
 
 class Base_detailer(object):
@@ -75,3 +75,34 @@ class Zero_rot_detailer(Base_detailer):
             obs['rotSkyPos'] = obs_pa
 
         return observation_list
+
+
+class Comcam_90rot_detailer(Base_detailer):
+    """
+    Detailer to set the camera rotation so rotSkyPos is 0, 90, 180, or 270 degrees. Whatever
+    is closest to rotTelPos of zero.
+    """
+
+    def __call__(self, observation_list, conditions):
+        favored_rotSkyPos = np.radians([0., 90., 180., 270., 360.]).reshape(5, 1)
+        obs_array =np.concatenate(observation_list)
+        alt, az = _approx_RaDec2AltAz(obs_array['RA'], obs_array['dec'], conditions.site.latitude_rad,
+                                      conditions.site.longitude_rad, conditions.mjd)
+        parallactic_angle = approx_altaz2pa(alt, az, conditions.site.latitude_rad)
+        # If we set rotSkyPos to parallactic angle, rotTelPos will be zero. So, find the
+        # favored rotSkyPos that is closest to PA to keep rotTelPos as close as possible to zero.
+        ang_diff = np.abs(parallactic_angle - favored_rotSkyPos)
+        min_indxs = np.argmin(ang_diff, axis=0)
+        # can swap 360 and zero if needed?
+        final_rotSkyPos = favored_rotSkyPos[min_indxs]
+        # Set all the observations to the proper rotSkyPos
+        for rsp, obs in zip(final_rotSkyPos, observation_list):
+            obs['rotSkyPos'] = rsp
+
+        return observation_list
+
+
+
+
+
+

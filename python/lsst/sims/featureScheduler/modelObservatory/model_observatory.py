@@ -15,7 +15,7 @@ from astropy.time import Time
 from lsst.sims.almanac import Almanac
 import warnings
 import matplotlib.pylab as plt
-
+from lsst.ts.observatory.model import ObservatoryState
 
 __all__ = ['Model_observatory']
 
@@ -47,6 +47,7 @@ class ExtendedObservatoryModel(ObservatoryModel):
         visitime = t3 - t2
         return slewtime, visitime
 
+    #  Adding wrap_padding to make azimuth slews more intelligent
     def get_closest_angle_distance(self, target_rad, current_abs_rad,
                                    min_abs_rad=None, max_abs_rad=None,
                                    wrap_padding=0.873):
@@ -106,6 +107,163 @@ class ExtendedObservatoryModel(ObservatoryModel):
         final_abs_rad = current_abs_rad + distance_rad
 
         return (final_abs_rad, distance_rad)
+
+    #  Put in wrap padding kwarg so it's not used on camera rotation.
+    def get_closest_state(self, targetposition, istracking=False):
+        """Find the closest observatory state for the given target position.
+
+        Parameters
+        ----------
+        targetposition : :class:`.ObservatoryPosition`
+            A target position instance.
+        istracking : bool, optional
+            Flag for saying if the observatory is tracking. Default is False.
+
+        Returns
+        -------
+        :class:`.ObservatoryState`
+            The state that is closest to the current observatory state.
+
+        Binary schema
+        -------------
+        The binary schema used to determine the state of a proposed target. A
+        value of 1 indicates that is it failing. A value of 0 indicates that the
+        state is passing.
+        ___  ___  ___  ___  ___  ___
+         |    |    |    |    |    |
+        rot  rot  az   az   alt  alt
+        max  min  max  min  max  min
+
+        For example, if a proposed target exceeds the rotators maximum value,
+        and is below the minimum azimuth we would have a binary value of;
+
+         0    1    0    1    0    0
+
+        If the target passed, then no limitations would occur;
+
+         0    0    0    0    0    0
+        """
+        TWOPI = 2 * np.pi
+
+        valid_state = True
+        fail_record = self.current_state.fail_record
+        self.current_state.fail_state = 0
+
+        if targetposition.alt_rad < self.params.telalt_minpos_rad:
+            telalt_rad = self.params.telalt_minpos_rad
+            domalt_rad = self.params.telalt_minpos_rad
+            valid_state = False
+
+            if "telalt_minpos_rad" in fail_record:
+                fail_record["telalt_minpos_rad"] += 1
+            else:
+                fail_record["telalt_minpos_rad"] = 1
+
+            self.current_state.fail_state = self.current_state.fail_state | \
+                                            self.current_state.fail_value_table["altEmin"]
+
+        elif targetposition.alt_rad > self.params.telalt_maxpos_rad:
+            telalt_rad = self.params.telalt_maxpos_rad
+            domalt_rad = self.params.telalt_maxpos_rad
+            valid_state = False
+            if "telalt_maxpos_rad" in fail_record:
+                fail_record["telalt_maxpos_rad"] += 1
+            else:
+                fail_record["telalt_maxpos_rad"] = 1
+
+            self.current_state.fail_state = self.current_state.fail_state | \
+                                            self.current_state.fail_value_table["altEmax"]
+
+        else:
+            telalt_rad = targetposition.alt_rad
+            domalt_rad = targetposition.alt_rad
+
+        if istracking:
+            (telaz_rad, delta) = self.get_closest_angle_distance(targetposition.az_rad,
+                                                                 self.current_state.telaz_rad)
+            if telaz_rad < self.params.telaz_minpos_rad:
+                telaz_rad = self.params.telaz_minpos_rad
+                valid_state = False
+                if "telaz_minpos_rad" in fail_record:
+                    fail_record["telaz_minpos_rad"] += 1
+                else:
+                    fail_record["telaz_minpos_rad"] = 1
+
+                self.current_state.fail_state = self.current_state.fail_state | \
+                                                self.current_state.fail_value_table["azEmin"]
+
+            elif telaz_rad > self.params.telaz_maxpos_rad:
+                telaz_rad = self.params.telaz_maxpos_rad
+                valid_state = False
+                if "telaz_maxpos_rad" in fail_record:
+                    fail_record["telaz_maxpos_rad"] += 1
+                else:
+                    fail_record["telaz_maxpos_rad"] = 1
+
+                self.current_state.fail_state = self.current_state.fail_state | \
+                                                self.current_state.fail_value_table["azEmax"]
+
+        else:
+            (telaz_rad, delta) = self.get_closest_angle_distance(targetposition.az_rad,
+                                                                 self.current_state.telaz_rad,
+                                                                 self.params.telaz_minpos_rad,
+                                                                 self.params.telaz_maxpos_rad)
+
+        (domaz_rad, delta) = self.get_closest_angle_distance(targetposition.az_rad,
+                                                             self.current_state.domaz_rad)
+
+        if istracking:
+            (telrot_rad, delta) = self.get_closest_angle_distance(targetposition.rot_rad,
+                                                                  self.current_state.telrot_rad,
+                                                                  wrap_padding=0.)
+            if telrot_rad < self.params.telrot_minpos_rad:
+                telrot_rad = self.params.telrot_minpos_rad
+                valid_state = False
+                if "telrot_minpos_rad" in fail_record:
+                    fail_record["telrot_minpos_rad"] += 1
+                else:
+                    fail_record["telrot_minpos_rad"] = 1
+
+                self.current_state.fail_state = self.current_state.fail_state | \
+                                                self.current_state.fail_value_table["rotEmin"]
+
+            elif telrot_rad > self.params.telrot_maxpos_rad:
+                telrot_rad = self.params.telrot_maxpos_rad
+                valid_state = False
+                if "telrot_maxpos_rad" in fail_record:
+                    fail_record["telrot_maxpos_rad"] += 1
+                else:
+                    fail_record["telrot_maxpos_rad"] = 1
+
+                self.current_state.fail_state = self.current_state.fail_state | \
+                                                self.current_state.fail_value_table["rotEmax"]
+        else:
+            # if the target rotator angle is unreachable
+            # then sets an arbitrary value (opposite)
+            norm_rot_rad = divmod(targetposition.rot_rad - self.params.telrot_minpos_rad, TWOPI)[1] \
+                + self.params.telrot_minpos_rad
+            if norm_rot_rad > self.params.telrot_maxpos_rad:
+                targetposition.rot_rad = norm_rot_rad - np.pi
+            (telrot_rad, delta) = self.get_closest_angle_distance(targetposition.rot_rad,
+                                                                  self.current_state.telrot_rad,
+                                                                  self.params.telrot_minpos_rad,
+                                                                  self.params.telrot_maxpos_rad,
+                                                                  wrap_padding=0.)
+        targetposition.ang_rad = divmod(targetposition.pa_rad - telrot_rad, TWOPI)[1]
+
+        targetstate = ObservatoryState()
+        targetstate.set_position(targetposition)
+        targetstate.telalt_rad = telalt_rad
+        targetstate.telaz_rad = telaz_rad
+        targetstate.telrot_rad = telrot_rad
+        targetstate.domalt_rad = domalt_rad
+        targetstate.domaz_rad = domaz_rad
+        if istracking:
+            targetstate.tracking = valid_state
+
+        self.current_state.fail_record = fail_record
+
+        return targetstate
 
 
 class dummy_time_handler(object):

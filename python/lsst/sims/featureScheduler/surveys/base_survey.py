@@ -1,6 +1,7 @@
 import numpy as np
 from lsst.sims.featureScheduler.utils import (empty_observation, set_default_nside,
-                                              hp_in_lsst_fov, read_fields)
+                                              hp_in_lsst_fov, read_fields, hp_in_comcam_fov,
+                                              comcamTessellate)
 import healpy as hp
 from lsst.sims.featureScheduler.thomson import xyz2thetaphi, thetaphi2xyz
 from lsst.sims.featureScheduler.detailers import Zero_rot_detailer
@@ -18,7 +19,7 @@ class BaseSurvey(object):
     extra_features : list XXX--should this be a dict for clarity?
         List of any additional features the survey may want to use
         e.g., for computing final dither positions.
-    ignore_obs : str ('dummy')
+    ignore_obs : list of str (None)
         If an incoming observation has this string in the note, ignore it. Handy if
         one wants to ignore DD fields or observations requested by self. Take note,
         if a survey is called 'mysurvey23', setting ignore_obs to 'mysurvey2' will
@@ -27,9 +28,14 @@ class BaseSurvey(object):
         The detailers to apply to the list of observations.
     """
     def __init__(self, basis_functions, extra_features=None,
-                 ignore_obs='dummy', survey_name='', nside=None, detailers=None):
+                 ignore_obs=None, survey_name='', nside=None, detailers=None):
         if nside is None:
             nside = set_default_nside()
+        if ignore_obs is None:
+            ignore_obs = []
+
+        if isinstance(ignore_obs, str):
+            ignore_obs = [ignore_obs]
 
         self.nside = nside
         self.survey_name = survey_name
@@ -57,8 +63,10 @@ class BaseSurvey(object):
             self.detailers = detailers
 
     def add_observation(self, observation, **kwargs):
+        # Check each posible ignore string
+        checks = [io not in str(observation['note']) for io in self.ignore_obs]
         # ugh, I think here I have to assume observation is an array and not a dict.
-        if self.ignore_obs not in str(observation['note']):
+        if all(checks):
             for feature in self.extra_features:
                 self.extra_features[feature].add_observation(observation, **kwargs)
             for bf in self.basis_functions:
@@ -147,11 +155,13 @@ class BaseMarkovDF_survey(BaseSurvey):
         Must be same length as basis_function
     seed : hashable
         Random number seed, used for randomly orienting sky tessellation.
+    camera : str ('LSST')
+        Should be 'LSST' or 'comcam'
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None,
                  smoothing_kernel=None,
-                 ignore_obs='dummy', survey_name='', nside=None, seed=42,
-                 dither=True, detailers=None):
+                 ignore_obs=None, survey_name='', nside=None, seed=42,
+                 dither=True, detailers=None, camera='LSST'):
 
         super(BaseMarkovDF_survey, self).__init__(basis_functions=basis_functions,
                                                   extra_features=extra_features,
@@ -162,8 +172,15 @@ class BaseMarkovDF_survey(BaseSurvey):
         # Check that weights and basis functions are same length
         if len(basis_functions) != np.size(basis_weights):
             raise ValueError('basis_functions and basis_weights must be same length.')
+
+        self.camera = camera
         # Load the OpSim field tesselation and map healpix to fields
-        self.fields_init = read_fields()
+        if self.camera == 'LSST':
+            self.fields_init = read_fields()
+        elif self.camera == 'comcam':
+            self.fields_init = comcamTessellate()
+        else:
+            ValueError('camera %s unknown, should be "LSST" or "comcam"' %camera)
         self.fields = self.fields_init.copy()
         self.hp2fields = np.array([])
         self._hp2fieldsetup(self.fields['RA'], self.fields['dec'])
@@ -180,24 +197,18 @@ class BaseMarkovDF_survey(BaseSurvey):
         np.random.seed(seed)
         self.dither = dither
 
-    def add_observation(self, observation, **kwargs):
-        """
-        """
-        if self.ignore_obs not in str(observation['note']):
-            for bf in self.basis_functions:
-                bf.add_observation(observation, **kwargs)
-            for feature in self.extra_features:
-                self.extra_features[feature].add_observation(observation, **kwargs)
-            self.reward_checked = False
-
     def _hp2fieldsetup(self, ra, dec, leafsize=100):
         """Map each healpixel to nearest field. This will only work if healpix
         resolution is higher than field resolution.
         """
-        pointing2hpindx = hp_in_lsst_fov(nside=self.nside)
+        if self.camera == 'LSST':
+            pointing2hpindx = hp_in_lsst_fov(nside=self.nside)
+        elif self.camera == 'comcam':
+            pointing2hpindx = hp_in_comcam_fov(nside=self.nside)
+
         self.hp2fields = np.zeros(hp.nside2npix(self.nside), dtype=np.int)
         for i in range(len(ra)):
-            hpindx = pointing2hpindx(ra[i], dec[i])
+            hpindx = pointing2hpindx(ra[i], dec[i], rotSkyPos=0.)
             self.hp2fields[hpindx] = i
 
     def _spin_fields(self, lon=None, lat=None, lon2=None):

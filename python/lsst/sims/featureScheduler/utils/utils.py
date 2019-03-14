@@ -418,7 +418,7 @@ class hp_in_lsst_fov(object):
         self.tree = hp_kd_tree(nside=nside)
         self.radius = xyz_angular_radius(fov_radius)
 
-    def __call__(self, ra, dec, *args):
+    def __call__(self, ra, dec, **kwargs):
         """
         Parameters
         ----------
@@ -462,7 +462,7 @@ class hp_in_comcam_fov(object):
         self.corners_y = np.array([self.side_length/2., -self.side_length/2., -self.side_length/2.,
                                   self.side_length/2.])
 
-    def __call__(self, ra, dec, rotSkyPos):
+    def __call__(self, ra, dec, rotSkyPos=0.):
         """
         Parameters
         ----------
