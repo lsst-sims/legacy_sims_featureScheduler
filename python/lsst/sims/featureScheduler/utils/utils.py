@@ -15,6 +15,7 @@ import datetime
 from lsst.sims.featureScheduler import version
 import warnings
 from lsst.sims.survey.fields import FieldsDatabase
+import socket
 
 log = logging.getLogger(__name__)
 
@@ -897,22 +898,35 @@ def filter_count_ratios(target_maps):
 
 def run_info_table(observatory):
     """
-    Make a little table for recording the information of a run
+    Make a little table for recording the information about a run
     """
-    names = ['time', 'datetime', 'ymd', 'version', 'fingerprint', 'observatory_class', 'obs_finger']
-    types = [float, '', 'U20', '', 'U20', '', 'U20', '', 'U50', '', 'U20', '', 'U50']
-    result = np.zeros(1, dtype=list(zip(names, types)))
-    result['time'] = np.float(time.time())
-    now = datetime.datetime.now()
-    result['ymd'] = '%i, %i, %i' % (now.year, now.month, now.day)
-    result['version'] = version.__version__
-    result['fingerprint'] = version.__fingerprint__
-    result['observatory_class'] = observatory.__class__.__name__
 
-    try:
-        result['obs_finger'] = observatory.version.__fingerprint__
-    except:
-        pass
+    observatory_info = observatory.get_info()
+
+    n_feature_entries = 4
+
+    names = ['Parameter', 'Value']
+    dtypes = ['|U60', '|U70']
+    result = np.zeros(observatory_info[:, 0].size + n_feature_entries,
+                      dtype=list(zip(names, dtypes)))
+
+    # Fill in info about the run
+    result[0]['Parameter'] = 'Date, ymd'
+    now = datetime.datetime.now()
+    result[0]['Value'] = '%i, %i, %i' % (now.year, now.month, now.day)
+
+    result[1]['Parameter'] = 'hostname'
+    result[1]['Value'] = socket.gethostname()
+
+    result[2]['Parameter'] = 'featureScheduler version'
+    result[2]['Value'] = version.__version__
+
+    result[3]['Parameter'] = 'featureScheduler fingerprint'
+    result[3]['Value'] = version.__fingerprint__
+
+    result[4:]['Parameter'] = observatory_info[:, 0]
+    result[4:]['Value'] = observatory_info[:, 1]
+
     return result
 
 
