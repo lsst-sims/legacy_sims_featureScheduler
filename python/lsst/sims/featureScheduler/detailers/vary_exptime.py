@@ -73,12 +73,14 @@ class Vary_expt_detailer(Base_detailer):
         new_expts = np.zeros(obs_array.size, dtype=float)
         for filtername in np.unique(obs_array['filter']):
             in_filt = np.where(obs_array['filter'] == filtername)
-            m5_at_min = m5_flat_sed(filtername, conditions['skybrightess'][filtername][hpids[in_filt]],
-                                    conditions['FWHMeff'][filtername][hpids[in_filt]], self.min_expt,
-                                    conditions['airmass'][hpids[in_filt]])
-            delta_m5 = self.target_m5[filtername] - m5_at_min
-            new_expts[in_filt] = self.min_expt * 10**(delta_m5/1.25)
-        new_expts = np.clip(new_expts, self.min_expt, self.max_expt)
+            # XXX--need to repair any nan's we happen to hit here
+            delta_m5 = self.target_m5[filtername] - conditions.M5Depth[filtername][hpids[in_filt]]
+            new_expts[in_filt] = conditions.exptime * 10**(delta_m5/1.25)
+        new_expts = np.clip(new_expts, self.min_exp, self.max_exp)
+        # I'm not sure what level of precision we can expect, so let's just limit to seconds
+        new_expts = np.round(new_expts)
+        if np.min(np.isfinite(new_expts)) < 1:
+            import pdb ; pdb.set_trace()
 
         for i, observation in enumerate(observation_list):
             observation['exptime'] = new_expts[i]
