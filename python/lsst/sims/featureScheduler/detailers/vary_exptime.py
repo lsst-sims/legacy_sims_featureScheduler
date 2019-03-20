@@ -1,6 +1,7 @@
 from lsst.sims.featureScheduler.detailers import Base_detailer
 from lsst.sims.utils import _raDec2Hpid, m5_flat_sed
 import numpy as np
+import healpy as hp
 
 __all__ = ["Vary_expt_detailer", "calc_target_m5s"]
 
@@ -73,14 +74,25 @@ class Vary_expt_detailer(Base_detailer):
         new_expts = np.zeros(obs_array.size, dtype=float)
         for filtername in np.unique(obs_array['filter']):
             in_filt = np.where(obs_array['filter'] == filtername)
-            # XXX--need to repair any nan's we happen to hit here
             delta_m5 = self.target_m5[filtername] - conditions.M5Depth[filtername][hpids[in_filt]]
+            # We can get NaNs because dithering pushes the center of the pointing into masked regions.
+            nan_indices = np.argwhere(np.isnan(delta_m5)).ravel()
+            for indx in nan_indices:
+                bad_hp = hpids[in_filt][indx]
+                # Note this might fail if we run at higher resolution, then we'd need to look farther for
+                # pixels to interpolate.
+                near_pix = hp.get_all_neighbours(conditions.nside, bad_hp)
+                vals = conditions.M5Depth[filtername][near_pix]
+                if True in np.isfinite(vals):
+                    estimate_m5 = np.mean(vals[np.isfinite(vals)])
+                    delta_m5[indx] = self.target_m5[filtername] - estimate_m5
+                else:
+                    raise ValueError('Failed to find a nearby unmasked sky value.')
+
             new_expts[in_filt] = conditions.exptime * 10**(delta_m5/1.25)
         new_expts = np.clip(new_expts, self.min_exp, self.max_exp)
         # I'm not sure what level of precision we can expect, so let's just limit to seconds
         new_expts = np.round(new_expts)
-        if np.min(np.isfinite(new_expts)) < 1:
-            import pdb ; pdb.set_trace()
 
         for i, observation in enumerate(observation_list):
             observation['exptime'] = new_expts[i]
