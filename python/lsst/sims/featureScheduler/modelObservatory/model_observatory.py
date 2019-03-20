@@ -416,8 +416,6 @@ class Model_observatory(object):
             result.append([model_name+' fingerprint', fingerprint])
             result.append([model_name+' module', models[model_name].__module__])
 
-        result = np.array(result)
-
         return result
 
     def return_conditions(self):

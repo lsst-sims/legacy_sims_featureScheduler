@@ -9,7 +9,8 @@ __all__ = ['sim_runner']
 
 
 def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, survey_length=3.,
-               filename=None, delete_past=True, n_visit_limit=None, step_none=15., verbose=True):
+               filename=None, delete_past=True, n_visit_limit=None, step_none=15., verbose=True,
+               extra_info=None):
     """
     run a simulation
 
@@ -19,6 +20,8 @@ def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, su
         The length of the survey ot run (days)
     step_none : float (15)
         The amount of time to advance if the scheduler fails to return a target (minutes).
+    extra_info : dict (None)
+        If present, dict gets added onto the information from the observatory model.
     """
 
     t0 = time.time()
@@ -91,8 +94,7 @@ def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, su
     print('ran in %i min = %.1f hours' % (runtime/60., runtime/3600.))
     observations = np.array(observations)[:, 0]
     if filename is not None:
-        info = run_info_table(observatory)
-
+        info = run_info_table(observatory, extra_info=extra_info)
         converter = schema_converter()
         converter.obs2opsim(observations, filename=filename, info=info, delete_past=delete_past)
     return observatory, scheduler, observations
