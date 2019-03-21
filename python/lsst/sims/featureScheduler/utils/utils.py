@@ -896,17 +896,20 @@ def filter_count_ratios(target_maps):
     return results
 
 
-def run_info_table(observatory):
+def run_info_table(observatory, extra_info=None):
     """
     Make a little table for recording the information about a run
     """
 
     observatory_info = observatory.get_info()
+    for key in extra_info:
+        observatory_info.append([key, extra_info[key]])
+    observatory_info = np.array(observatory_info)
 
     n_feature_entries = 4
 
     names = ['Parameter', 'Value']
-    dtypes = ['|U60', '|U70']
+    dtypes = ['|U200', '|U200']
     result = np.zeros(observatory_info[:, 0].size + n_feature_entries,
                       dtype=list(zip(names, dtypes)))
 

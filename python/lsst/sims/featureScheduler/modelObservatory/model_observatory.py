@@ -416,8 +416,6 @@ class Model_observatory(object):
             result.append([model_name+' fingerprint', fingerprint])
             result.append([model_name+' module', models[model_name].__module__])
 
-        result = np.array(result)
-
         return result
 
     def return_conditions(self):
@@ -635,7 +633,6 @@ class Model_observatory(object):
                         num_exp=observation['nexp'], exp_times=[observation['exptime']])
         start_ra = self.observatory.current_state.ra_rad
         start_dec = self.observatory.current_state.dec_rad
-
         slewtime, visittime = self.observatory.observe_times(target)
 
         # Check if the mjd after slewtime and visitime is fine:
