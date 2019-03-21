@@ -5,6 +5,7 @@ import lsst.sims.skybrightness_pre as sb
 import healpy as hp
 from datetime import datetime
 from lsst.sims.downtimeModel import ScheduledDowntime, UnscheduledDowntime
+import lsst.sims.downtimeModel as downtimeModel
 from lsst.sims.seeingModel import SeeingSim
 from lsst.sims.cloudModel import CloudModel
 from lsst.sims.featureScheduler.features import Conditions
@@ -16,6 +17,7 @@ from lsst.sims.almanac import Almanac
 import warnings
 import matplotlib.pylab as plt
 from lsst.ts.observatory.model import ObservatoryState
+from importlib import import_module
 
 __all__ = ['Model_observatory']
 
@@ -344,6 +346,9 @@ class Model_observatory(object):
         usdt = UnscheduledDowntime()
         usdt.initialize(random_seed=seed)
 
+        self.scheduledDowntime_model = sdt
+        self.unscheduledDowntime_model = usdt
+
         for downtime in sdt.downtimes:
             self.down_nights.extend(range(downtime[0], downtime[0]+downtime[1], 1))
         for downtime in usdt.downtimes:
@@ -382,6 +387,38 @@ class Model_observatory(object):
         self.mjd = to_set_mjd
 
         self.obsID_counter = 0
+
+    def get_info(self):
+        """
+        Returns
+        -------
+        Array with model versions that were instantiated
+        """
+
+        # The things we want to get info on
+        models = {'cloud model': self.cloud_model, 'sky model': self.sky_model,
+                  'seeing model': self.seeing_model, 'observatory model': self.observatory,
+                  'sched downtime model': self.scheduledDowntime_model,
+                  'unched downtime model': self.unscheduledDowntime_model}
+
+        result = []
+        for model_name in models:
+            try:
+                module_name = models[model_name].__module__
+                module = import_module(module_name)
+                ver = import_module(module.__package__+'.version')
+                version = ver.__version__
+                fingerprint = ver.__fingerprint__
+            except:
+                version = 'NA'
+                fingerprint = 'NA'
+            result.append([model_name+' version', version])
+            result.append([model_name+' fingerprint', fingerprint])
+            result.append([model_name+' module', models[model_name].__module__])
+
+        result = np.array(result)
+
+        return result
 
     def return_conditions(self):
         """

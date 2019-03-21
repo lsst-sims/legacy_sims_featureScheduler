@@ -91,12 +91,7 @@ def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, su
     print('ran in %i min = %.1f hours' % (runtime/60., runtime/3600.))
     observations = np.array(observations)[:, 0]
     if filename is not None:
-        # don't crash just because some info stuff failed.
-        try:
-            info = run_info_table(observatory)
-        except Exception:
-            info = None
-            warnings.warn('Failed to get info about run, may need to run scons in some pacakges.')
+        info = run_info_table(observatory)
 
         converter = schema_converter()
         converter.obs2opsim(observations, filename=filename, info=info, delete_past=delete_past)
