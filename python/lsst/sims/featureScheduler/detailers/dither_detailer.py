@@ -1,8 +1,10 @@
 import numpy as np
 from lsst.sims.featureScheduler.detailers import Base_detailer
+from lsst.sims.utils import _approx_RaDec2AltAz
+from lsst.sims.featureScheduler.utils import approx_altaz2pa
 
 
-__all__ = ["Dither_detailer"]
+__all__ = ["Dither_detailer", "Camera_rot_detailer"]
 
 
 def gnomonic_project_toxy(ra, dec, raCen, decCen):
@@ -69,4 +71,53 @@ class Dither_detailer(Base_detailer):
         for i, obs in enumerate(observation_list):
             observation_list[i]['RA'] = newRA[i]
             observation_list[i]['dec'] = newDec[i]
+        return observation_list
+
+
+class Camera_rot_detailer(Base_detailer):
+    """
+    Randomly set the camera rotation, either for each exposure, or per night.
+
+    Parameters
+    ----------
+    max_rot : float (90.)
+        The maximum amount to offset the camera (degrees)
+    min_rot : float (90)
+        The minimum to offset the camera (degrees)
+    per_night : bool (True)
+        If True, only set a new offset per night. If False, randomly rotates every observation.
+    """
+    def __init__(self, max_rot=90., min_rot=-90., per_night=True, seed=42):
+        self.survey_features = {}
+
+        self.current_night = -1
+        self.max_rot = np.radians(max_rot)
+        self.min_rot = np.radians(min_rot)
+        self.range = self.max_rot - self.min_rot
+        self.per_night = per_night
+        np.random.seed(seed=seed)
+        self.offset = None
+
+    def _generate_offsets(self, n_offsets, night):
+        if self.per_night:
+            if night != self.current_night:
+                self.current_night = night
+                self.offset = np.random.random(1) * self.range - self.min_rot
+            offsets = np.ones(n_offsets) * self.offset
+        else:
+            offsets = np.random.random(n_offsets) * self.range - self.min_rot
+
+        return offsets
+
+    def __call__(self, observation_list, conditions):
+
+        # Generate offsets in RA and Dec
+        offsets = self._generate_offsets(len(observation_list), conditions.night)
+
+        for i, obs in enumerate(observation_list):
+            alt, az = _approx_RaDec2AltAz(obs['RA'], obs['dec'], conditions.site.latitude_rad,
+                                          conditions.site.longitude_rad, conditions.mjd)
+            obs_pa = approx_altaz2pa(alt, az, conditions.site.latitude_rad)
+            obs['rotSkyPos'] = (obs_pa + offsets[i] + 2.*np.pi) % (2.*np.pi)
+
         return observation_list
