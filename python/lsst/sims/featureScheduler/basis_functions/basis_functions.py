@@ -5,6 +5,7 @@ import healpy as hp
 from lsst.sims.skybrightness_pre import M5percentiles
 import matplotlib.pylab as plt
 import warnings
+from lsst.sims.utils import _hpid2RaDec
 
 
 __all__ = ['Base_basis_function', 'Constant_basis_function', 'Target_map_basis_function',
@@ -13,7 +14,7 @@ __all__ = ['Base_basis_function', 'Constant_basis_function', 'Target_map_basis_f
            'Filter_change_basis_function', 'Slewtime_basis_function',
            'Aggressive_Slewtime_basis_function', 'Skybrightness_limit_basis_function',
            'CableWrap_unwrap_basis_function', 'Cadence_enhance_basis_function',
-           'Az_modulo_basis_function']
+           'Az_modulo_basis_function', 'Dec_modulo_basis_function']
 
 
 class Base_basis_function(object):
@@ -794,4 +795,43 @@ class Az_modulo_basis_function(Base_basis_function):
         else:
             out_pix = np.where((conditions.az < az_lim[0]) | (conditions.az > az_lim[1]))[0]
         result[out_pix] = self.out_of_bounds_val
+        return result
+
+
+class Dec_modulo_basis_function(Base_basis_function):
+    """Emphasize dec bands on a nightly varying basis
+
+    Parameters
+    ----------
+    dec_limits : list of float pairs (None)
+        The azimuth limits (degrees) to use.
+    """
+    def __init__(self, nside=None, dec_limits=None, out_of_bounds_val=-1.):
+        super(Dec_modulo_basis_function, self).__init__(nside=nside)
+
+        npix = hp.nside2npix(nside)
+        hpids = np.arange(npix)
+        ra, dec = _hpid2RaDec(nside, hpids)
+
+        self.results = []
+
+        if dec_limits is None:
+            self.dec_limits = np.radians([[-90., -32.8],
+                                         [-32.8, -12.],
+                                         [-12., 35.]])
+        else:
+            self.dec_limits = np.radians(dec_limits)
+        self.mod_val = len(self.dec_limits)
+        self.out_of_bounds_val = out_of_bounds_val
+
+        for limits in self.dec_limits:
+            good = np.where((dec >= limits[0]) & (dec < limits[1]))[0]
+            tmp = np.zeros(npix)
+            tmp[good] = 1
+            self.results.append(tmp)
+
+    def _calc_value(self, conditions, indx=None):
+        night_index = np.max(conditions.night % self.mod_val)
+        result = self.results[night_index]
+
         return result
