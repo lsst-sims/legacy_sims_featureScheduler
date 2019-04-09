@@ -14,7 +14,7 @@ __all__ = ['Base_basis_function', 'Constant_basis_function', 'Target_map_basis_f
            'Filter_change_basis_function', 'Slewtime_basis_function',
            'Aggressive_Slewtime_basis_function', 'Skybrightness_limit_basis_function',
            'CableWrap_unwrap_basis_function', 'Cadence_enhance_basis_function',
-           'Az_modulo_basis_function', 'Dec_modulo_basis_function']
+           'Az_modulo_basis_function', 'Dec_modulo_basis_function', 'Template_generate_basis_function']
 
 
 class Base_basis_function(object):
@@ -834,4 +834,35 @@ class Dec_modulo_basis_function(Base_basis_function):
         night_index = np.max(conditions.night % self.mod_val)
         result = self.results[night_index]
 
+        return result
+
+
+class Template_generate_basis_function(Base_basis_function):
+    """Emphasize areas that have not been observed in a long time
+
+    Parameters
+    ----------
+    day_gap : float (250.)
+        How long to wait before boosting the reward (days)
+    footprint : np.array (None)
+        The indices of the healpixels to apply the boost to. Uses the default footprint if None
+    """
+    def __init__(self, nside=None, day_gap=250., filtername='r', footprint=None):
+        super(Template_generate_basis_function, self).__init__(nside=nside)
+        self.day_gap = day_gap
+        self.filtername = filtername
+        self.survey_features = {}
+        self.survey_features['Last_observed'] = features.Last_observed(filtername=filtername)
+        self.result = np.zeros(hp.nside2npix(self.nside))
+        if footprint is None:
+            fp = utils.standard_goals(nside=nside)[filtername]
+        else:
+            fp = footprint
+        out_of_bounds = np.where(footprint == 0)
+        self.result[out_of_bounds] = np.nan
+
+    def _calc_value(self, conditions, **kwargs):
+        result = self.result.copy()
+        overdue = np.where((conditions.mjd - self.survey_features['Last_observed'].feature) > self.day_gap)
+        result[overdue] += 1
         return result
