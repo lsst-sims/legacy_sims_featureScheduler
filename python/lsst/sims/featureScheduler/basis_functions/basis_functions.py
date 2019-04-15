@@ -13,7 +13,7 @@ __all__ = ['Base_basis_function', 'Constant_basis_function', 'Target_map_basis_f
            'Strict_filter_basis_function', 'Goal_Strict_filter_basis_function',
            'Filter_change_basis_function', 'Slewtime_basis_function',
            'Aggressive_Slewtime_basis_function', 'Skybrightness_limit_basis_function',
-           'CableWrap_unwrap_basis_function', 'Cadence_enhance_basis_function',
+           'CableWrap_unwrap_basis_function', 'Cadence_enhance_basis_function', 'Azimuth_basis_function',
            'Az_modulo_basis_function', 'Dec_modulo_basis_function', 'Template_generate_basis_function']
 
 
@@ -765,6 +765,27 @@ class Cadence_enhance_basis_function(Base_basis_function):
         return result
 
 
+class Azimuth_basis_function(Base_basis_function):
+    """Reward staying in the same azimuth range. Possibly better than using slewtime, especially when selecting a large area of sky.
+
+    Parameters
+    ----------
+
+    """
+
+    def __init__(self, nside=None):
+        super(Azimuth_basis_function, self).__init__(nside=nside)
+
+    def _calc_value(self, conditions, indx=None):
+        az_dist = conditions.az - conditions.telAz
+        az_dist = az_dist % (2.*np.pi)
+        over = np.where(az_dist > np.pi)
+        az_dist[over] = 2. * np.pi - az_dist[over]
+        # Normalize sp between 0 and 1
+        result = az_dist/np.pi
+        return result
+
+
 class Az_modulo_basis_function(Base_basis_function):
     """Try to replicate the Rothchild et al cadence forcing by only observing on limited az ranges per night.
 
@@ -858,11 +879,12 @@ class Template_generate_basis_function(Base_basis_function):
             fp = utils.standard_goals(nside=nside)[filtername]
         else:
             fp = footprint
-        out_of_bounds = np.where(footprint == 0)
-        self.result[out_of_bounds] = np.nan
+        self.out_of_bounds = np.where(fp == 0)
 
     def _calc_value(self, conditions, **kwargs):
         result = self.result.copy()
         overdue = np.where((conditions.mjd - self.survey_features['Last_observed'].feature) > self.day_gap)
-        result[overdue] += 1
+        result[overdue] = 1
+        result[self.out_of_bounds] = 0
+
         return result
