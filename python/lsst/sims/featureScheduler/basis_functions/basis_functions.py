@@ -175,6 +175,38 @@ class Target_map_basis_function(Base_basis_function):
         return result
 
 
+class Footprint_nvis_basis_function(Base_basis_function):
+    """Basis function to drive observations of a given footprint. Good to target of opportunity targets
+    where one might want to observe a region 3 times.
+
+    Parameters
+    ----------
+    footprint : np.array
+        A healpix array (1 for desired, 0 for not desired) of the target footprint.
+    nvis : int (1)
+        The number of visits to try and gather
+    """
+    def __init__(self, filtername='r', nside=None, footprint=None,
+                 nvis=1, out_of_bounds_val=np.nan):
+        super(Footprint_nvis_basis_function, self).__init__(nside=nside, filtername=filtername)
+        self.footprint = footprint
+        self.nvis = nvis
+
+        # Have a feature that tracks how many observations we have
+        self.survey_features = {}
+        # Map of the number of observations in filter
+        self.survey_features['N_obs'] = features.N_observations(filtername=filtername, nside=self.nside)
+        self.result = np.zeros(hp.nside2npix)
+        self.result.fill(np.nan)
+
+    def _calc_value(self, conditions, indx=None):
+        result = self.result.copy()
+        diff = self.footprint*self.nvis - self.survey_features['N_obs']
+
+        result[np.where(diff > 0)] = 1
+        return result
+
+
 class Avoid_Fast_Revists(Base_basis_function):
     """Marks targets as unseen if they are in a specified time window in order to avoid fast revisits.
 
