@@ -112,6 +112,8 @@ class Conditions(object):
             The MJD of moonrise during the current night. From interpolation.
         moonset : float
             The MJD of moonset during the current night. From interpolation.
+        targets_of_opportunity : list of lsst.sims.featureScheduler.targetoO object(s)
+            targetoO objects.
 
         Attributes (calculated on demand and cached)
         ------------------------------------------
@@ -210,6 +212,8 @@ class Conditions(object):
         self.bulk_cloud = None
 
         self.rotTelPos = None
+
+        self.targets_of_opportunity = None
 
     @property
     def lmst(self):

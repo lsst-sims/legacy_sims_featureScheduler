@@ -1076,3 +1076,37 @@ def create_season_offset(nside, sun_RA_rad):
     offset = offset * 365.25/(np.pi*2)
     offset = -offset - 365.25
     return offset
+
+
+class TargetoO(object):
+    """Class to hold information about a target of opportunity object
+
+    Parameters
+    ----------
+    tooid : int
+        Unique ID for the ToO.
+    footprints : dict of healpy arrays
+        Dict with keys of filtername, and values of np.array healpix maps
+    expires : float
+        MJD to stop trying to observe the ToO (days).
+    """
+    def __init__(self, tooid, footprints, expires):
+        self.footprints = footprints
+        self.expires = expires
+        self.id = tooid
+
+
+class Sim_targetoO(object):
+    """Wrapper to deliver a targetoO object at the right time
+    """
+
+    def __init__(self, targetoO, mjd_start):
+        self.mjd_start = mjd_start
+        self.targetoO = targetoO
+
+    def __call__(self, mjd):
+        if (mjd > self.mjd_start) & (mjd < self.targetoO.expires):
+            result = self.targetoO
+        else:
+            result = None
+        return result

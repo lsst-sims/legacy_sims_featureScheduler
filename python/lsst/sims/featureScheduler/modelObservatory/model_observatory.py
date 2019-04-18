@@ -300,7 +300,7 @@ class Model_observatory(object):
     """
 
     def __init__(self, nside=None, mjd_start=59853.5, seed=42, quickTest=True,
-                 alt_min=5., lax_dome=True, cloud_limit=0.699):
+                 alt_min=5., lax_dome=True, cloud_limit=0.699, sim_ToO=None):
         """
         Parameters
         ----------
@@ -314,6 +314,8 @@ class Model_observatory(object):
             Passed to observatory model. If true, allows dome creep.
         cloud_limit : float (0.7)
             The limit to stop taking observations if the cloud model returns something equal or higher
+        sim_ToO : list of sim_targetoO objects (None)
+            If one would like to inject simulated ToOs into the telemetry stream.
         """
 
         if nside is None:
@@ -329,6 +331,8 @@ class Model_observatory(object):
 
         # Conditions object to update and return on request
         self.conditions = Conditions(nside=self.nside)
+
+        self.sim_ToO = sim_ToO
 
         # Create an astropy location
         self.site = Site('LSST')
@@ -506,6 +510,12 @@ class Model_observatory(object):
         self.conditions.sunrise = self.almanac.sunsets['sunrise'][self.almanac_indx]
         self.conditions.moonrise = self.almanac.sunsets['moonrise'][self.almanac_indx]
         self.conditions.moonset = self.almanac.sunsets['moonset'][self.almanac_indx]
+
+        # See if there are any ToOs to include
+        if self.sim_ToO is not None:
+            toos = [too() for too in self.sim_ToO if too is not None]
+            if len(toos) > 0:
+                self.conditions.targets_of_opportunity = toos
 
         return self.conditions
 
