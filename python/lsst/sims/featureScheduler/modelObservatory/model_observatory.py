@@ -491,6 +491,8 @@ class Model_observatory(object):
 
         self.conditions.telRA = self.observatory.current_state.ra_rad
         self.conditions.telDec = self.observatory.current_state.dec_rad
+        self.conditions.telAlt = self.observatory.current_state.alt_rad
+        self.conditions.telAz = self.observatory.current_state.az_rad
 
         self.conditions.rotTelPos = self.observatory.current_state.rot_rad
 

@@ -5,6 +5,7 @@ import healpy as hp
 from lsst.sims.skybrightness_pre import M5percentiles
 import matplotlib.pylab as plt
 import warnings
+from lsst.sims.utils import _hpid2RaDec
 
 
 __all__ = ['Base_basis_function', 'Constant_basis_function', 'Target_map_basis_function',
@@ -12,7 +13,8 @@ __all__ = ['Base_basis_function', 'Constant_basis_function', 'Target_map_basis_f
            'Strict_filter_basis_function', 'Goal_Strict_filter_basis_function',
            'Filter_change_basis_function', 'Slewtime_basis_function',
            'Aggressive_Slewtime_basis_function', 'Skybrightness_limit_basis_function',
-           'CableWrap_unwrap_basis_function', 'Cadence_enhance_basis_function']
+           'CableWrap_unwrap_basis_function', 'Cadence_enhance_basis_function', 'Azimuth_basis_function',
+           'Az_modulo_basis_function', 'Dec_modulo_basis_function', 'Template_generate_basis_function']
 
 
 class Base_basis_function(object):
@@ -760,4 +762,129 @@ class Cadence_enhance_basis_function(Base_basis_function):
             result[ind[to_supress]] = self.supress_val
             to_enhance = np.where((mjd_diff > self.enhance_window[0]) & (mjd_diff < self.enhance_window[1]))
             result[ind[to_enhance]] = self.enhance_val
+        return result
+
+
+class Azimuth_basis_function(Base_basis_function):
+    """Reward staying in the same azimuth range. Possibly better than using slewtime, especially when selecting a large area of sky.
+
+    Parameters
+    ----------
+
+    """
+
+    def __init__(self, nside=None):
+        super(Azimuth_basis_function, self).__init__(nside=nside)
+
+    def _calc_value(self, conditions, indx=None):
+        az_dist = conditions.az - conditions.telAz
+        az_dist = az_dist % (2.*np.pi)
+        over = np.where(az_dist > np.pi)
+        az_dist[over] = 2. * np.pi - az_dist[over]
+        # Normalize sp between 0 and 1
+        result = az_dist/np.pi
+        return result
+
+
+class Az_modulo_basis_function(Base_basis_function):
+    """Try to replicate the Rothchild et al cadence forcing by only observing on limited az ranges per night.
+
+    Parameters
+    ----------
+    az_limits : list of float pairs (None)
+        The azimuth limits (degrees) to use.
+    """
+    def __init__(self, nside=None, az_limits=None, out_of_bounds_val=-1.):
+        super(Az_modulo_basis_function, self).__init__(nside=nside)
+        self.result = np.ones(hp.nside2npix(self.nside))
+        if az_limits is None:
+            spread = 100./2.
+            self.az_limits = np.radians([[360-spread, spread],
+                                        [90.-spread, 90.+spread],
+                                        [180.-spread, 180.+spread]])
+        else:
+            self.az_limits = np.radians(az_limits)
+        self.mod_val = len(self.az_limits)
+        self.out_of_bounds_val = out_of_bounds_val
+
+    def _calc_value(self, conditions, indx=None):
+        result = self.result.copy()
+        az_lim = self.az_limits[np.max(conditions.night) % self.mod_val]
+
+        if az_lim[0] < az_lim[1]:
+            out_pix = np.where((conditions.az < az_lim[0]) | (conditions.az > az_lim[1]))
+        else:
+            out_pix = np.where((conditions.az < az_lim[0]) | (conditions.az > az_lim[1]))[0]
+        result[out_pix] = self.out_of_bounds_val
+        return result
+
+
+class Dec_modulo_basis_function(Base_basis_function):
+    """Emphasize dec bands on a nightly varying basis
+
+    Parameters
+    ----------
+    dec_limits : list of float pairs (None)
+        The azimuth limits (degrees) to use.
+    """
+    def __init__(self, nside=None, dec_limits=None, out_of_bounds_val=-1.):
+        super(Dec_modulo_basis_function, self).__init__(nside=nside)
+
+        npix = hp.nside2npix(nside)
+        hpids = np.arange(npix)
+        ra, dec = _hpid2RaDec(nside, hpids)
+
+        self.results = []
+
+        if dec_limits is None:
+            self.dec_limits = np.radians([[-90., -32.8],
+                                         [-32.8, -12.],
+                                         [-12., 35.]])
+        else:
+            self.dec_limits = np.radians(dec_limits)
+        self.mod_val = len(self.dec_limits)
+        self.out_of_bounds_val = out_of_bounds_val
+
+        for limits in self.dec_limits:
+            good = np.where((dec >= limits[0]) & (dec < limits[1]))[0]
+            tmp = np.zeros(npix)
+            tmp[good] = 1
+            self.results.append(tmp)
+
+    def _calc_value(self, conditions, indx=None):
+        night_index = np.max(conditions.night % self.mod_val)
+        result = self.results[night_index]
+
+        return result
+
+
+class Template_generate_basis_function(Base_basis_function):
+    """Emphasize areas that have not been observed in a long time
+
+    Parameters
+    ----------
+    day_gap : float (250.)
+        How long to wait before boosting the reward (days)
+    footprint : np.array (None)
+        The indices of the healpixels to apply the boost to. Uses the default footprint if None
+    """
+    def __init__(self, nside=None, day_gap=250., filtername='r', footprint=None):
+        super(Template_generate_basis_function, self).__init__(nside=nside)
+        self.day_gap = day_gap
+        self.filtername = filtername
+        self.survey_features = {}
+        self.survey_features['Last_observed'] = features.Last_observed(filtername=filtername)
+        self.result = np.zeros(hp.nside2npix(self.nside))
+        if footprint is None:
+            fp = utils.standard_goals(nside=nside)[filtername]
+        else:
+            fp = footprint
+        self.out_of_bounds = np.where(fp == 0)
+
+    def _calc_value(self, conditions, **kwargs):
+        result = self.result.copy()
+        overdue = np.where((conditions.mjd - self.survey_features['Last_observed'].feature) > self.day_gap)
+        result[overdue] = 1
+        result[self.out_of_bounds] = 0
+
         return result

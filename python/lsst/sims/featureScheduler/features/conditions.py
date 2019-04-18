@@ -81,7 +81,11 @@ class Conditions(object):
         telRA : float
             The current telescope RA pointing (radians).
         telDec : float
-            The current telescope Declination
+            The current telescope Declination (radians).
+        telAlt : float
+            The current telescope altitude (radians).
+        telAz : float
+            The current telescope azimuth (radians).
         cloud_map : np.array
             A healpix map with the cloud coverage. XXX-expand, is this bool map? Transparency map?
         airmass : np.array
@@ -195,6 +199,8 @@ class Conditions(object):
         # Current telescope pointing
         self.telRA = None
         self.telDec = None
+        self.telAlt = None
+        self.telAz = None
 
         # Full sky cloud map
         self._cloud_map = None
