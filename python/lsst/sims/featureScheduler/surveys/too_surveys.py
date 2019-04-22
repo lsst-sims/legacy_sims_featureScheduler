@@ -1,7 +1,5 @@
 import numpy as np
 from lsst.sims.featureScheduler.surveys import Blob_survey, BaseSurvey
-import lsst.sims.featureScheduler.basis_functions as basis_functions
-from lsst.sims.featureScheduler.utils import empty_observation
 import healpy as hp
 
 
@@ -20,7 +18,6 @@ class ToO_master(BaseSurvey):
             for key in self.surveys:
                 self.surveys[key].add_observation(observation)
 
-
     def _spawn_new_survey(self, too):
         """Create a new survey object for a ToO we haven't seen before.
 
@@ -31,7 +28,7 @@ class ToO_master(BaseSurvey):
         pass
 
     def _check_survey_list(self, conditions):
-        """There is a current ToO in the conditions. 
+        """There is a current ToO in the conditions.
         """
 
         running_ids = [survey.too_id for survey in self.surveys]
@@ -48,7 +45,6 @@ class ToO_master(BaseSurvey):
         self.surveys.extend(new_surveys)
 
     def calc_reward_function(self, conditions):
-        
         # Catch if a new ToO has happened
         if conditions.targets_of_opportunity is not None:
             self._check_survey_list(conditions)
@@ -70,47 +66,37 @@ class ToO_master(BaseSurvey):
 class ToO_survey(Blob_survey):
     """Survey class to catch incoming target of opportunity anouncements and try to observe them.
 
-    The idea is that we can dynamically update the target footprint basis fucntion, and add new features as more ToOs come in.
+    The idea is that we can dynamically update the target footprint basis function, and add new features as more ToOs come in.
+
+    Parameters
+    ----------
+    too_id : int (None)
+        A unique integer ID for the ToO getting observed
     """
-
-    def _check_feasibility(self, conditions):
-        """
-        Check if the survey is feasable in the current conditions
-        """
-        for bf in self.basis_functions:
-            result = bf.check_feasibility(conditions)
-            if not result:
-                return result
-        return result
-
-    def calc_reward_function(self, conditions):
-        self.reward_checked = True
-        if self._check_feasibility(conditions):
-            self.reward = 0
-            indx = np.arange(hp.nside2npix(self.nside))
-            for bf, weight in zip(self.basis_functions, self.basis_weights):
-                basis_value = bf(conditions, indx=indx)
-                self.reward += basis_value*weight
-
-            if np.any(np.isinf(self.reward)):
-                self.reward = np.inf
-        else:
-            # If not feasable, negative infinity reward
-            self.reward = -np.inf
-        if self.smoothing_kernel is not None:
-            self.smooth_reward()
-            return self.reward_smooth
-        else:
-            return self.reward
+    def __init__(self, basis_functions, basis_weights,
+                 filtername1='r', filtername2=None,
+                 slew_approx=7.5, filter_change_approx=140.,
+                 read_approx=2., exptime=30., nexp=2,
+                 ideal_pair_time=22., min_pair_time=15.,
+                 search_radius=30., alt_max=85., az_range=90.,
+                 flush_time=30.,
+                 smoothing_kernel=None, nside=None,
+                 dither=True, seed=42, ignore_obs=None,
+                 survey_note='ToO', detailers=None, camera='LSST',
+                 too_id=None):
+        super(ToO_survey, self).__init__(basis_functions=basis_functions, basis_weights=basis_weights,
+                                         filtername1=filtername1, fitlername2=filtername2, slew_approx=slew_approx,
+                                         filter_change_approx=filter_change_approx, read_approx=read_approx, exptime=exptime,
+                                         nexp=nexp, ideal_pair_time=ideal_pair_time, min_pair_time=min_pair_time, search_radius=search_radius,
+                                         alt_max=alt_max, az_range=az_range, flush_time=flush_time, smoothing_kernel=smoothing_kernel, nside=nside,
+                                         dither=dither, seed=seed, ignore_obs=ignore_obs, survey_note=survey_note, detailers=detailers, camera=camera)
+        self.too_id = too_id
+        # Include the ToO id in the note
+        self.survey_note = self.survey_note + ', ' + str(self.too_id)
 
     def generate_observations_rough(self, conditions):
-
-        self.reward = self.calc_reward_function(conditions)
-
-        # Check if we need to spin the tesselation
-        if self.dither & (conditions.night != self.night):
+        # Always spin the tesselation before generating a new block.
+        if self.dither:
             self._spin_fields()
-            self.night = conditions.night.copy()
-
-        # XXX Use self.reward to decide what to observe.
-        return None
+        result = super(ToO_survey, self).generate_observations_rough(conditions)
+        return result
