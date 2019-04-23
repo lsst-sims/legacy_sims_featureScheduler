@@ -513,7 +513,7 @@ class Model_observatory(object):
 
         # See if there are any ToOs to include
         if self.sim_ToO is not None:
-            toos = [too() for too in self.sim_ToO if too is not None]
+            toos = [too(self.mjd) for too in self.sim_ToO if too(self.mjd) is not None]
             if len(toos) > 0:
                 self.conditions.targets_of_opportunity = toos
 

@@ -1090,8 +1090,8 @@ class TargetoO(object):
     expires : float
         MJD to stop trying to observe the ToO (days).
     """
-    def __init__(self, tooid, footprints, expires):
-        self.footprints = footprints
+    def __init__(self, tooid, footprint, expires):
+        self.footprint = footprint
         self.expires = expires
         self.id = tooid
 

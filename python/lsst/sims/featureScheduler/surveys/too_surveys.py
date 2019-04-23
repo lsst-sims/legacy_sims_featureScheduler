@@ -4,6 +4,9 @@ import healpy as hp
 import copy
 
 
+__all__ = ['ToO_master', 'ToO_survey']
+
+
 class ToO_master(BaseSurvey):
     """
     A target of opportunity class. Every time a new ToO comes in, it will spawn a new sub-survey.
@@ -13,11 +16,13 @@ class ToO_master(BaseSurvey):
         self.example_ToO_survey = example_ToO_survey
         self.surveys = []
         self.highest_reward = -np.inf
+        # XXX--TODO:  ugh, I think I want to take out the sequence stuff perhaps
+        self.sequence = False
 
     def add_observation(self, observation, **kwargs):
         if len(self.surveys) > 0:
-            for key in self.surveys:
-                self.surveys[key].add_observation(observation)
+            for survey in self.surveys:
+                survey.add_observation(observation)
 
     def _spawn_new_survey(self, too):
         """Create a new survey object for a ToO we haven't seen before.
@@ -28,6 +33,8 @@ class ToO_master(BaseSurvey):
         """
         new_survey = copy.deepcopy(self.example_ToO_survey)
         new_survey.set_id(too.id)
+        new_survey.set_target_map(too.footprint)
+
         return new_survey
 
     def _check_survey_list(self, conditions):
@@ -53,8 +60,8 @@ class ToO_master(BaseSurvey):
             self._check_survey_list(conditions)
 
         if len(self.surveys) > 0:
-            rewards = [survey.calc_reward_function(conditions) for survey in self.surveys]
-            self.reward = np.max(rewards)
+            rewards = [np.nanmax(survey.calc_reward_function(conditions)) for survey in self.surveys]
+            self.reward = np.nanmax(rewards)
             self.highest_reward = np.min(np.where(rewards == self.reward))
         else:
             self.reward = -np.inf
@@ -81,14 +88,14 @@ class ToO_survey(Blob_survey):
                  slew_approx=7.5, filter_change_approx=140.,
                  read_approx=2., exptime=30., nexp=2,
                  ideal_pair_time=22., min_pair_time=15.,
-                 search_radius=30., alt_max=85., az_range=90.,
+                 search_radius=30., alt_max=85., az_range=180.,
                  flush_time=30.,
                  smoothing_kernel=None, nside=None,
                  dither=True, seed=42, ignore_obs=None,
                  survey_note='ToO', detailers=None, camera='LSST',
                  too_id=None):
         super(ToO_survey, self).__init__(basis_functions=basis_functions, basis_weights=basis_weights,
-                                         filtername1=filtername1, fitlername2=filtername2, slew_approx=slew_approx,
+                                         filtername1=filtername1, filtername2=filtername2, slew_approx=slew_approx,
                                          filter_change_approx=filter_change_approx, read_approx=read_approx, exptime=exptime,
                                          nexp=nexp, ideal_pair_time=ideal_pair_time, min_pair_time=min_pair_time, search_radius=search_radius,
                                          alt_max=alt_max, az_range=az_range, flush_time=flush_time, smoothing_kernel=smoothing_kernel, nside=nside,
@@ -100,8 +107,16 @@ class ToO_survey(Blob_survey):
     def set_id(self, newid):
         """Set the id
         """
-        self.to_id = newid
+        self.too_id = newid
         self.survey_note = self.survey_note_base + ', ' + str(newid)
+
+    def set_target_map(self, newmap):
+        """
+        Expect one of the basis functions to be Footprint_nvis_basis_function
+        """
+        for basis_func in self.basis_functions:
+            if hasattr(basis_func, 'footprint'):
+                basis_func.footprint = newmap
 
     def generate_observations_rough(self, conditions):
         # Always spin the tesselation before generating a new block.

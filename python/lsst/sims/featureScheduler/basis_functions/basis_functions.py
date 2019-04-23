@@ -14,7 +14,8 @@ __all__ = ['Base_basis_function', 'Constant_basis_function', 'Target_map_basis_f
            'Filter_change_basis_function', 'Slewtime_basis_function',
            'Aggressive_Slewtime_basis_function', 'Skybrightness_limit_basis_function',
            'CableWrap_unwrap_basis_function', 'Cadence_enhance_basis_function', 'Azimuth_basis_function',
-           'Az_modulo_basis_function', 'Dec_modulo_basis_function', 'Template_generate_basis_function']
+           'Az_modulo_basis_function', 'Dec_modulo_basis_function', 'Template_generate_basis_function',
+           'Footprint_nvis_basis_function']
 
 
 class Base_basis_function(object):
@@ -196,14 +197,21 @@ class Footprint_nvis_basis_function(Base_basis_function):
         self.survey_features = {}
         # Map of the number of observations in filter
         self.survey_features['N_obs'] = features.N_observations(filtername=filtername, nside=self.nside)
-        self.result = np.zeros(hp.nside2npix)
-        self.result.fill(np.nan)
+        self.result = np.zeros(hp.nside2npix(nside))
+        self.result.fill(out_of_bounds_val)
+        self.out_of_bounds_val = out_of_bounds_val
 
     def _calc_value(self, conditions, indx=None):
         result = self.result.copy()
-        diff = self.footprint*self.nvis - self.survey_features['N_obs']
+        diff = self.footprint*self.nvis - self.survey_features['N_obs'].feature
 
         result[np.where(diff > 0)] = 1
+
+        if np.nanmax(self.survey_features['N_obs'].feature) > 0:
+            import pdb ; pdb.set_trace()
+
+        # Any spot where we have enough visits is out of bounds now.
+        result[np.where(diff <= 0)] = self.out_of_bounds_val
         return result
 
 
