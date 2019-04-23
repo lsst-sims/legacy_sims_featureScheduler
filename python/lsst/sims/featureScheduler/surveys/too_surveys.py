@@ -1,6 +1,7 @@
 import numpy as np
 from lsst.sims.featureScheduler.surveys import Blob_survey, BaseSurvey
 import healpy as hp
+import copy
 
 
 class ToO_master(BaseSurvey):
@@ -25,7 +26,9 @@ class ToO_master(BaseSurvey):
         ----------
         too : lsst.sims.featureScheduler.utils.TargetoO object
         """
-        pass
+        new_survey = copy.deepcopy(self.example_ToO_survey)
+        new_survey.set_id(too.id)
+        return new_survey
 
     def _check_survey_list(self, conditions):
         """There is a current ToO in the conditions.
@@ -90,9 +93,15 @@ class ToO_survey(Blob_survey):
                                          nexp=nexp, ideal_pair_time=ideal_pair_time, min_pair_time=min_pair_time, search_radius=search_radius,
                                          alt_max=alt_max, az_range=az_range, flush_time=flush_time, smoothing_kernel=smoothing_kernel, nside=nside,
                                          dither=dither, seed=seed, ignore_obs=ignore_obs, survey_note=survey_note, detailers=detailers, camera=camera)
-        self.too_id = too_id
         # Include the ToO id in the note
-        self.survey_note = self.survey_note + ', ' + str(self.too_id)
+        self.survey_note_base = self.survey_note
+        self.set_id(too_id)
+
+    def set_id(self, newid):
+        """Set the id
+        """
+        self.to_id = newid
+        self.survey_note = self.survey_note_base + ', ' + str(newid)
 
     def generate_observations_rough(self, conditions):
         # Always spin the tesselation before generating a new block.
