@@ -102,6 +102,8 @@ class Blob_survey(Greedy_survey):
     flush_time : float (30.)
         The time past the final expected exposure to flush the queue. Keeps observations
         from lingering past when they should be executed. (minutes)
+    twilight_scale : bool (True)
+        Scale the block size to fill up to twilight. Set to False if running in twilight
     """
     def __init__(self, basis_functions, basis_weights,
                  filtername1='r', filtername2='g',
@@ -112,7 +114,8 @@ class Blob_survey(Greedy_survey):
                  flush_time=30.,
                  smoothing_kernel=None, nside=None,
                  dither=True, seed=42, ignore_obs=None,
-                 survey_note='blob', detailers=None, camera='LSST'):
+                 survey_note='blob', detailers=None, camera='LSST',
+                 twilight_scale=True):
 
         if nside is None:
             nside = set_default_nside()
@@ -129,6 +132,7 @@ class Blob_survey(Greedy_survey):
         self.slew_approx = slew_approx
         self.read_approx = read_approx
         self.hpids = np.arange(hp.nside2npix(self.nside))
+        self.twilight_scale = twilight_scale
         # If we are taking pairs in same filter, no need to add filter change time.
         if filtername1 == filtername2:
             filter_change_approx = 0
@@ -163,11 +167,13 @@ class Blob_survey(Greedy_survey):
         """
         Update the block size if it's getting near the end of the night.
         """
+        if self.twilight_scale:
+            available_time = conditions.sun_n18_rising - conditions.mjd
+            available_time *= 24.*60.  # to minutes
+            n_ideal_blocks = available_time / self.ideal_pair_time
+        else:
+            n_ideal_blocks = 4
 
-        available_time = conditions.sun_n18_rising - conditions.mjd
-        available_time *= 24.*60.  # to minutes
-
-        n_ideal_blocks = available_time / self.ideal_pair_time
         if n_ideal_blocks >= 3:
             self.nvisit_block = int(np.floor(self.ideal_pair_time*60. / (self.slew_approx + self.exptime +
                                                                          self.read_approx*(self.nexp - 1))))
@@ -181,8 +187,8 @@ class Blob_survey(Greedy_survey):
                                                                     self.read_approx*(self.nexp - 1))))
 
         # The floor can set block to zero, make it possible to to just one
-        if self.nvisit_block == 0:
-            self.nvisit_block += 1
+        if self.nvisit_block <= 0:
+            self.nvisit_block = 1
 
     def calc_reward_function(self, conditions):
         """
@@ -259,8 +265,8 @@ class Blob_survey(Greedy_survey):
         self.best_fields = ufields
 
         if len(self.best_fields) == 0:
-            # everything was nans, or blocksize was zero
-            return None
+            # everything was nans, or self.nvisit_block was zero
+            return []
 
         # Let's find the alt, az coords of the points (right now, hopefully doesn't change much in time block)
         pointing_alt, pointing_az = _approx_RaDec2AltAz(self.fields['RA'][self.best_fields],
