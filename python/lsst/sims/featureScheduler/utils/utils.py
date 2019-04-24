@@ -1087,26 +1087,31 @@ class TargetoO(object):
         Unique ID for the ToO.
     footprints : dict of healpy arrays
         Dict with keys of filtername, and values of np.array healpix maps
-    expires : float
-        MJD to stop trying to observe the ToO (days).
+    mjd_start : float
+        The MJD the ToO starts
+    duration : float
+       Duration of the ToO (days).
     """
-    def __init__(self, tooid, footprint, expires):
+    def __init__(self, tooid, footprint, mjd_start, duration):
         self.footprint = footprint
-        self.expires = expires
+        self.duration = duration
         self.id = tooid
+        self.mjd_start = mjd_start
 
 
-class Sim_targetoO(object):
+class Sim_targetoO_server(object):
     """Wrapper to deliver a targetoO object at the right time
     """
 
-    def __init__(self, targetoO, mjd_start):
-        self.mjd_start = mjd_start
-        self.targetoO = targetoO
+    def __init__(self, targetoO_list):
+        self.targetoO_list = targetoO_list
+        self.mjd_starts = np.array([too.mjd_start for too in self.targetoO_list])
+        durations = np.array([too.duration for too in self.targetoO_list])
+        self.mjd_ends = self.mjd_starts + durations
 
     def __call__(self, mjd):
-        if (mjd > self.mjd_start) & (mjd < self.targetoO.expires):
-            result = self.targetoO
-        else:
-            result = None
+        in_range = np.where((mjd > self.mjd_starts) & (mjd < self.mjd_ends))[0]
+        result = None
+        if in_range.size > 0:
+            result = [self.targetoO_list[i] for i in in_range]
         return result

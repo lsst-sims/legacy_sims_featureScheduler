@@ -314,7 +314,7 @@ class Model_observatory(object):
             Passed to observatory model. If true, allows dome creep.
         cloud_limit : float (0.7)
             The limit to stop taking observations if the cloud model returns something equal or higher
-        sim_ToO : list of sim_targetoO objects (None)
+        sim_ToO : sim_targetoO object (None)
             If one would like to inject simulated ToOs into the telemetry stream.
         """
 
@@ -513,8 +513,8 @@ class Model_observatory(object):
 
         # See if there are any ToOs to include
         if self.sim_ToO is not None:
-            toos = [too(self.mjd) for too in self.sim_ToO if too(self.mjd) is not None]
-            if len(toos) > 0:
+            toos = self.sim_ToO(self.mjd)
+            if toos is not None:
                 self.conditions.targets_of_opportunity = toos
 
         return self.conditions
