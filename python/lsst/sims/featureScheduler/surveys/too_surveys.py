@@ -19,10 +19,11 @@ class ToO_master(BaseSurvey):
         # XXX--TODO:  ugh, I think I want to take out the sequence stuff perhaps
         self.sequence = False
 
-    def add_observation(self, observation, **kwargs):
+    def add_observation(self, observation, indx=None):
         if len(self.surveys) > 0:
             for survey in self.surveys:
-                survey.add_observation(observation)
+                survey.add_observation(observation, indx=indx)
+
 
     def _spawn_new_survey(self, too):
         """Create a new survey object for a ToO we haven't seen before.
@@ -70,7 +71,8 @@ class ToO_master(BaseSurvey):
 
     def generate_observations(self, conditions):
         if self.reward > -np.inf:
-            return self.surveys[self.highest_reward].generate_observations(conditions)
+            result = self.surveys[self.highest_reward].generate_observations(conditions)
+            return result
 
 
 class ToO_survey(Blob_survey):

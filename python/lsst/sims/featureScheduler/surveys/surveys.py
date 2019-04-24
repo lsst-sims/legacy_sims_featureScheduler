@@ -180,6 +180,10 @@ class Blob_survey(Greedy_survey):
             self.nvisit_block = int(np.floor(best_block_time*60. / (self.slew_approx + self.exptime +
                                                                     self.read_approx*(self.nexp - 1))))
 
+        # The floor can set block to zero, make it possible to to just one
+        if self.nvisit_block == 0:
+            self.nvisit_block += 1
+
     def calc_reward_function(self, conditions):
         """
         """
@@ -334,4 +338,5 @@ class Blob_survey(Greedy_survey):
                 result[i]['note'] = '%s, a' % (self.survey_note)
             for i in range(int(np.size(result)/2), np.size(result), 1):
                 result[i]['note'] = '%s, b' % (self.survey_note)
+
         return result

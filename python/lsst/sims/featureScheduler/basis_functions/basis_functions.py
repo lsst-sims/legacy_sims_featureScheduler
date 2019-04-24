@@ -207,9 +207,6 @@ class Footprint_nvis_basis_function(Base_basis_function):
 
         result[np.where(diff > 0)] = 1
 
-        if np.nanmax(self.survey_features['N_obs'].feature) > 0:
-            import pdb ; pdb.set_trace()
-
         # Any spot where we have enough visits is out of bounds now.
         result[np.where(diff <= 0)] = self.out_of_bounds_val
         return result
