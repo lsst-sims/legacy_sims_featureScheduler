@@ -10,6 +10,12 @@ __all__ = ['ToO_master', 'ToO_survey']
 class ToO_master(BaseSurvey):
     """
     A target of opportunity class. Every time a new ToO comes in, it will spawn a new sub-survey.
+
+    Parameters
+    ----------
+    example_ToO_survey : lsst.sims.featureScheduler.surveys.ToO_survey object
+        A survey object that will be coppied and have a new target map set
+        for each incoming ToO.
     """
 
     def __init__(self, example_ToO_survey):

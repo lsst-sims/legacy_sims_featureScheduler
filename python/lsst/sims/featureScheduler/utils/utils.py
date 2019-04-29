@@ -1085,8 +1085,8 @@ class TargetoO(object):
     ----------
     tooid : int
         Unique ID for the ToO.
-    footprints : dict of healpy arrays
-        Dict with keys of filtername, and values of np.array healpix maps
+    footprints : np.array
+        np.array healpix maps. 1 for areas to observe, 0 for no observe.
     mjd_start : float
         The MJD the ToO starts
     duration : float
