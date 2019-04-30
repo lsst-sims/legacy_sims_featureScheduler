@@ -4,13 +4,15 @@ import numpy as np
 from lsst.sims.featureScheduler.utils import run_info_table, schema_converter
 from lsst.sims.featureScheduler.schedulers import simple_filter_sched
 import time
+import sqlite3
+import pandas as pd
 
 __all__ = ['sim_runner']
 
 
 def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, survey_length=3.,
                filename=None, delete_past=True, n_visit_limit=None, step_none=15., verbose=True,
-               extra_info=None):
+               extra_info=None, event_table=None):
     """
     run a simulation
 
@@ -22,6 +24,8 @@ def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, su
         The amount of time to advance if the scheduler fails to return a target (minutes).
     extra_info : dict (None)
         If present, dict gets added onto the information from the observatory model.
+    event_table : np.array (None)
+        Any ToO events that were included in the simulation
     """
 
     t0 = time.time()
@@ -97,4 +101,9 @@ def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, su
         info = run_info_table(observatory, extra_info=extra_info)
         converter = schema_converter()
         converter.obs2opsim(observations, filename=filename, info=info, delete_past=delete_past)
+    if event_table is not None:
+        df = pd.DataFrame(event_table)
+        con = sqlite3.connect(filename)
+        df.to_sql('events', con)
+        con.close()
     return observatory, scheduler, observations
