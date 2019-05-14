@@ -69,7 +69,7 @@ class Conditions(object):
         moonDec : float
             Declination of the moon (radians)
         moonPhase : float
-            The Phase of the moon. (fraction, 0=new moon, 1=full moon)
+            The Phase of the moon. (percent, 0=new moon, 100=full moon)
         sunAlt : float
             The altitude of the sun (radians).
         sunAz : float
