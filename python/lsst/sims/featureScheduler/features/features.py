@@ -9,7 +9,7 @@ from lsst.sims.utils import m5_flat_sed
 __all__ = ['BaseFeature', 'BaseSurveyFeature', 'N_obs_count', 'N_obs_survey',
            'Last_observation', 'LastSequence_observation', 'LastFilterChange',
            'N_observations', 'Coadded_depth', 'Last_observed', 'N_obs_night', 'Pair_in_night',
-           'Rotator_angle', 'N_observations_season', 'N_obs_count_season']
+           'Rotator_angle', 'N_observations_season', 'N_obs_count_season', 'N_observations_currentyear']
 
 
 class BaseFeature(object):
@@ -228,6 +228,33 @@ class N_observations(BaseSurveyFeature):
                 # XXX.  Do I need to kdtree this? Maybe make a dict on init
                 # to lookup the N closest non-masked pixels, then do weighted average.
                 pass
+
+
+class N_observations_currentyear(BaseSurveyFeature):
+    """Track the number of observations taken in the current year
+    """
+    def __init__(self, filtername=None, nside=32, survey_name=None, mjd0=59853.5):
+        self.feature = np.zeros(hp.nside2npix(nside), dtype=float)
+        self.nside = nside
+        self.filtername = filtername
+        self.survey_name = survey_name
+        self.current_year = 0
+        self.mjd0 = mjd0
+
+    def _calc_year(self, observation):
+        """See what year it is, earse feature if year is new
+        """
+        year = np.floor((observation['mjd']-self.mjd0) % 365.25)
+        if year != self.current_year:
+            self.feature = np.zeros(hp.nside2npix(self.nside), dtype=float)
+            self.current_year = year
+
+    def add_observation(self, observation, indx=None):
+
+        if self.filtername is None or observation['filter'][0] in self.filtername:
+            if self.survey_name is None or observation['note'] in self.survey_name:
+                self._calc_year(observation)
+                self.feature[indx] += 1
 
 
 class N_observations_season(BaseSurveyFeature):
