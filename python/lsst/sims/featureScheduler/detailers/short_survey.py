@@ -21,7 +21,8 @@ class Short_expt_detailer(Base_detailer):
 
     """
     def __init__(self, exp_time=1., filtername='r', nside=32, footprint=None, nobs=2,
-                 mjd0=59853.5, survey_name='short'):
+                 mjd0=59853.5, survey_name='short', read_approx=2.):
+        self.read_approx = read_approx
         self.exp_time = exp_time
         self.filtername = filtername
         self.nside = nside
@@ -41,6 +42,7 @@ class Short_expt_detailer(Base_detailer):
         out_observations = []
         # Compute how many observations we should have taken by now
         n_goal = self.nobs * np.round((conditions.mjd - self.mjd0)/365.25 + 1)
+        time_to_add = 0.
         for observation in observation_list:
             out_observations.append(observation)
             if observation['filter'] == self.filtername:
@@ -55,5 +57,8 @@ class Short_expt_detailer(Base_detailer):
                     new_obs['nexp'] = 1
                     new_obs['note'] = self.survey_name
                     out_observations.append(new_obs)
-
+                    time_to_add += new_obs['exptime'] + self.read_approx
+        # pump up the flush time
+        for observation in observation_list:
+            observation['flush_by_mjd'] += time_to_add/3600./24.
         return out_observations
