@@ -28,6 +28,9 @@ def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, su
         Any ToO events that were included in the simulation
     """
 
+    if extra_info is None:
+        extra_info = {}
+
     t0 = time.time()
 
     if filter_scheduler is None:
