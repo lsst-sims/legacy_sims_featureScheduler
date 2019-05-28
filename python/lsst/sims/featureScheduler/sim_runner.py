@@ -99,6 +99,7 @@ def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, su
     print('Flushed %i observations from queue for being stale' % scheduler.flushed)
     print('Completed %i observations' % len(observations))
     print('ran in %i min = %.1f hours' % (runtime/60., runtime/3600.))
+    print('Writing results to ', filename)
     observations = np.array(observations)[:, 0]
     if filename is not None:
         info = run_info_table(observatory, extra_info=extra_info)
