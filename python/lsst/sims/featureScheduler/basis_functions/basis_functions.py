@@ -15,7 +15,7 @@ __all__ = ['Base_basis_function', 'Constant_basis_function', 'Target_map_basis_f
            'Aggressive_Slewtime_basis_function', 'Skybrightness_limit_basis_function',
            'CableWrap_unwrap_basis_function', 'Cadence_enhance_basis_function', 'Azimuth_basis_function',
            'Az_modulo_basis_function', 'Dec_modulo_basis_function', 'Template_generate_basis_function',
-           'Footprint_nvis_basis_function']
+           'Footprint_nvis_basis_function', 'Third_observation_basis_function']
 
 
 class Base_basis_function(object):
@@ -102,7 +102,7 @@ class Base_basis_function(object):
 class Constant_basis_function(Base_basis_function):
     """Just add a constant
     """
-    def __call__(self, **kwargs):
+    def __call__(self, conditions, **kwargs):
         return 1
 
 
@@ -209,6 +209,40 @@ class Footprint_nvis_basis_function(Base_basis_function):
 
         # Any spot where we have enough visits is out of bounds now.
         result[np.where(diff <= 0)] = self.out_of_bounds_val
+        return result
+
+
+class Third_observation_basis_function(Base_basis_function):
+    """If there have been observations in two filters long enough ago, go for a third
+
+    Parameters
+    ----------
+    gap_min : float (40.)
+        The minimum time gap to consider a pixel good (minutes)
+    gap_max : float (120)
+        The maximum time to consider going for a pair (minutes)
+    """
+
+    def __init__(self, nside=32, filtername1='r', filtername2='z', gap_min=40., gap_max=120.):
+        super(Third_observation_basis_function, self).__init__(nside=nside)
+        self.filtername1 = filtername1
+        self.filtername2 = filtername2
+        self.gap_min = gap_min/60./24.
+        self.gap_max = gap_max/60./24.
+
+        self.survey_features = {}
+        self.survey_features['last_obs_f1'] = features.Last_observed(filtername=filtername1, nside=nside)
+        self.survey_features['last_obs_f2'] = features.Last_observed(filtername=filtername2, nside=nside)
+        self.result = np.empty(hp.nside2npix(self.nside))
+        self.result.fill(np.nan)
+
+    def _calc_value(self, conditions, indx=None):
+        result = self.result.copy()
+        d1 = conditions.mjd - self.survey_features['last_obs_f1'].feature
+        d2 = conditions.mjd - self.survey_features['last_obs_f2'].feature
+        good = np.where((d1 > self.gap_min) & (d1 < self.gap_max) &
+                        (d2 > self.gap_min) & (d2 < self.gap_max))
+        result[good] = 1
         return result
 
 
