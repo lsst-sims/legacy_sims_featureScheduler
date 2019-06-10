@@ -300,7 +300,7 @@ class Model_observatory(object):
     """
 
     def __init__(self, nside=None, mjd_start=59853.5, seed=42, quickTest=True,
-                 alt_min=5., lax_dome=True, cloud_limit=0.699, sim_ToO=None):
+                 alt_min=5., lax_dome=True, cloud_limit=0.3, sim_ToO=None):
         """
         Parameters
         ----------
@@ -312,7 +312,7 @@ class Model_observatory(object):
             The minimum altitude to compute models at (degrees).
         lax_dome : bool (True)
             Passed to observatory model. If true, allows dome creep.
-        cloud_limit : float (0.7)
+        cloud_limit : float (0.3)
             The limit to stop taking observations if the cloud model returns something equal or higher
         sim_ToO : sim_targetoO object (None)
             If one would like to inject simulated ToOs into the telemetry stream.
