@@ -7,7 +7,8 @@ from lsst.sims.featureScheduler.basis_functions import Base_basis_function
 __all__ = ['Filter_loaded_basis_function', 'Time_to_twilight_basis_function',
            'Not_twilight_basis_function', 'Force_delay_basis_function',
            'Hour_Angle_limit_basis_function', 'Moon_down_basis_function',
-           'Fraction_of_obs_basis_function', 'Clouded_out_basis_function']
+           'Fraction_of_obs_basis_function', 'Clouded_out_basis_function',
+           'Rising_more_basis_function']
 
 
 class Filter_loaded_basis_function(Base_basis_function):
@@ -170,6 +171,32 @@ class Clouded_out_basis_function(Base_basis_function):
         if conditions.bulk_cloud > self.cloud_limit:
             result = False
         return result
+
+
+class Rising_more_basis_function(Base_basis_function):
+    """Say a spot is not available if it will rise substatially before twilight.
+
+    Parameters
+    ----------
+    RA : float
+        The RA of the point in the sky (degrees)
+    pad : float
+        When to start observations if there's plenty of time before twilight (minutes)
+    """
+    def __init__(self, RA, pad=30.):
+        super(Rising_more_basis_function, self).__init__()
+        self.RA_hours = RA * 24 / 360.
+        self.pad = pad/60.  # To hours
+
+    def check_feasibility(self, conditions):
+        result = True
+        hour_angle = conditions.lmst - self.RA_hours
+        # If it's rising, and twilight is well beyond when it crosses the meridian
+        time_to_twi = (conditions.sun_n18_rising - conditions.mjd)*24.
+        if (hour_angle < -self.pad) & (np.abs(hour_angle) < (time_to_twi - self.pad)):
+            result = False
+        return result
+
 
 ## XXX--TODO:  Can include checks to see if downtime is coming, clouds are coming, moon rising, or surveys in a higher tier 
 # Have observations they want to execute soon.

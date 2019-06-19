@@ -202,13 +202,14 @@ class N_observations(BaseSurveyFeature):
         List of healpixel indices to mask and interpolate over
 
     """
-    def __init__(self, filtername=None, nside=None, mask_indx=None):
+    def __init__(self, filtername=None, nside=None, mask_indx=None, survey_name=None):
         if nside is None:
             nside = utils.set_default_nside()
 
         self.feature = np.zeros(hp.nside2npix(nside), dtype=float)
         self.filtername = filtername
         self.mask_indx = mask_indx
+        self.survey_name = survey_name
 
     def add_observation(self, observation, indx=None):
         """
@@ -219,7 +220,8 @@ class N_observations(BaseSurveyFeature):
         """
 
         if self.filtername is None or observation['filter'][0] in self.filtername:
-            self.feature[indx] += 1
+            if self.survey_name is None or observation['note'] in self.survey_name:
+                self.feature[indx] += 1
 
         if self.mask_indx is not None:
             overlap = np.intersect1d(indx, self.mask_indx)

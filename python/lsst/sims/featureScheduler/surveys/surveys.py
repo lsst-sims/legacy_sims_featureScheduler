@@ -104,6 +104,8 @@ class Blob_survey(Greedy_survey):
         from lingering past when they should be executed. (minutes)
     twilight_scale : bool (True)
         Scale the block size to fill up to twilight. Set to False if running in twilight
+    min_area : float (None)
+        If set, demand the reward function have an area of so many square degrees before executing
     """
     def __init__(self, basis_functions, basis_weights,
                  filtername1='r', filtername2='g',
@@ -115,7 +117,7 @@ class Blob_survey(Greedy_survey):
                  smoothing_kernel=None, nside=None,
                  dither=True, seed=42, ignore_obs=None,
                  survey_note='blob', detailers=None, camera='LSST',
-                 twilight_scale=True):
+                 twilight_scale=True, min_area=None):
 
         if nside is None:
             nside = set_default_nside()
@@ -133,6 +135,7 @@ class Blob_survey(Greedy_survey):
         self.read_approx = read_approx
         self.hpids = np.arange(hp.nside2npix(self.nside))
         self.twilight_scale = twilight_scale
+        self.min_area = min_area
         # If we are taking pairs in same filter, no need to add filter change time.
         if filtername1 == filtername2:
             filter_change_approx = 0
@@ -159,9 +162,31 @@ class Blob_survey(Greedy_survey):
         self.min_pair_time = min_pair_time
         self.ideal_pair_time = ideal_pair_time
 
+        self.pixarea = hp.nside2pixarea(self.nside, degrees=True)
+
         # If we are only using one filter, this could be useful
         if (self.filtername2 is None) | (self.filtername1 == self.filtername2):
             self.filtername = self.filtername1
+
+    def _check_feasibility(self, conditions):
+        """
+        Check if the survey is feasable in the current conditions.
+        """
+        for bf in self.basis_functions:
+            result = bf.check_feasibility(conditions)
+            if not result:
+                return result
+
+        # If we need to check that the reward function has enough area available
+        if self.min_area is not None:
+            reward = 0
+            for bf, weight in zip(self.basis_functions, self.basis_weights):
+                basis_value = bf(conditions)
+                reward += basis_value*weight
+            valid_pix = np.where(np.isnan(reward) == False)[0]
+            if np.size(valid_pix)*self.pixarea < self.min_area:
+                result = False
+        return result
 
     def _set_block_size(self, conditions):
         """
@@ -346,3 +371,4 @@ class Blob_survey(Greedy_survey):
                 result[i]['note'] = '%s, b' % (self.survey_note)
 
         return result
+
