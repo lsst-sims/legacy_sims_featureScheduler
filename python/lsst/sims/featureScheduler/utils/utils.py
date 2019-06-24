@@ -177,26 +177,28 @@ class schema_converter(object):
     def __init__(self):
         # Conversion dictionary, keys are opsim schema, values are observation dtype names
         self.convert_dict = {'observationId': 'ID', 'night': 'night',
-                            'observationStartMJD': 'mjd',
-                            'observationStartLST': 'lmst', 'numExposures': 'nexp',
-                            'visitTime': 'visittime', 'visitExposureTime': 'exptime',
-                            'proposalId': 'survey_id', 'fieldId': 'field_id',
-                            'fieldRA': 'RA', 'fieldDec': 'dec', 'altitude': 'alt', 'azimuth': 'az',
-                            'filter': 'filter', 'airmass': 'airmass', 'skyBrightness': 'skybrightness',
-                            'cloud': 'clouds', 'seeingFwhm500': 'FWHM_500',
-                            'seeingFwhmGeom': 'FWHM_geometric', 'seeingFwhmEff': 'FWHMeff',
-                            'fiveSigmaDepth': 'fivesigmadepth', 'slewTime': 'slewtime',
-                            'slewDistance': 'slewdist', 'paraAngle': 'pa', 'rotTelPos': 'rotTelPos',
-                            'rotSkyPos': 'rotSkyPos', 'moonRA': 'moonRA',
-                            'moonDec': 'moonDec', 'moonAlt': 'moonAlt', 'moonAz': 'moonAz',
-                            'moonDistance': 'moonDist', 'moonPhase': 'moonPhase',
-                            'sunAlt': 'sunAlt', 'sunAz': 'sunAz', 'solarElong': 'solarElong'}
+                             'observationStartMJD': 'mjd',
+                             'observationStartLST': 'lmst', 'numExposures': 'nexp',
+                             'visitTime': 'visittime', 'visitExposureTime': 'exptime',
+                             'proposalId': 'survey_id', 'fieldId': 'field_id',
+                             'fieldRA': 'RA', 'fieldDec': 'dec', 'altitude': 'alt', 'azimuth': 'az',
+                             'filter': 'filter', 'airmass': 'airmass', 'skyBrightness': 'skybrightness',
+                             'cloud': 'clouds', 'seeingFwhm500': 'FWHM_500',
+                             'seeingFwhmGeom': 'FWHM_geometric', 'seeingFwhmEff': 'FWHMeff',
+                             'fiveSigmaDepth': 'fivesigmadepth', 'slewTime': 'slewtime',
+                             'slewDistance': 'slewdist', 'paraAngle': 'pa', 'rotTelPos': 'rotTelPos',
+                             'rotSkyPos': 'rotSkyPos', 'moonRA': 'moonRA',
+                             'moonDec': 'moonDec', 'moonAlt': 'moonAlt', 'moonAz': 'moonAz',
+                             'moonDistance': 'moonDist', 'moonPhase': 'moonPhase',
+                             'sunAlt': 'sunAlt', 'sunAz': 'sunAz', 'solarElong': 'solarElong'}
         # Column(s) not bothering to remap:  'observationStartTime': None,
         self.inv_map = {v: k for k, v in self.convert_dict.items()}
         # angles to converts
         self.angles_rad2deg = ['fieldRA', 'fieldDec', 'altitude', 'azimuth', 'slewDistance',
                                'paraAngle', 'rotTelPos', 'rotSkyPos', 'moonRA', 'moonDec',
                                'moonAlt', 'moonAz', 'moonDistance', 'sunAlt', 'sunAz', 'solarElong']
+        # Put LMST into degrees too
+        self.angles_hours2deg = ['observationStartLST']
 
     def obs2opsim(self, obs_array, filename=None, info=None, delete_past=False):
         """convert an array of observations into a pandas dataframe with Opsim schema
@@ -211,6 +213,8 @@ class schema_converter(object):
         df = df.rename(index=str, columns=self.inv_map)
         for colname in self.angles_rad2deg:
             df[colname] = np.degrees(df[colname])
+        for colname in self.angles_hours2deg:
+            df[colname] = df[colname] * 360./24.
 
         if filename is not None:
             con = db.connect(filename)
@@ -220,13 +224,15 @@ class schema_converter(object):
                 df.to_sql('info', con)
 
     def opsim2obs(self, filename):
-        """convert an opsim schema datarfame into an observation array.
+        """convert an opsim schema dataframe into an observation array.
         """
 
         con = db.connect(filename)
         df = pd.read_sql('select * from SummaryAllProps;', con)
         for key in self.angles_rad2deg:
             df[key] = np.radians(df[key])
+        for key in self.angles_hours2deg:
+            df[key] = df[key] * 24./360.
 
         df = df.rename(index=str, columns=self.convert_dict)
 
@@ -931,71 +937,6 @@ def run_info_table(observatory, extra_info=None):
     result[4:]['Value'] = observatory_info[:, 1]
 
     return result
-
-
-def observations2sqlite(observations, filename='observations.db', delete_past=False, info=None):
-    """
-    Take an array of observations and dump it to a sqlite3 database
-
-    Parameters
-    ----------
-    observations : numpy.array
-        An array of executed observations
-    filename : str (observations.db)
-        Filename to save sqlite3 to. Value of None will skip
-        writing out file.
-    delete_past : bool (False)
-        If True, overwrite any previous file with the same fileaname.
-    info : np.array (None)
-        A numpy array of information about the run.
-
-    Returns
-    -------
-    observations : numpy.array
-        The observations array updated to have angles in degrees and
-        any added columns
-    """
-
-    if delete_past:
-        try:
-            os.remove(filename)
-        except OSError:
-            pass
-
-    # Convert to degrees for output
-    to_convert = ['RA', 'dec', 'alt', 'az', 'rotSkyPos', 'moonAlt', 'sunAlt']
-    for key in to_convert:
-        observations[key] = np.degrees(observations[key])
-
-    if filename is not None:
-        df = pd.DataFrame(observations)
-        con = db.connect(filename)
-        df.to_sql('observations', con, index_label='observationId')
-        if info is not None:
-            df = pd.DataFrame(info)
-            df.to_sql('info', con)
-    return observations
-
-
-def sqlite2observations(filename='observations.db'):
-    """
-    Restore a database of observations.
-    """
-    con = db.connect(filename)
-    df = pd.read_sql('select * from observations;', con)
-    blank = empty_observation()
-    result = df.as_matrix()
-    final_result = np.empty(result.shape[0], dtype=blank.dtype)
-
-    # XXX-ugh, there has to be a better way.
-    for i, key in enumerate(blank.dtype.names):
-        final_result[key] = result[:, i+1]
-
-    to_convert = ['RA', 'dec', 'alt', 'az', 'rotSkyPos', 'moonAlt', 'sunAlt']
-    for key in to_convert:
-        final_result[key] = np.radians(final_result[key])
-
-    return final_result
 
 
 def inrange(inval, minimum=-1., maximum=1.):
