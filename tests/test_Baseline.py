@@ -99,7 +99,7 @@ class TestFeatures(unittest.TestCase):
         Set up a greedy survey and run for a few days. A crude way to touch lots of code.
         """
         nside = 32
-        survey_length = 2.1  # days
+        survey_length = 3.1  # days
 
         surveys = gen_greedy_surveys(nside)
         surveys.append(Pairs_survey_scripted(None, ignore_obs='DD'))
@@ -132,7 +132,7 @@ class TestFeatures(unittest.TestCase):
         Set up a blob selection survey
         """
         nside = 32
-        survey_length = 2.1  # days
+        survey_length = 3.1  # days
 
         surveys = []
         # Set up the DD
