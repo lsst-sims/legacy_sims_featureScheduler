@@ -99,7 +99,7 @@ class TestFeatures(unittest.TestCase):
         Set up a greedy survey and run for a few days. A crude way to touch lots of code.
         """
         nside = 32
-        survey_length = 3.1  # days
+        survey_length = 2.0 # days
 
         surveys = gen_greedy_surveys(nside)
         surveys.append(Pairs_survey_scripted(None, ignore_obs='DD'))
@@ -118,8 +118,6 @@ class TestFeatures(unittest.TestCase):
         assert('pair(scripted)' in observations['note'])
         # Check that the a DD was observed
         assert('DD:ECDFS' in observations['note'])
-        # And the u-band
-        assert('DD:u,ECDFS' in observations['note'])
         # Make sure a few different filters were observed
         assert(len(np.unique(observations['filter'])) > 3)
         # Make sure lots of observations executed
@@ -132,7 +130,7 @@ class TestFeatures(unittest.TestCase):
         Set up a blob selection survey
         """
         nside = 32
-        survey_length = 3.1  # days
+        survey_length = 2.0  # days
 
         surveys = []
         # Set up the DD
@@ -157,8 +155,6 @@ class TestFeatures(unittest.TestCase):
         assert('' in observations['note'])
         # Check that the a DD was observed
         assert('DD:ECDFS' in observations['note'])
-        # And the u-band
-        assert('DD:u,ECDFS' in observations['note'])
         # Make sure a few different filters were observed
         assert(len(np.unique(observations['filter'])) > 3)
         # Make sure lots of observations executed
