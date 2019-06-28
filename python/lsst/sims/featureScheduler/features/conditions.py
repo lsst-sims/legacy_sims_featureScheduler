@@ -44,8 +44,10 @@ class Conditions(object):
         -------------------------------------------
         mjd : float
             Modified Julian Date (days).
-        clouds : float
+        bulk_cloud : float
             The fraction of sky covered by clouds. (In the future might update to transparency map)
+        cloud_map : np.array
+            XXX--to be done. HEALpix array with cloudy pixels set to NaN.
         slewtime : np.array
             Healpix showing the slewtime to each healpixel center (seconds)
         current_filter : str

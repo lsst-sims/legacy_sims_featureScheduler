@@ -4,10 +4,10 @@ from lsst.sims.utils import (_hpid2RaDec, _raDec2Hpid, Site, calcLmstLast,
 import lsst.sims.skybrightness_pre as sb
 import healpy as hp
 from datetime import datetime
-from lsst.sims.downtimeModel import ScheduledDowntime, UnscheduledDowntime
+from lsst.sims.downtimeModel import ScheduledDowntimeData, UnscheduledDowntimeData
 import lsst.sims.downtimeModel as downtimeModel
-from lsst.sims.seeingModel import SeeingSim
-from lsst.sims.cloudModel import CloudModel
+from lsst.sims.seeingModel import SeeingData, SeeingModel
+from lsst.sims.cloudModel import CloudData
 from lsst.sims.featureScheduler.features import Conditions
 from lsst.sims.featureScheduler.utils import set_default_nside
 from lsst.ts.observatory.model import ObservatoryModel, Target
@@ -268,33 +268,6 @@ class ExtendedObservatoryModel(ObservatoryModel):
         return targetstate
 
 
-class dummy_time_handler(object):
-    """
-    Don't need the full time handler, so save a dependency and use this.
-    """
-    def __init__(self, mjd_init):
-        """
-        Parameters
-        ----------
-        mjd_init : float
-            The initial mjd
-        """
-        self._unix_start = datetime(1970, 1, 1)
-        t = Time(mjd_init, format='mjd')
-        self.initial_dt = t.datetime
-
-    def time_since_given_datetime(self, datetime1, datetime2=None, reverse=False):
-        """
-        Really? We need a method to do one line of arithmatic?
-        """
-        if datetime2 is None:
-            datetime2 = self._unix_start
-        if reverse:
-            return (datetime1 - datetime2).total_seconds()
-        else:
-            return (datetime2 - datetime1).total_seconds()
-
-
 class Model_observatory(object):
     """A class to generate a realistic telemetry stream for the scheduler
     """
@@ -340,34 +313,35 @@ class Model_observatory(object):
                                       height=self.site.height)
 
         # Load up all the models we need
-        # Make my dummy time handler
-        dth = dummy_time_handler(mjd_start)
 
+        mjd_start_time = Time(self.mjd_start, format='mjd')
         # Downtime
         self.down_nights = []
-        sdt = ScheduledDowntime()
-        sdt.initialize()
-        usdt = UnscheduledDowntime()
-        usdt.initialize(random_seed=seed)
+        self.sched_downtime_data = ScheduledDowntimeData(mjd_start_time)
+        self.unsched_downtime_data = UnscheduledDowntimeData(mjd_start_time)
 
-        self.scheduledDowntime_model = sdt
-        self.unscheduledDowntime_model = usdt
+        sched_downtimes = self.sched_downtime_data()
+        unsched_downtimes = self.unsched_downtime_data()
 
-        for downtime in sdt.downtimes:
-            self.down_nights.extend(range(downtime[0], downtime[0]+downtime[1], 1))
-        for downtime in usdt.downtimes:
-            self.down_nights.extend(range(downtime[0], downtime[0]+downtime[1], 1))
-        self.down_nights.sort()
+        down_starts = []
+        down_ends = []
+        for dt in sched_downtimes:
+            down_starts.append(dt['start'].mjd)
+            down_ends.append(dt['end'].mjd)
+        for dt in unsched_downtimes:
+            down_starts.append(dt['start'].mjd)
+            down_ends.append(dt['end'].mjd)
 
-        self.seeing_model = SeeingSim(dth)
+        self.downtimes = np.array(list(zip(down_starts, down_ends)), dtype=list(zip(['start', 'end'], [float, float])))
+        self.downtimes.sort(order='start')
+
+        self.seeing_data = SeeingData(mjd_start_time)
+        self.seeing_model = SeeingModel()
         self.seeing_indx_dict = {}
         for i, filtername in enumerate(self.seeing_model.filter_list):
             self.seeing_indx_dict[filtername] = i
 
-        self.cloud_model = CloudModel(dth)
-        self.cloud_model.read_data()
-        # XXX-argle bargle, really?!?!?
-        self.cloud_model.offset = 0
+        self.cloud_data = CloudData(mjd_start_time, offset_year=0)
 
         self.sky_model = sb.SkyModelPre(speedLoad=quickTest)
 
@@ -400,10 +374,11 @@ class Model_observatory(object):
         """
 
         # The things we want to get info on
-        models = {'cloud model': self.cloud_model, 'sky model': self.sky_model,
-                  'seeing model': self.seeing_model, 'observatory model': self.observatory,
-                  'sched downtime model': self.scheduledDowntime_model,
-                  'unched downtime model': self.unscheduledDowntime_model}
+        models = {'cloud data': self.cloud_data, 'sky model': self.sky_model,
+                  'seeing data': self.seeing_data, 'seeing model': self.seeing_model,
+                  'observatory model': self.observatory,
+                  'sched downtime data': self.sched_downtime_data,
+                  'unched downtime data': self.unsched_downtime_data}
 
         result = []
         for model_name in models:
@@ -419,6 +394,12 @@ class Model_observatory(object):
             result.append([model_name+' version', version])
             result.append([model_name+' fingerprint', fingerprint])
             result.append([model_name+' module', models[model_name].__module__])
+            try:
+                info = models[model_name].config_info()
+                for key in info:
+                    result.append([key, str(info[key])])
+            except:
+                result.append([model_name, 'no config_info'])
 
         return result
 
@@ -433,11 +414,11 @@ class Model_observatory(object):
         self.conditions.mjd = self.mjd
 
         self.conditions.night = self.night
-        # Time since start of simulation
-        delta_t = (self.mjd-self.mjd_start)*24.*3600.
+        # Current time as astropy time
+        current_time = Time(self.mjd, format='mjd')
 
-        # Clouds. Add a +0 because this might alter input!!!
-        self.conditions.bulk_cloud = self.cloud_model.get_cloud(delta_t+0)
+        # Clouds. XXX--just the raw value
+        self.conditions.bulk_cloud = self.cloud_data(current_time)
 
         # use conditions object itself to get aprox altitude of each healpx
         alts = self.conditions.alt
@@ -455,7 +436,9 @@ class Model_observatory(object):
         for key in self.seeing_FWHMeff:
             self.seeing_FWHMeff[key].fill(np.nan)
         # Use the model to get the seeing at this time and airmasses.
-        fwhm_500, fwhm_eff, fwhm_geom = self.seeing_model.get_seeing(delta_t, airmass[good])
+        FWHM_500 = self.seeing_data(current_time)
+        seeing_dict = self.seeing_model(FWHM_500, airmass[good])
+        fwhm_eff = seeing_dict['fwhmEff']
         for i, key in enumerate(self.seeing_model.filter_list):
             self.seeing_FWHMeff[key][good] = fwhm_eff[i, :]
         self.conditions.FWHMeff = self.seeing_FWHMeff
@@ -533,15 +516,15 @@ class Model_observatory(object):
         """
         Fill in the metadata for a completed observation
         """
-        # Time since start of simulation
-        delta_t = (self.mjd-self.mjd_start)*24.*3600.
+        current_time = Time(self.mjd, format='mjd')
 
-        observation['clouds'] = self.cloud_model.get_cloud(delta_t)
+        observation['clouds'] = self.cloud_data(current_time)
         observation['airmass'] = 1./np.cos(np.pi/2. - observation['alt'])
         # Seeing
-        fwhm_500, fwhm_eff, fwhm_geom = self.seeing_model.get_seeing(delta_t, observation['airmass'])
-        observation['FWHMeff'] = fwhm_eff[self.seeing_indx_dict[observation['filter'][0]]]
-        observation['FWHM_geometric'] = fwhm_geom[self.seeing_indx_dict[observation['filter'][0]]]
+        fwhm_500 = self.seeing_data(current_time)
+        seeing_dict = self.seeing_model(fwhm_500, observation['airmass'])
+        observation['FWHMeff'] = seeing_dict['fwhmEff'][self.seeing_indx_dict[observation['filter'][0]]]
+        observation['FWHM_geometric'] = seeing_dict['fwhmGeom'][self.seeing_indx_dict[observation['filter'][0]]]
         observation['FWHM_500'] = fwhm_500
 
         observation['night'] = self.night
@@ -579,6 +562,19 @@ class Model_observatory(object):
 
         return observation
 
+    def check_up(self, mjd):
+        """See if we are in downtime
+
+        True if telescope is up
+        False if in downtime
+        """
+
+        result = True
+        indx = np.searchsorted(self.downtimes['start'], mjd, side='right')-1
+        if mjd < self.downtimes['end'][indx]:
+            result = False
+        return result
+
     def check_mjd(self, mjd, cloud_skip=20.):
         """See if an mjd is ok to observe
         Parameters
@@ -596,13 +592,15 @@ class Model_observatory(object):
         """
         passed = True
         new_mjd = mjd + 0
-        delta_t = (mjd-self.mjd_start)*24.*3600.
-        clouds = self.cloud_model.get_cloud(delta_t+0.)
+
         # Maybe set this to a while loop to make sure we don't land on another cloudy time?
         # or just make this an entire recursive call?
+        clouds = self.cloud_data(Time(mjd, format='mjd'))
         if clouds > self.cloud_limit:
             passed = False
-            new_mjd = mjd + cloud_skip/60./24.
+            while clouds > self.cloud_limit:
+                new_mjd = new_mjd + cloud_skip/60./24.
+                clouds = self.cloud_data(Time(new_mjd, format='mjd'))
         alm_indx = np.searchsorted(self.almanac.sunsets['sunset'], mjd) - 1
         # at the end of the night, advance to the next setting twilight
         if mjd > self.almanac.sunsets['sun_n12_rising'][alm_indx]:
@@ -612,7 +610,7 @@ class Model_observatory(object):
             passed = False
             new_mjd = self.almanac.sunsets['sun_n12_setting'][alm_indx+1]
         # We're in a down night, advance to next night
-        if self.almanac.sunsets['night'][alm_indx] in self.down_nights:
+        if not self.check_up(mjd):
             passed = False
             new_mjd = self.almanac.sunsets['sun_n12_setting'][alm_indx+1]
         # recursive call to make sure we skip far enough ahead
