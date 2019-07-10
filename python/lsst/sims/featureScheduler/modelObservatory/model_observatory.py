@@ -335,6 +335,20 @@ class Model_observatory(object):
         self.downtimes = np.array(list(zip(down_starts, down_ends)), dtype=list(zip(['start', 'end'], [float, float])))
         self.downtimes.sort(order='start')
 
+        # Make sure there aren't any overlapping downtimes
+        diff = self.downtimes['start'][1:] - self.downtimes['end'][0:-1]
+        while np.min(diff) < 0:
+            # Should be able to do this wihtout a loop, but this works
+            for i, dt in enumerate(self.downtimes[0:-1]):
+                if self.downtimes['start'][i+1] < dt['end']:
+                    new_end = np.max([dt['end'], self.downtimes['end'][i+1]])
+                    self.downtimes[i]['end'] = new_end
+                    self.downtimes[i+1]['end'] = new_end
+
+            good = np.where(self.downtimes['end'] - np.roll(self.downtimes['end'], 1) != 0)
+            self.downtimes = self.downtimes[good]
+            diff = self.downtimes['start'][1:] - self.downtimes['end'][0:-1]
+
         self.seeing_data = SeeingData(mjd_start_time)
         self.seeing_model = SeeingModel()
         self.seeing_indx_dict = {}
