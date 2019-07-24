@@ -161,6 +161,32 @@ class Fraction_of_obs_basis_function(Base_basis_function):
         return result
 
 
+class Look_ahead_ddf_basis_function(Base_basis_function):
+    """Look into the future to decide if it's a good time to observe or block.
+
+    Parameters
+    ----------
+    """
+    def __init__(self, frac_total, RA=0., ha_limits=None, survey_name='', time_jump=44.):
+        super(Look_ahead_ddf_basis_function, self).__init__()
+        self.survey_name = survey_name
+        self.frac_total = frac_total
+        self.ra_hours = RA/360.*24.
+        self.HA_limits = np.array(ha_limits)
+        self.time_jump = time_jump
+        self.survey_features['Ntot'] = features.N_obs_survey()
+        self.survey_features['N_survey'] = features.N_obs_survey(note=self.survey_name)
+
+    def check_feasibility(self, conditions):
+        result = True
+        target_HA = (conditions.lmst - self.ra_hours) % 24
+        # If it's more that self.time_jump to hour angle zero
+        # See if there will be enough time to twilight in the future
+        
+
+        return result
+
+
 class Clouded_out_basis_function(Base_basis_function):
     def __init__(self, cloud_limit=0.7):
         super(Clouded_out_basis_function, self).__init__()
