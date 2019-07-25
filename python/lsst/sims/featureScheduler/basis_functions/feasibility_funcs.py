@@ -8,7 +8,8 @@ __all__ = ['Filter_loaded_basis_function', 'Time_to_twilight_basis_function',
            'Not_twilight_basis_function', 'Force_delay_basis_function',
            'Hour_Angle_limit_basis_function', 'Moon_down_basis_function',
            'Fraction_of_obs_basis_function', 'Clouded_out_basis_function',
-           'Rising_more_basis_function']
+           'Rising_more_basis_function', 'Soft_delay_basis_function',
+           'Look_ahead_ddf_basis_function']
 
 
 class Filter_loaded_basis_function(Base_basis_function):
@@ -61,7 +62,7 @@ class Not_twilight_basis_function(Base_basis_function):
         """
         # Should be -18 or -12
         """
-        self.sun_alt_limit = str(sun_alt_limit).replace('-', 'n')
+        self.sun_alt_limit = str(int(sun_alt_limit)).replace('-', 'n')
         super(Not_twilight_basis_function, self).__init__()
 
     def check_feasibility(self, conditions):
@@ -90,6 +91,36 @@ class Force_delay_basis_function(Base_basis_function):
     def check_feasibility(self, conditions):
         result = True
         if conditions.mjd - self.survey_features['last_obs_self'].feature['mjd'] < self.days_delay:
+            result = False
+        return result
+
+
+class Soft_delay_basis_function(Base_basis_function):
+    """Like Force_delay, but go ahead and let things catch up if they fall far behind.
+
+    Parameters
+    ----------
+
+    """
+    def __init__(self, fractions=[0.000, 0.009, 0.017], delays=[0., 0.5, 1.5], survey_name=None):
+        if len(fractions) != len(delays):
+            raise ValueError('fractions and delays must be same length')
+        super(Soft_delay_basis_function, self).__init__()
+        self.delays = delays
+        self.survey_name = survey_name
+        self.survey_features['last_obs_self'] = features.Last_observation(survey_name=self.survey_name)
+        self.fractions = fractions
+        self.survey_features['Ntot'] = features.N_obs_survey()
+        self.survey_features['N_survey'] = features.N_obs_survey(note=self.survey_name)
+
+    def check_feasibility(self, conditions):
+        result = True
+        current_ratio = self.survey_features['N_survey'].feature / self.survey_features['Ntot'].feature
+        indx = np.searchsorted(self.fractions, current_ratio)
+        if indx == len(self.fractions):
+            indx -= 1
+        delay = self.delays[indx]
+        if conditions.mjd - self.survey_features['last_obs_self'].feature['mjd'] < delay:
             result = False
         return result
 
@@ -166,24 +197,54 @@ class Look_ahead_ddf_basis_function(Base_basis_function):
 
     Parameters
     ----------
+    frac_total : float
+        The fraction of total observations that can be of this survey
+    aggressive_fraction : float
+        If the fraction of observations drops below ths value, be more aggressive in scheduling.
+        e.g., do not wait for conditions to improve, execute as soon as possible.
+    time_needed : float (30.)
+        Estimate of the amount of time needed to execute DDF sequence (minutes).
+    RA : float (0.)
+        The RA of the DDF
+    ha_limits : list of lists (None)
+        limits for what hour angles are acceptable (hours). e.g.,
+        to give 4 hour window around HA=0, ha_limits=[[22,24], [0,2]]
+    survey_name : str ('')
+        The name of the survey
+    time_jump : float (44.)
+        The amount of time to assume will jump ahead if another survey executes (minutes)
+    sun_alt_limit : float (-18.)
+        The limit to assume twilight starts (degrees)
     """
-    def __init__(self, frac_total, RA=0., ha_limits=None, survey_name='', time_jump=44.):
+    def __init__(self, frac_total, aggressive_fraction, time_needed=30., RA=0.,
+                 ha_limits=None, survey_name='', time_jump=44., sun_alt_limit=-18.):
         super(Look_ahead_ddf_basis_function, self).__init__()
+        if aggressive_fraction > frac_total:
+            raise ValueError('aggressive_fraction should be less than frac_total')
         self.survey_name = survey_name
         self.frac_total = frac_total
         self.ra_hours = RA/360.*24.
         self.HA_limits = np.array(ha_limits)
-        self.time_jump = time_jump
+        self.sun_alt_limit = str(int(sun_alt_limit)).replace('-', 'n')
+        self.time_jump = time_jump / 60.  # To hours
+        self.time_needed = time_needed / 60.  # To hours
+        self.aggressive_fraction = aggressive_fraction
         self.survey_features['Ntot'] = features.N_obs_survey()
         self.survey_features['N_survey'] = features.N_obs_survey(note=self.survey_name)
 
     def check_feasibility(self, conditions):
         result = True
         target_HA = (conditions.lmst - self.ra_hours) % 24
+        ratio = self.survey_features['N_survey'].feature / self.survey_features['Ntot'].feature
+        available_time = getattr(conditions, 'sun_' + self.sun_alt_limit + '_rising') - conditions.mjd
         # If it's more that self.time_jump to hour angle zero
         # See if there will be enough time to twilight in the future
-        
-
+        if (target_HA > 12) & (target_HA < 24.-self.time_jump):
+            if available_time > (self.time_needed + self.time_jump):
+                result = False
+        # If the survey has fallen far behind, be agressive and observe anytime it's up.
+        if ratio < self.aggressive_fraction:
+            result = True
         return result
 
 

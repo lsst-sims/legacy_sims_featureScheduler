@@ -3,8 +3,8 @@ from lsst.sims.featureScheduler.surveys import BaseSurvey
 import copy
 import lsst.sims.featureScheduler.basis_functions as basis_functions
 from lsst.sims.featureScheduler.utils import empty_observation
+from lsst.sims.featureScheduler import features
 import logging
-import healpy as hp
 import random
 
 
@@ -44,7 +44,7 @@ class Deep_drilling_survey(BaseSurvey):
     def __init__(self, basis_functions, RA, dec, sequence='rgizy',
                  nvis=[20, 10, 20, 26, 20],
                  exptime=30., nexp=2, ignore_obs=None, survey_name='DD',
-                 reward_value=101., readtime=2., filter_change_time=120.,
+                 reward_value=None, readtime=2., filter_change_time=120.,
                  nside=None, filter_match_shuffle=True, flush_pad=30., seed=42, detailers=None):
         super(Deep_drilling_survey, self).__init__(nside=nside, basis_functions=basis_functions,
                                                    detailers=detailers, ignore_obs=ignore_obs)
@@ -84,28 +84,34 @@ class Deep_drilling_survey(BaseSurvey):
         for filtername in np.unique(self.filter_sequence):
             self.filter_indices[filtername] = np.where(self.filter_sequence == filtername)[0]
 
+        if self.reward_value is None:
+            self.extra_features['Ntot'] = features.N_obs_survey()
+            self.extra_features['N_survey'] = features.N_obs_survey(note=self.survey_name)
+
     def check_continue(self, observation, conditions):
         # feasibility basis functions?
         '''
         This method enables external calls to check if a given observations that belongs to this survey is
         feasible or not. This is called once a sequence has started to make sure it can continue.
 
-        XXX--TODO:  Need to decide if we want to develope check_continue, or instead hold the 
+        XXX--TODO:  Need to decide if we want to develope check_continue, or instead hold the
         sequence in the survey, and be able to check it that way.
         '''
 
         result = True
-        #for bf in self.basis_functions:
-        #    result = bf.check_feasibility(conditions)
-        #    if not result:
-        #        return result
 
         return result
 
     def calc_reward_function(self, conditions):
         result = -np.inf
         if self._check_feasibility(conditions):
-            result = self.reward_value
+            if self.reward_value is not None:
+                result = self.reward_value
+            else:
+                # XXX This might backfire if we want to have DDFs with different fractions of the
+                # survey time. Then might need to define a goal fraction, and have the reward be the
+                # number of observations behind that target fraction.
+                result = self.survey_features['Ntot'].feature / (self.survey_features['N_survey'].feature+1)
         return result
 
     def generate_observations_rough(self, conditions):
@@ -129,35 +135,48 @@ class Deep_drilling_survey(BaseSurvey):
         return result
 
 
-def dd_bfs(RA, dec, survey_name, ha_limits, frac_total=0.0185):
+def dd_bfs(RA, dec, survey_name, ha_limits, frac_total=0.0185, aggressive_frac=0.011):
     """
     Convienence function to generate all the feasibility basis functions
     """
+    sun_alt_limit = -18.
+    time_needed = 62.
+    fractions = [0.00, aggressive_frac, frac_total]
     bfs = []
     bfs.append(basis_functions.Filter_loaded_basis_function(filternames=['r', 'g', 'i', 'z', 'y']))
-    bfs.append(basis_functions.Not_twilight_basis_function(sun_alt_limit=-18))
-    bfs.append(basis_functions.Time_to_twilight_basis_function(time_needed=62.))
-    bfs.append(basis_functions.Force_delay_basis_function(days_delay=2., survey_name=survey_name))
+    bfs.append(basis_functions.Not_twilight_basis_function(sun_alt_limit=sun_alt_limit))
+    bfs.append(basis_functions.Time_to_twilight_basis_function(time_needed=time_needed))
     bfs.append(basis_functions.Hour_Angle_limit_basis_function(RA=RA, ha_limits=ha_limits))
     bfs.append(basis_functions.Fraction_of_obs_basis_function(frac_total=frac_total, survey_name=survey_name))
-    bfs.append(basis_functions.Clouded_out_basis_function())
+    bfs.append(basis_functions.Look_ahead_ddf_basis_function(frac_total, aggressive_frac,
+                                                             sun_alt_limit=sun_alt_limit, time_needed=time_needed,
+                                                             RA=RA, survey_name=survey_name,
+                                                             ha_limits=ha_limits))
+    bfs.append(basis_functions.Soft_delay_basis_function(fractions=fractions, delays=[0., 0.5, 1.5],
+                                                         survey_name=survey_name))
 
     return bfs
 
 
-def dd_u_bfs(RA, dec, survey_name, ha_limits, frac_total=0.0015):
+def dd_u_bfs(RA, dec, survey_name, ha_limits, frac_total=0.0015, aggressive_frac=0.0009):
     """Convienence function to generate all the feasibility basis functions for u-band DDFs
     """
     bfs = []
+    sun_alt_limit = -18.
+    time_needed = 6.
+    fractions = [0.00, aggressive_frac, frac_total]
     bfs.append(basis_functions.Filter_loaded_basis_function(filternames='u'))
-    bfs.append(basis_functions.Not_twilight_basis_function(sun_alt_limit=-18))
-    bfs.append(basis_functions.Time_to_twilight_basis_function(time_needed=6.))
+    bfs.append(basis_functions.Not_twilight_basis_function(sun_alt_limit=sun_alt_limit))
+    bfs.append(basis_functions.Time_to_twilight_basis_function(time_needed=time_needed))
     bfs.append(basis_functions.Hour_Angle_limit_basis_function(RA=RA, ha_limits=ha_limits))
-
-    bfs.append(basis_functions.Force_delay_basis_function(days_delay=2., survey_name=survey_name))
     bfs.append(basis_functions.Moon_down_basis_function())
     bfs.append(basis_functions.Fraction_of_obs_basis_function(frac_total=frac_total, survey_name=survey_name))
-    bfs.append(basis_functions.Clouded_out_basis_function())
+    bfs.append(basis_functions.Look_ahead_ddf_basis_function(frac_total, aggressive_frac,
+                                                             sun_alt_limit=sun_alt_limit, time_needed=time_needed,
+                                                             RA=RA, survey_name=survey_name,
+                                                             ha_limits=ha_limits))
+    bfs.append(basis_functions.Soft_delay_basis_function(fractions=fractions, delays=[0., 0.5, 1.5],
+                                                         survey_name=survey_name))
 
     return bfs
 
@@ -175,7 +194,7 @@ def generate_dd_surveys(nside=None, nexp=2, detailers=None):
     RA = 9.45
     dec = -44.
     survey_name = 'DD:ELAISS1'
-    ha_limits = ([0., 1.18], [21.82, 24.])
+    ha_limits = ([0., 1.5], [21.5, 24.])
     bfs = dd_bfs(RA, dec, survey_name, ha_limits)
     surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='rgizy',
                                         nvis=[20, 10, 20, 26, 20],
@@ -193,7 +212,7 @@ def generate_dd_surveys(nside=None, nexp=2, detailers=None):
     survey_name = 'DD:XMM-LSS'
     RA = 35.708333
     dec = -4-45/60.
-    ha_limits = ([0., 1.3], [21.7, 24.])
+    ha_limits = ([0., 1.5], [21.5, 24.])
     bfs = dd_bfs(RA, dec, survey_name, ha_limits)
 
     surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='rgizy',
@@ -226,7 +245,7 @@ def generate_dd_surveys(nside=None, nexp=2, detailers=None):
     RA = 150.1
     dec = 2.+10./60.+55/3600.
     survey_name = 'DD:COSMOS'
-    ha_limits = ([0., 1.5], [21.5, 24.])
+    ha_limits = ([0., 2.5], [21.5, 24.])
     bfs = dd_bfs(RA, dec, survey_name, ha_limits)
     surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='rgizy',
                                         nvis=[20, 10, 20, 26, 20],
@@ -242,7 +261,7 @@ def generate_dd_surveys(nside=None, nexp=2, detailers=None):
     survey_name = 'DD:290'
     RA = 349.386443
     dec = -63.321004
-    ha_limits = ([0., 0.5], [23.5, 24.])
+    ha_limits = ([0., 1.5], [21.5, 24.])
     bfs = dd_bfs(RA, dec, survey_name, ha_limits)
     surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='rgizy',
                                         nvis=[20, 10, 20, 26, 20],
