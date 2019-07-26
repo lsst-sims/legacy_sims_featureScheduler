@@ -970,7 +970,7 @@ def warm_start(scheduler, observations, mjd_key='mjd'):
     return scheduler
 
 
-def season_calc(night, offset=0, modulo=None, max_season=None, season_length=365.25):
+def season_calc(night, offset=0, modulo=None, max_season=None, season_length=365.25, floor=True):
     """
     Compute what season a night is in with possible offset and modulo
 
@@ -989,11 +989,15 @@ def season_calc(night, offset=0, modulo=None, max_season=None, season_length=365
         For any season above this value (before modulo), set to -1
     season_length : float (365.25)
         How long to consider one season (nights)
+    floor : bool (True)
+        If true, take the floor of the season. Otherwise, returns season as a float
     """
     if np.size(night) == 1:
         night = np.ravel(np.array([night]))
     result = night + offset
-    result = np.floor(result/season_length)
+    result = result/season_length
+    if floor:
+        result = np.floor(result)
     if max_season is not None:
         over_indx = np.where(result >= max_season)
 
@@ -1003,7 +1007,9 @@ def season_calc(night, offset=0, modulo=None, max_season=None, season_length=365
         result[neg] = -1
     if max_season is not None:
         result[over_indx] = -1
-    return result.astype(int)
+    if floor:
+        result = result.astype(int)
+    return result
 
 
 def create_season_offset(nside, sun_RA_rad):
