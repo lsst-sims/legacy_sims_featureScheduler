@@ -42,7 +42,7 @@ All values are for the center of the field of view (e.g., airmass, altitude, etc
  | paraAngle |  degrees  |  Paralactic angle of the observation | 
  | proposalId |  int  |  depreciated | 
  | rotSkyPos |  degrees  |  The orientation of the sky in the focal plane measured as the angle between North on the sky and the "up" direction in the focal plane. | 
- | rotTelPos |  The physical angle of the rotator with respect to the mount. rotSkyPos = rotTelPos - ParallacticAngle | 
+ | rotTelPos |  degrees | The physical angle of the rotator with respect to the mount. rotSkyPos = rotTelPos - ParallacticAngle | 
  | seeingFwhm500 |  arcseconds  |  The full-width at half maximum of the PSF at 500 nm. (XXX-unsure if this is at zenith or at the pointing) | 
  | seeingFwhmEff |  arcseconds  |  "Effective" full-width at half maximum, typically ~15% larger than FWHMgeom. Use FWHMeff to calculate SNR for point sources, using FWHMeff as the FWHM of a single Gaussian describing the PSF. | 
  | seeingFwhmGeom |  arcseconds  |  "Geometrical" full-width at half maximum. The actual width at half the maximum brightness. Use FWHMgeom to represent the FWHM of a double-Gaussian representing the physical width of a PSF. | 
