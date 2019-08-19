@@ -15,7 +15,8 @@ __all__ = ['Base_basis_function', 'Constant_basis_function', 'Target_map_basis_f
            'Aggressive_Slewtime_basis_function', 'Skybrightness_limit_basis_function',
            'CableWrap_unwrap_basis_function', 'Cadence_enhance_basis_function', 'Azimuth_basis_function',
            'Az_modulo_basis_function', 'Dec_modulo_basis_function', 'Template_generate_basis_function',
-           'Footprint_nvis_basis_function', 'Third_observation_basis_function']
+           'Footprint_nvis_basis_function', 'Third_observation_basis_function', 'Season_coverage_basis_function',
+           'N_obs_per_year_basis_function']
 
 
 class Base_basis_function(object):
@@ -162,7 +163,6 @@ class Target_map_basis_function(Base_basis_function):
         -------
         Healpix reward map
         """
-        
         result = self.result.copy()
         if indx is None:
             indx = self.all_indx
@@ -173,6 +173,78 @@ class Target_map_basis_function(Base_basis_function):
         result[indx] = goal_N - self.survey_features['N_obs'].feature[indx]
         result[self.out_of_bounds_area] = self.out_of_bounds_val
 
+        return result
+
+
+class N_obs_per_year_basis_function(Base_basis_function):
+    """Reward areas that have not been observed N-times in the last year
+    """
+    def __init__(self, filtername='r', nside=None, footprint=None, n_obs=3, season=365.25,
+                 HA_limit=2.):
+        super(N_obs_per_year_basis_function, self).__init__(nside=nside, filtername=filtername)
+        self.footprint = footprint
+        self.n_obs = n_obs
+        self.season = season
+        self.HA_limit = np.radians(HA_limit * 360./24.)  # To radians
+
+        self.survey_features['last_n_mjds'] = features.Last_N_obs_times(nside=nside, filtername=filtername,
+                                                                        n_obs=n_obs)
+        self.result = np.zeros(hp.nside2npix(self.nside), dtype=float)
+        self.out_footprint = np.where((footprint == 0) | np.isnan(footprint))
+
+    def _calc_value(self, conditions, indx=None):
+
+        result = self.result.copy()
+        behind_pix = np.where((conditions.mjd-self.survey_features['last_n_mjds'].feature[0]) > self.season)
+        result[behind_pix] = 1
+
+        # Could make this more sophisticated and look ahead to see if a pixel will be better some
+        # timestep in the future.
+        bad_ha = np.where((conditions.HA > self.HA_limit) & (conditions.HA < (2.*np.pi-self.HA_limit)))
+        result[bad_ha] = 0
+
+        # mask off anything outside the footprint
+        result[self.out_footprint] = 0
+
+        return result
+
+
+class Season_coverage_basis_function(Base_basis_function):
+    """Basis function to encourage N observations per observing season
+
+    Parameters
+    ----------
+    footprint : healpix map (None)
+        The footprint where one should demand coverage every season
+    n_per_season : int (3)
+        The number of observations to attempt to gather every season
+    offset : healpix map
+        The offset to apply when computing the current season over the sky. utils.create_season_offset
+        is helpful for making this
+    season_frac_start : float (0.5)
+        Only start trying to gather observations after a season is fractionally this far over.
+    """
+    def __init__(self, filtername='r', nside=None, footprint=None, n_per_season=3, offset=None,
+                 season_frac_start=0.5):
+        super(Season_coverage_basis_function, self).__init__(nside=nside, filtername=filtername)
+
+        self.n_per_season = n_per_season
+        self.footprint = footprint
+        self.survey_features['n_obs_season'] = features.N_observations_current_season(filtername=filtername,
+                                                                                      nside=nside, offset=offset)
+        self.result = np.zeros(hp.nside2npix(self.nside), dtype=float)
+        self.season_frac_start = season_frac_start
+        self.offset = offset
+
+    def _calc_value(self, conditions, indx=None):
+        result = self.result.copy()
+        season = utils.season_calc(conditions.night, offset=self.offset, floor=False)
+        # Find the area that still needs observation
+        feature = self.survey_features['n_obs_season'].feature
+        not_enough = np.where((self.footprint > 0) & (feature < self.n_per_season) &
+                              ((season-np.floor(season) > self.season_frac_start)) &
+                              (season >= 0))
+        result[not_enough] = 1
         return result
 
 

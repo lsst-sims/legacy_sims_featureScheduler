@@ -9,7 +9,8 @@ from lsst.sims.utils import m5_flat_sed
 __all__ = ['BaseFeature', 'BaseSurveyFeature', 'N_obs_count', 'N_obs_survey',
            'Last_observation', 'LastSequence_observation', 'LastFilterChange',
            'N_observations', 'Coadded_depth', 'Last_observed', 'N_obs_night', 'Pair_in_night',
-           'Rotator_angle', 'N_observations_season', 'N_obs_count_season']
+           'Rotator_angle', 'N_observations_season', 'N_obs_count_season', 'N_observations_current_season',
+           'Last_N_obs_times']
 
 
 class BaseFeature(object):
@@ -279,6 +280,50 @@ class N_observations_season(BaseSurveyFeature):
         if self.season in observation_season:
             if self.filtername is None or observation['filter'][0] in self.filtername:
                 self.feature[indx] += 1
+
+
+class Last_N_obs_times(BaseSurveyFeature):
+    """Record the last three observations for each healpixel
+    """
+    def __init__(self, filtername=None, n_obs=3, nside=None):
+        self.filtername = filtername
+        self.n_obs = n_obs
+        if nside is None:
+            nside = utils.set_default_nside()
+        self.feature = np.zeros((n_obs, hp.nside2npix(nside)), dtype=float)
+
+    def add_observation(self, observation, indx=None):
+
+        if self.filtername is None or observation['filter'][0] in self.filtername:
+            self.feature[0:-1, indx] = self.feature[1:, indx]
+            self.feature[-1, indx] = observation['mjd']
+
+
+class N_observations_current_season(BaseSurveyFeature):
+    """Track how many observations have been taken in the current season
+    XXX--experimental
+    """
+    def __init__(self, filtername=None, nside=None, offset=0, season_length=365.25):
+        self.filtername = filtername
+        if nside is None:
+            nside = utils.set_default_nside()
+        if offset is None:
+            offset = np.zeros(hp.nside2npix(nside), dtype=int)
+        self.offset = offset
+        self.season_length = season_length
+        self.season_map = utils.season_calc(0., offset=self.offset, season_length=season_length)
+        self.feature = np.zeros(hp.nside2npix(nside), dtype=float)
+
+    def add_observation(self, observation, indx=None):
+        current_season = utils.season_calc(observation['night'], offset=self.offset,
+                                           season_length=self.season_length)
+        # If the season has changed anywhere, set that count to zero
+        new_season = np.where((self.season_map - current_season) != 0)
+        self.feature[new_season] = 0
+        self.season_map = current_season
+
+        if self.filtername is None or observation['filter'][0] in self.filtername:
+            self.feature[indx] += 1
 
 
 class Coadded_depth(BaseSurveyFeature):
