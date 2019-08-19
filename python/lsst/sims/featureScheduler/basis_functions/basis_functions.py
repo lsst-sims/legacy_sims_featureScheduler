@@ -178,6 +178,19 @@ class Target_map_basis_function(Base_basis_function):
 
 class N_obs_per_year_basis_function(Base_basis_function):
     """Reward areas that have not been observed N-times in the last year
+
+    Parameters
+    ----------
+    filtername : str ('r')
+        The filter to track
+    footprint : np.array
+        Should be a HEALpix map. Values of 0 or np.nan will be ignored.
+    n_obs : int (3)
+        The number of observations to demand
+    season : float (365.25)
+        The amount of time to allow pass before marking a region as "behind". Default 365.25 (days).
+    HA_limit : float (2.)
+        Hour angle limit to enforce (2, hours).
     """
     def __init__(self, filtername='r', nside=None, footprint=None, n_obs=3, season=365.25,
                  HA_limit=2.):
