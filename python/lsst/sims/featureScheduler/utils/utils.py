@@ -190,7 +190,7 @@ class schema_converter(object):
                              'rotSkyPos': 'rotSkyPos', 'moonRA': 'moonRA',
                              'moonDec': 'moonDec', 'moonAlt': 'moonAlt', 'moonAz': 'moonAz',
                              'moonDistance': 'moonDist', 'moonPhase': 'moonPhase',
-                             'sunAlt': 'sunAlt', 'sunAz': 'sunAz', 'solarElong': 'solarElong'}
+                             'sunAlt': 'sunAlt', 'sunAz': 'sunAz', 'solarElong': 'solarElong', 'note':'note'}
         # Column(s) not bothering to remap:  'observationStartTime': None,
         self.inv_map = {v: k for k, v in self.convert_dict.items()}
         # angles to converts
