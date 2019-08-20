@@ -33,8 +33,9 @@ def gen_greedy_surveys(nside):
         bfs.append(bf.Clouded_out_basis_function())
 
         bfs.append(bf.Filter_loaded_basis_function(filternames=filtername))
+        bfs.append(bf.Planet_mask_basis_function(nside=nside))
 
-        weights = np.array([3.0, 0.3, 3., 3., 0., 0., 0., 0.])
+        weights = np.array([3.0, 0.3, 3., 3., 0., 0., 0., 0., 0.])
         surveys.append(Greedy_survey(bfs, weights, block_size=1, filtername=filtername,
                                      dither=True, nside=nside))
     return surveys
@@ -78,11 +79,12 @@ def gen_blob_surveys(nside):
         bfs.append(bf.Filter_loaded_basis_function(filternames=filternames))
         bfs.append(bf.Time_to_twilight_basis_function(time_needed=22.))
         bfs.append(bf.Not_twilight_basis_function())
+        bfs.append(bf.Planet_mask_basis_function(nside=nside))
 
-        weights = np.array([3.0, 3.0, .3, .3, 3., 3., 0., 0., 0., 0., 0., 0.])
+        weights = np.array([3.0, 3.0, .3, .3, 3., 3., 0., 0., 0., 0., 0., 0., 0.])
         if filtername2 is None:
             # Need to scale weights up so filter balancing still works properly.
-            weights = np.array([6.0, 0.6, 3., 3., 0., 0., 0., 0., 0., 0.])
+            weights = np.array([6.0, 0.6, 3., 3., 0., 0., 0., 0., 0., 0., 0.])
         if filtername2 is None:
             survey_name = 'blob, %s' % filtername
         else:

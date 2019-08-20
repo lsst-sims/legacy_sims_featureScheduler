@@ -458,7 +458,9 @@ class Model_observatory(object):
         self.conditions.FWHMeff = self.seeing_FWHMeff
 
         # sky brightness
-        self.conditions.skybrightness = self.sky_model.returnMags(self.mjd)
+        self.conditions.skybrightness = self.sky_model.returnMags(self.mjd, airmass_mask=False,
+                                                                  planet_mask=False,
+                                                                  moon_mask=False, zenith_mask=False)
 
         self.conditions.mounted_filters = self.observatory.current_state.mountedfilters
         self.conditions.current_filter = self.observatory.current_state.filter[0]
@@ -507,6 +509,9 @@ class Model_observatory(object):
         self.conditions.sunrise = self.almanac.sunsets['sunrise'][self.almanac_indx]
         self.conditions.moonrise = self.almanac.sunsets['moonrise'][self.almanac_indx]
         self.conditions.moonset = self.almanac.sunsets['moonset'][self.almanac_indx]
+
+        # Planet positions from almanac
+        self.conditions.planet_positions = self.almanac.get_planet_positions(self.mjd)
 
         # See if there are any ToOs to include
         if self.sim_ToO is not None:

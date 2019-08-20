@@ -116,6 +116,8 @@ class Conditions(object):
             The MJD of moonset during the current night. From interpolation.
         targets_of_opportunity : list of lsst.sims.featureScheduler.targetoO object(s)
             targetoO objects.
+        planet_positions : dict
+            Dictionary of planet name and coordinate e.g., 'venus_RA', 'mars_dec'
 
         Attributes (calculated on demand and cached)
         ------------------------------------------
@@ -199,6 +201,8 @@ class Conditions(object):
         self.sunrise = None
         self.moonrise = None
         self.moonset = None
+
+        self.planet_positions = None
 
         # Current telescope pointing
         self.telRA = None
