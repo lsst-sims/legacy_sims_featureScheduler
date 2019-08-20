@@ -45,13 +45,14 @@ class Planet_mask_basis_function(Base_basis_function):
     mask_radius : float (3.5)
         The radius to mask around a planet (degrees).
     planets : list of str (None)
-        A list of planet names to mask. Defaults to ['venus', 'mars', 'jupiter', 'saturn'].
+        A list of planet names to mask. Defaults to ['venus', 'mars', 'jupiter']. Not including
+        Saturn because it moves really slow and has average apparent mag of ~0.4, so fainter than Vega.
 
     """
     def __init__(self, mask_radius=3.5, planets=None, nside=None):
         super(Planet_mask_basis_function, self).__init__(nside=nside)
         if planets is None:
-            planets = ['venus', 'mars', 'jupiter', 'saturn']
+            planets = ['venus', 'mars', 'jupiter']
         self.planets = planets
         self.mask_radius = np.radians(mask_radius)
         self.result = np.zeros(hp.nside2npix(nside))
