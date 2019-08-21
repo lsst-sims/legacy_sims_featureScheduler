@@ -158,7 +158,7 @@ def dd_bfs(RA, dec, survey_name, ha_limits, frac_total=0.0185, aggressive_frac=0
     return bfs
 
 
-def dd_u_bfs(RA, dec, survey_name, ha_limits, frac_total=0.0015, aggressive_frac=0.0009):
+def dd_u_bfs(RA, dec, survey_name, ha_limits, frac_total=0.0019, aggressive_frac=0.0014):
     """Convienence function to generate all the feasibility basis functions for u-band DDFs
     """
     bfs = []
@@ -175,7 +175,7 @@ def dd_u_bfs(RA, dec, survey_name, ha_limits, frac_total=0.0015, aggressive_frac
                                                              sun_alt_limit=sun_alt_limit, time_needed=time_needed,
                                                              RA=RA, survey_name=survey_name,
                                                              ha_limits=ha_limits))
-    bfs.append(basis_functions.Soft_delay_basis_function(fractions=fractions, delays=[0., 0.5, 1.5],
+    bfs.append(basis_functions.Soft_delay_basis_function(fractions=fractions, delays=[0., 0.2, 0.5],
                                                          survey_name=survey_name))
 
     return bfs
@@ -205,7 +205,7 @@ def generate_dd_surveys(nside=None, nexp=2, detailers=None):
     bfs = dd_u_bfs(RA, dec, survey_name, ha_limits)
 
     surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='u',
-                                        nvis=[7], survey_name=survey_name, reward_value=100, nside=nside,
+                                        nvis=[8], survey_name=survey_name, reward_value=100, nside=nside,
                                         nexp=nexp, detailers=detailers))
 
     # XMM-LSS
@@ -222,7 +222,7 @@ def generate_dd_surveys(nside=None, nexp=2, detailers=None):
     bfs = dd_u_bfs(RA, dec, survey_name, ha_limits)
 
     surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='u',
-                                        nvis=[7], survey_name=survey_name, reward_value=100, nside=nside,
+                                        nvis=[8], survey_name=survey_name, reward_value=100, nside=nside,
                                         nexp=nexp, detailers=detailers))
 
     # Extended Chandra Deep Field South
@@ -239,7 +239,7 @@ def generate_dd_surveys(nside=None, nexp=2, detailers=None):
     survey_name = 'DD:u,ECDFS'
     bfs = dd_u_bfs(RA, dec, survey_name, ha_limits)
     surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='u',
-                                        nvis=[7], survey_name=survey_name, reward_value=100, nside=nside,
+                                        nvis=[8], survey_name=survey_name, reward_value=100, nside=nside,
                                         nexp=nexp, detailers=detailers))
     # COSMOS
     RA = 150.1
@@ -254,7 +254,7 @@ def generate_dd_surveys(nside=None, nexp=2, detailers=None):
     survey_name = 'DD:u,COSMOS'
     bfs = dd_u_bfs(RA, dec, survey_name, ha_limits)
     surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='u',
-                                        nvis=[7], survey_name=survey_name, reward_value=100, nside=nside,
+                                        nvis=[8], survey_name=survey_name, reward_value=100, nside=nside,
                                         nexp=nexp, detailers=detailers))
 
     # Extra DD Field, just to get to 5. Still not closed on this one
@@ -270,7 +270,7 @@ def generate_dd_surveys(nside=None, nexp=2, detailers=None):
 
     survey_name = 'DD:u,290'
     bfs = dd_u_bfs(RA, dec, survey_name, ha_limits)
-    surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='u', nvis=[7],
+    surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='u', nvis=[8],
                                         survey_name=survey_name, reward_value=100, nside=nside,
                                         nexp=nexp, detailers=detailers))
 
