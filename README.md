@@ -22,7 +22,7 @@ All values are for the center of the field of view (e.g., airmass, altitude, etc
  | block_id |  int  |  Identification ID of the block (used by some survey objects) | 
  | cloud |  fraction  |  what fraction of the sky is cloudy | 
  | fieldDec |  degrees  |  Declination of the observation | 
- | fieldId |  int  |  depreciated, should all be 0 or -1. | 
+ | fieldId |  int  |  deprecated, should all be 0 or -1. | 
  | fieldRA |  degrees  |  Right Ascension of the observation | 
  | filter |  string  |  The filter that was loaded for the observation, one of u,g,r,i,z,y | 
  | fiveSigmaDepth |  magnitudes  |  The magnitude of an isolated point source detected at the 5-sigma level | 
@@ -40,7 +40,7 @@ All values are for the center of the field of view (e.g., airmass, altitude, etc
  | observationStartLST |  degrees  |  the Local Sidereal Time at the start of the observation | 
  | observationStartMJD |  days  |  Modified Julian Date at the start of the observation | 
  | paraAngle |  degrees  |  Paralactic angle of the observation | 
- | proposalId |  int  |  depreciated | 
+ | proposalId |  int  |  deprecated | 
  | rotSkyPos |  degrees  |  The orientation of the sky in the focal plane measured as the angle between North on the sky and the "up" direction in the focal plane. | 
  | rotTelPos |  degrees | The physical angle of the rotator with respect to the mount. rotSkyPos = rotTelPos - ParallacticAngle | 
  | seeingFwhm500 |  arcseconds  |  The full-width at half maximum of the PSF at 500 nm. (XXX-unsure if this is at zenith or at the pointing) | 
