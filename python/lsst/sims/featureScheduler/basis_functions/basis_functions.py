@@ -176,6 +176,17 @@ class Target_map_basis_function(Base_basis_function):
         return result
 
 
+def azRelPoint(azs, pointAz):
+    azRelMoon = (azs - pointAz) % (2.0*np.pi)
+    if isinstance(azs, np.ndarray):
+        over = np.where(azRelMoon > np.pi)
+        azRelMoon[over] = 2. * np.pi - azRelMoon[over]
+    else:
+        if azRelMoon > np.pi:
+            azRelMoon = 2.0 * np.pi - azRelMoon
+    return azRelMoon
+
+
 class N_obs_per_year_basis_function(Base_basis_function):
     """Reward areas that have not been observed N-times in the last year
 
@@ -193,12 +204,14 @@ class N_obs_per_year_basis_function(Base_basis_function):
         Hour angle limit to enforce (2, hours).
     """
     def __init__(self, filtername='r', nside=None, footprint=None, n_obs=3, season=365.25,
-                 HA_limit=2.):
+                 HA_limit=2., season_start_hour=-1., season_end_hour=3.):
         super(N_obs_per_year_basis_function, self).__init__(nside=nside, filtername=filtername)
         self.footprint = footprint
         self.n_obs = n_obs
         self.season = season
         self.HA_limit = np.radians(HA_limit * 360./24.)  # To radians
+        self.season_start_hour = (season_start_hour)*np.pi/12.  # To radians
+        self.season_end_hour = season_end_hour*np.pi/12.  # To radians
 
         self.survey_features['last_n_mjds'] = features.Last_N_obs_times(nside=nside, filtername=filtername,
                                                                         n_obs=n_obs)
@@ -211,13 +224,20 @@ class N_obs_per_year_basis_function(Base_basis_function):
         behind_pix = np.where((conditions.mjd-self.survey_features['last_n_mjds'].feature[0]) > self.season)
         result[behind_pix] = 1
 
-        # Could make this more sophisticated and look ahead to see if a pixel will be better some
-        # timestep in the future.
-        bad_ha = np.where((conditions.HA > self.HA_limit) & (conditions.HA < (2.*np.pi-self.HA_limit)))
-        result[bad_ha] = 0
+        # let's ramp up the weight depending on how far into the observing season the healpix is
+        mid_season_ra = (conditions.sunRA + np.pi) % (2.*np.pi)
+        # relative RA
+        relative_ra = (conditions.ra - mid_season_ra) % (2.*np.pi)
+        relative_ra = (self.season_start_hour - relative_ra) % (2.*np.pi)
+        # ok, now 
+        relative_ra[np.where(relative_ra > (self.season_end_hour-self.season_start_hour))] = 0
+
+        weight = relative_ra/(self.season_end_hour - self.season_start_hour)
+        result *= weight
 
         # mask off anything outside the footprint
         result[self.out_footprint] = 0
+
 
         return result
 
