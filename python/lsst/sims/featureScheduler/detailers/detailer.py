@@ -1,8 +1,10 @@
 from lsst.sims.utils import _raDec2Hpid, _approx_RaDec2AltAz
 import numpy as np
 from lsst.sims.featureScheduler.utils import approx_altaz2pa
+import copy
 
-__all__ = ["Base_detailer", "Zero_rot_detailer", "Comcam_90rot_detailer"]
+__all__ = ["Base_detailer", "Zero_rot_detailer", "Comcam_90rot_detailer", "Close_alt_detailer",
+           "Take_as_pairs_detailer"]
 
 
 class Base_detailer(object):
@@ -58,13 +60,6 @@ class Zero_rot_detailer(Base_detailer):
     But, wait, what? Is it really the other way?
     """
 
-    def __init__(self, nside=32):
-        """
-        """
-        # Dict to hold all the features we want to track
-        self.survey_features = {}
-        self.nside = nside
-
     def __call__(self, observation_list, conditions):
 
         # XXX--should I convert the list into an array and get rid of this loop?
@@ -102,7 +97,35 @@ class Comcam_90rot_detailer(Base_detailer):
         return observation_list
 
 
+class Close_alt_detailer(Base_detailer):
+    """
+    re-order a list of observations so that the closest in altitude to the current pointing is first.
+    """
+    def __call__(self, observation_list, conditions):
+        obs_array = np.concatenate(observation_list)
+        alt, az = _approx_RaDec2AltAz(obs_array['RA'], obs_array['dec'], conditions.site.latitude_rad,
+                                      conditions.site.longitude_rad, conditions.mjd)
+        alt_diff = np.abs(alt - conditions.telAlt)
+        indx = np.min(np.where(alt_diff == np.min(alt_diff))[0])
+
+        result = observation_list[indx:] + observation_list[:indx]
+        return result
 
 
+class Take_as_pairs_detailer(Base_detailer):
+    def __init__(self, filtername='r'):
+        """
+        """
+        super(Take_as_pairs_detailer, self).__init__()
+        self.filtername = filtername
 
-
+    def __call__(self, observation_list, conditions):
+        paired = copy.deepcopy(observation_list)
+        for obs in paired:
+            obs['filter'] = self.filtername
+            obs['note'] = obs['note'][0] + ' Paired'
+        if conditions.current_filter == self.filtername:
+            result = paired + observation_list
+        else:
+            result = observation_list + paired
+        return result

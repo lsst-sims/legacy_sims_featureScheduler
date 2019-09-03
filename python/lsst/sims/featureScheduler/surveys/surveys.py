@@ -347,28 +347,6 @@ class Blob_survey(Greedy_survey):
             observations.append(obs)
             counter2 += 1
 
-        # If we only want one filter block
-        if self.filtername2 is None:
-            result = observations
-        else:
-            # Double the list to get a pair.
-            observations_paired = []
-            for observation in observations:
-                obs = copy.copy(observation)
-                obs['filter'] = self.filtername2
-                observations_paired.append(obs)
-
-            # Check loaded filter here to decide which goes first
-            if conditions.current_filter == self.filtername2:
-                result = observations_paired + observations
-            else:
-                result = observations + observations_paired
-
-            # Let's tag which one is supposed to be first/second in the pair:
-            for i in range(0, int(np.size(result)/2), 1):
-                result[i]['note'] = '%s, a' % (self.survey_note)
-            for i in range(int(np.size(result)/2), np.size(result), 1):
-                result[i]['note'] = '%s, b' % (self.survey_note)
-
+        result = observations
         return result
 
