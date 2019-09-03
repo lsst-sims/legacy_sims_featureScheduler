@@ -198,18 +198,19 @@ class N_obs_per_year_basis_function(Base_basis_function):
         Should be a HEALpix map. Values of 0 or np.nan will be ignored.
     n_obs : int (3)
         The number of observations to demand
-    season : float (365.25)
+    season : float (300)
         The amount of time to allow pass before marking a region as "behind". Default 365.25 (days).
-    HA_limit : float (2.)
-        Hour angle limit to enforce (2, hours).
+    season_start_hour : float (-2)
+        When to start the season relative to RA 180 degrees away from the sun (hours)
+    season_end_hour : float (2)
+        When to consider a season ending, the RA relative to the sun + 180 degrees. (hours)
     """
-    def __init__(self, filtername='r', nside=None, footprint=None, n_obs=3, season=365.25,
-                 HA_limit=2., season_start_hour=-1., season_end_hour=3.):
+    def __init__(self, filtername='r', nside=None, footprint=None, n_obs=3, season=300,
+                 season_start_hour=-2., season_end_hour=2.):
         super(N_obs_per_year_basis_function, self).__init__(nside=nside, filtername=filtername)
         self.footprint = footprint
         self.n_obs = n_obs
         self.season = season
-        self.HA_limit = np.radians(HA_limit * 360./24.)  # To radians
         self.season_start_hour = (season_start_hour)*np.pi/12.  # To radians
         self.season_end_hour = season_end_hour*np.pi/12.  # To radians
 
