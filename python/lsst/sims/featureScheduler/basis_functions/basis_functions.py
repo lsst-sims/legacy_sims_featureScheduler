@@ -206,7 +206,7 @@ class N_obs_per_year_basis_function(Base_basis_function):
         When to consider a season ending, the RA relative to the sun + 180 degrees. (hours)
     """
     def __init__(self, filtername='r', nside=None, footprint=None, n_obs=3, season=300,
-                 season_start_hour=-2., season_end_hour=2.):
+                 season_start_hour=-4., season_end_hour=2.):
         super(N_obs_per_year_basis_function, self).__init__(nside=nside, filtername=filtername)
         self.footprint = footprint
         self.n_obs = n_obs
@@ -229,7 +229,7 @@ class N_obs_per_year_basis_function(Base_basis_function):
         mid_season_ra = (conditions.sunRA + np.pi) % (2.*np.pi)
         # relative RA
         relative_ra = (conditions.ra - mid_season_ra) % (2.*np.pi)
-        relative_ra = (self.season_start_hour - relative_ra) % (2.*np.pi)
+        relative_ra = (self.season_end_hour - relative_ra) % (2.*np.pi)
         # ok, now 
         relative_ra[np.where(relative_ra > (self.season_end_hour-self.season_start_hour))] = 0
 
