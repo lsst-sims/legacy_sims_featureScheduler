@@ -21,7 +21,7 @@ class filter_swap_scheduler(object):
 
 
 class simple_filter_sched(filter_swap_scheduler):
-    def __init__(self, illum_limit=60.):
+    def __init__(self, illum_limit=10.):
         self.illum_limit = illum_limit
 
     def __call__(self, conditions):
