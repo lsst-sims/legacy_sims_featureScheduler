@@ -1,4 +1,4 @@
-from lsst.sims.utils import _raDec2Hpid, _approx_RaDec2AltAz
+from lsst.sims.utils import _raDec2Hpid, _approx_RaDec2AltAz, _angularSeparation
 import numpy as np
 from lsst.sims.featureScheduler.utils import approx_altaz2pa
 import copy
@@ -100,14 +100,29 @@ class Comcam_90rot_detailer(Base_detailer):
 class Close_alt_detailer(Base_detailer):
     """
     re-order a list of observations so that the closest in altitude to the current pointing is first.
+
+    Parameters
+    ----------
+    alt_band : float (10)
+        The altitude band to try and stay in (degrees)
     """
+    def __init__(self, alt_band=10.):
+        super(Close_alt_detailer, self).__init__()
+        self.alt_band = np.radians(alt_band)
+
     def __call__(self, observation_list, conditions):
         obs_array = np.concatenate(observation_list)
         alt, az = _approx_RaDec2AltAz(obs_array['RA'], obs_array['dec'], conditions.site.latitude_rad,
                                       conditions.site.longitude_rad, conditions.mjd)
         alt_diff = np.abs(alt - conditions.telAlt)
-        indx = np.min(np.where(alt_diff == np.min(alt_diff))[0])
+        in_band = np.where(alt_diff <= self.alt_band)[0]
+        if in_band.size == 0:
+            in_band = np.arange(alt.size)
 
+        # Find the closest in angular distance of the points that are in band
+        ang_dist = _angularSeparation(az[in_band], alt[in_band], conditions.telAz, conditions.telAlt)
+        good = np.min(np.where(ang_dist == ang_dist.min())[0])
+        indx = in_band[good]
         result = observation_list[indx:] + observation_list[:indx]
         return result
 
@@ -123,9 +138,16 @@ class Take_as_pairs_detailer(Base_detailer):
         paired = copy.deepcopy(observation_list)
         for obs in paired:
             obs['filter'] = self.filtername
-            obs['note'] = obs['note'][0] + ' Paired'
         if conditions.current_filter == self.filtername:
+            for obs in paired:
+                obs['note'] = obs['note'][0] + ', a'
+            for obs in observation_list:
+                obs['note'] = obs['note'][0] + ', b'
             result = paired + observation_list
         else:
+            for obs in paired:
+                obs['note'] = obs['note'][0] + ', b'
+            for obs in observation_list:
+                obs['note'] = obs['note'][0] + ', a'
             result = observation_list + paired
         return result

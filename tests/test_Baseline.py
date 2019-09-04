@@ -153,8 +153,8 @@ class TestFeatures(unittest.TestCase):
                                                           filename=None)
 
         # Make sure some blobs executed
-        assert('blob, gg' in observations['note'])
-        assert('blob, gg Paired' in observations['note'])
+        assert('blob, gg, b' in observations['note'])
+        assert('blob, gg, a' in observations['note'])
         # assert('blob, u' in observations['note'])
 
         # Make sure some greedy executed
