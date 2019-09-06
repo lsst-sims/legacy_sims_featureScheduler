@@ -14,7 +14,8 @@ __all__ = ['Base_basis_function', 'Constant_basis_function', 'Target_map_basis_f
            'Filter_change_basis_function', 'Slewtime_basis_function',
            'Aggressive_Slewtime_basis_function', 'Skybrightness_limit_basis_function',
            'CableWrap_unwrap_basis_function', 'Cadence_enhance_basis_function', 'Azimuth_basis_function',
-           'Az_modulo_basis_function', 'Dec_modulo_basis_function', 'Template_generate_basis_function',
+           'Az_modulo_basis_function', 'Dec_modulo_basis_function', 'Map_modulo_basis_function',
+           'Template_generate_basis_function',
            'Footprint_nvis_basis_function', 'Third_observation_basis_function', 'Season_coverage_basis_function',
            'N_obs_per_year_basis_function']
 
@@ -1032,6 +1033,25 @@ class Dec_modulo_basis_function(Base_basis_function):
         night_index = np.max(conditions.night % self.mod_val)
         result = self.results[night_index]
 
+        return result
+
+
+class Map_modulo_basis_function(Base_basis_function):
+    """Similar to Dec_modulo, but now use input masks
+
+    Parameters
+    ----------
+    inmaps : list of hp arrays
+    """
+    def __init__(self, inmaps):
+        nside = hp.npix2nside(np.size(inmaps[0]))
+        super(Map_modulo_basis_function, self).__init__(nside=nside)
+        self.maps = inmaps
+        self.mod_val = len(inmaps)
+
+    def _calc_value(self, conditions, indx=None):
+        indx = np.max(conditions.night % self.mod_val)
+        result = self.maps[indx]
         return result
 
 
