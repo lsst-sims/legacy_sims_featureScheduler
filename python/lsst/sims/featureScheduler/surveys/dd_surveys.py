@@ -73,6 +73,7 @@ class Deep_drilling_survey(BaseSurvey):
                     self.filter_sequence.append(filtername)
         else:
             self.observations = sequence
+            self.filter_sequence = [obs['filter'] for obs in sequence]
 
         # Make an estimate of how long a seqeunce will take. Assumes no major rotational or spatial
         # dithering slowing things down.
