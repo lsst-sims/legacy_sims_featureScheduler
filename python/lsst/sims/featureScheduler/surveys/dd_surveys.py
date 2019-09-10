@@ -8,7 +8,7 @@ import logging
 import random
 
 
-__all__ = ['Deep_drilling_survey', 'generate_dd_surveys']
+__all__ = ['Deep_drilling_survey', 'generate_dd_surveys', 'dd_bfs', 'dd_u_bfs']
 
 log = logging.getLogger(__name__)
 
