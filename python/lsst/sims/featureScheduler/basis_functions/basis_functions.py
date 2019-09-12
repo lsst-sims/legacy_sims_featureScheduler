@@ -17,7 +17,7 @@ __all__ = ['Base_basis_function', 'Constant_basis_function', 'Target_map_basis_f
            'Az_modulo_basis_function', 'Dec_modulo_basis_function', 'Map_modulo_basis_function',
            'Template_generate_basis_function',
            'Footprint_nvis_basis_function', 'Third_observation_basis_function', 'Season_coverage_basis_function',
-           'N_obs_per_year_basis_function']
+           'N_obs_per_year_basis_function', 'Cadence_in_season_basis_function']
 
 
 class Base_basis_function(object):
@@ -240,6 +240,38 @@ class N_obs_per_year_basis_function(Base_basis_function):
         # mask off anything outside the footprint
         result[self.out_footprint] = 0
 
+        return result
+
+
+class Cadence_in_season_basis_function(Base_basis_function):
+    """Drive observations at least every N days in a given area
+
+    Parameters
+    ----------
+    drive_map : np.array
+        A HEALpix map with values of 1 where the cadence should be driven.
+    filtername : str
+        The filters that can count
+    season_span : float (2.5)
+        How long to consider a spot "in_season" (hours)
+    cadence : float (2.5)
+        How long to wait before activating the basis function (days)
+    """
+
+    def __init__(self, drive_map, filtername='griz', season_span=2.5, cadence=2.5, nside=None):
+        super(Cadence_in_season_basis_function, self).__init__(nside=nside, filtername=filtername)
+        self.drive_map = drive_map
+        self.season_span = season_span/12.*np.pi  # To radians
+        self.cadence = cadence
+        self.survey_features['last_observed'] = features.Last_observed(nside=nside, filtername=filtername)
+        self.result = np.zeros(hp.nside2npix(self.nside), dtype=float)
+
+    def _calc_value(self, conditions, indx=None):
+        result = self.result.copy()
+        # Calc, pixels that are in season, in drive_map, and haven't been observed
+        lag = conditions.mjd - self.survey_features['last_observed']
+        active_pix = np.where((lag >= self.cadence) & (self.drive_map == 1) & (conditions.az_to_sun < self.season_span))
+        result[active_pix] = 1.
 
         return result
 

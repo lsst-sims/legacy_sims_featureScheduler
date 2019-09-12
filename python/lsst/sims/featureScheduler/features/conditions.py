@@ -137,6 +137,8 @@ class Conditions(object):
             if the skybrightness, seeing, or airmass are updated.
         HA : np.array
             Healpix map of the hour angle of each healpixel (radians).
+        az_to_sun : np.array
+            Healpix map of the azimuthal distance to the sun for each healpixel (radians)
 
         Attributes (set by the scheduler)
         -------------------------------
@@ -308,6 +310,7 @@ class Conditions(object):
         self._pa = None
         self._HA = None
         self._lmst = None
+        self._az_to_sun = None
 
     @property
     def skybrightness(self):
@@ -347,3 +350,14 @@ class Conditions(object):
                                                           self._FWHMeff[filtername][good],
                                                           self.exptime,
                                                           self._airmass[good])
+
+    def calc_az_to_sun(self):
+        diff = np.abs(self.RA - self.sunRA)
+        self._az_to_sun = diff
+        self._az_to_sun[np.where(diff > np.pi)] = 2.*np.pi-diff[np.where(diff > np.pi)]
+
+    @property
+    def az_to_sun(self):
+        if self._az_to_sun is None:
+            self.calc_az_to_sun()
+        return self._az_to_sun
