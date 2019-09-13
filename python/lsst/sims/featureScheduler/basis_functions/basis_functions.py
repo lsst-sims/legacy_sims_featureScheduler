@@ -268,9 +268,15 @@ class Cadence_in_season_basis_function(Base_basis_function):
 
     def _calc_value(self, conditions, indx=None):
         result = self.result.copy()
-        # Calc, pixels that are in season, in drive_map, and haven't been observed
-        lag = conditions.mjd - self.survey_features['last_observed']
-        active_pix = np.where((lag >= self.cadence) & (self.drive_map == 1) & (conditions.az_to_sun < self.season_span))
+        ra_mid_season = (conditions.sunRA + np.pi) % (2.*np.pi)
+
+        angle_to_mid_season = np.abs(conditions.ra - ra_mid_season)
+        over = np.where(angle_to_mid_season > np.pi)
+        angle_to_mid_season[over] = 2.*np.pi - angle_to_mid_season[over]
+
+        days_lag = conditions.mjd - self.survey_features['last_observed'].feature
+
+        active_pix = np.where((days_lag >= self.cadence) & (self.drive_map == 1) & (angle_to_mid_season < self.season_span))
         result[active_pix] = 1.
 
         return result
