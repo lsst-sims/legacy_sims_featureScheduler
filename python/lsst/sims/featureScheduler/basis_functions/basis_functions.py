@@ -17,7 +17,7 @@ __all__ = ['Base_basis_function', 'Constant_basis_function', 'Target_map_basis_f
            'Az_modulo_basis_function', 'Dec_modulo_basis_function', 'Map_modulo_basis_function',
            'Template_generate_basis_function',
            'Footprint_nvis_basis_function', 'Third_observation_basis_function', 'Season_coverage_basis_function',
-           'N_obs_per_year_basis_function', 'Cadence_in_season_basis_function']
+           'N_obs_per_year_basis_function', 'Cadence_in_season_basis_function', 'Near_sun_twilight_basis_function']
 
 
 class Base_basis_function(object):
@@ -425,6 +425,27 @@ class Avoid_Fast_Revists(Base_basis_function):
         diff = conditions.mjd - self.survey_features['Last_observed'].feature[indx]
         bad = np.where(diff < self.gap_min)[0]
         result[indx[bad]] = self.penalty_val
+        return result
+
+
+class Near_sun_twilight_basis_function(Base_basis_function):
+    """Reward looking into the twilight for NEOs at high airmass
+
+    Parameters
+    ----------
+    max_airmass : float (2.5)
+        The maximum airmass to try and observe (unitless)
+    """
+
+    def __init__(self, nside=None, max_airmass=2.5):
+        super(Near_sun_twilight_basis_function, self).__init__(nside=nside)
+        self.max_airmass = max_airmass
+        self.result = np.zeros(hp.nside2npix(self.nside))
+
+    def _calc_value(self, conditions, indx=None):
+        result = self.result.copy()
+        good_pix = np.where((conditions.airmass < self.max_airmass) & (conditions.az_to_sun < np.pi/2.))
+        result[good_pix] = conditions.airmass[good_pix] / self.max_airmass
         return result
 
 

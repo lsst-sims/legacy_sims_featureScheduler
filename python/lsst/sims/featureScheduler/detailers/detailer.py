@@ -4,7 +4,7 @@ from lsst.sims.featureScheduler.utils import approx_altaz2pa
 import copy
 
 __all__ = ["Base_detailer", "Zero_rot_detailer", "Comcam_90rot_detailer", "Close_alt_detailer",
-           "Take_as_pairs_detailer"]
+           "Take_as_pairs_detailer", "Twilight_triple_detailer"]
 
 
 class Base_detailer(object):
@@ -151,3 +151,46 @@ class Take_as_pairs_detailer(Base_detailer):
                 obs['note'] = obs['note'][0] + ', a'
             result = observation_list + paired
         return result
+
+
+class Twilight_triple_detailer(Base_detailer):
+    def __init__(self, slew_estimate=4.5, n_repeat=3):
+        super(Twilight_triple_detailer, self).__init__()
+        self.slew_estimate = slew_estimate
+        self.n_repeat = n_repeat
+
+    def __call__(self, observation_list, conditions):
+
+        # Let's start at the highest airmass
+        obs_array = np.concatenate(observation_list)
+        alt, az = _approx_RaDec2AltAz(obs_array['RA'], obs_array['dec'], conditions.site.latitude_rad,
+                                      conditions.site.longitude_rad, conditions.mjd)
+        highest_am_indx = np.max(np.where(alt == np.min(alt)))
+
+        observation_list = observation_list[highest_am_indx:] + observation_list[:highest_am_indx]
+        obs_array = np.concatenate(observation_list)
+
+        potential_times = np.array([conditions.sun_n18_setting - conditions.mjd,
+                                   conditions.sun_n12_rising - conditions.mjd])
+        potential_times = potential_times[np.where(potential_times > 0)]
+        # If something strange happened
+        if np.size(potential_times) == 0:
+            time_block = 10.
+        else:
+            time_block = np.min(potential_times) * 24.*3600.  # to seconds
+        
+        cumulative_slew = np.arange(obs_array.size) * self.slew_estimate
+        cumulative_expt = np.cumsum(obs_array['exptime'])
+        cumulative_time = cumulative_slew + cumulative_expt
+
+        max_indx = np.max(np.where(cumulative_time/self.n_repeat <= time_block))
+        out_obs = observation_list[0:max_indx]
+        out_obs = out_obs * self.n_repeat
+        return out_obs
+
+
+
+
+
+
+

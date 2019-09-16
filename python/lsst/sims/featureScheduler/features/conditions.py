@@ -352,7 +352,7 @@ class Conditions(object):
                                                           self._airmass[good])
 
     def calc_az_to_sun(self):
-        diff = np.abs(self.RA - self.sunRA)
+        diff = np.abs(self.ra - self.sunRA)
         self._az_to_sun = diff
         self._az_to_sun[np.where(diff > np.pi)] = 2.*np.pi-diff[np.where(diff > np.pi)]
 
