@@ -349,4 +349,3 @@ class Blob_survey(Greedy_survey):
 
         result = observations
         return result
-

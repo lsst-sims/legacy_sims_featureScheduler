@@ -174,12 +174,20 @@ class Twilight_triple_detailer(Base_detailer):
         cumulative_expt = np.cumsum(obs_array['exptime'])
         cumulative_time = cumulative_slew + cumulative_expt
         # If we are way over, truncate the list before doing the triple
-        if np.max(cumulative_time > potential_times):
-            max_indx = np.max(np.where(cumulative_time/self.n_repeat <= potential_times))
+        if np.max(cumulative_time) > potential_times:
+            max_indx = np.where(cumulative_time/self.n_repeat <= potential_times)[0]
+            if np.size(max_indx) == 0:
+                # Very bad magic number fudge
+                max_indx = 3
+            else:
+                max_indx = np.max(max_indx)
+                if max_indx == 0:
+                    max_indx += 1
             observation_list = observation_list[0:max_indx]
 
-        # Let's start at the highest airmass
+        # Repeat the observations n times
         out_obs = observation_list * self.n_repeat
+
         return out_obs
 
 

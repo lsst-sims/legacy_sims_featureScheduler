@@ -9,7 +9,8 @@ __all__ = ['Filter_loaded_basis_function', 'Time_to_twilight_basis_function',
            'Hour_Angle_limit_basis_function', 'Moon_down_basis_function',
            'Fraction_of_obs_basis_function', 'Clouded_out_basis_function',
            'Rising_more_basis_function', 'Soft_delay_basis_function',
-           'Look_ahead_ddf_basis_function', 'Sun_alt_limit_basis_function']
+           'Look_ahead_ddf_basis_function', 'Sun_alt_limit_basis_function',
+           'Time_in_twilight_basis_function']
 
 
 class Filter_loaded_basis_function(Base_basis_function):
@@ -33,6 +34,33 @@ class Filter_loaded_basis_function(Base_basis_function):
             if result is False:
                 return result
         return result
+
+
+class Time_in_twilight_basis_function(Base_basis_function):
+    """Make sure there is some time left in twilight.
+
+    Parameters
+    ----------
+    time_needed : float (5)
+        The time needed remaining in twilight (minutes)
+    """
+    def __init__(self, time_needed=5.):
+        super(Time_in_twilight_basis_function, self).__init__()
+        self.time_needed = time_needed/60./24.  # To days
+
+    def check_feasibility(self, conditions):
+        result = False
+        time1 = conditions.sun_n18_setting - conditions.mjd
+        time2 = conditions.sun_n12_rising - conditions.mjd
+
+        if time1 > self.time_needed:
+            result = True
+        else:
+            if conditions.sunAlt > np.radians(-18.):
+                if time2 > self.time_needed:
+                    result = True
+        return result
+
 
 
 class Time_to_twilight_basis_function(Base_basis_function):
