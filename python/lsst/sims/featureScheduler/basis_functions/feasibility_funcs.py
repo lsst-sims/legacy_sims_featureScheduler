@@ -10,7 +10,7 @@ __all__ = ['Filter_loaded_basis_function', 'Time_to_twilight_basis_function',
            'Fraction_of_obs_basis_function', 'Clouded_out_basis_function',
            'Rising_more_basis_function', 'Soft_delay_basis_function',
            'Look_ahead_ddf_basis_function', 'Sun_alt_limit_basis_function',
-           'Time_in_twilight_basis_function']
+           'Time_in_twilight_basis_function', 'Night_modulo_basis_function']
 
 
 class Filter_loaded_basis_function(Base_basis_function):
@@ -33,6 +33,22 @@ class Filter_loaded_basis_function(Base_basis_function):
             result = filtername in conditions.mounted_filters
             if result is False:
                 return result
+        return result
+
+
+class Night_modulo_basis_function(Base_basis_function):
+    """Only return true on certain nights
+    """
+    def __init__(self, pattern=None):
+        super(Night_modulo_basis_function, self).__init__()
+        if pattern is None:
+            pattern = [True, False]
+        self.pattern = pattern
+        self.mod_val = len(self.pattern)
+
+    def check_feasibility(self, conditions):
+        indx = int(conditions.night % self.mod_val)
+        result = self.pattern[indx]
         return result
 
 
