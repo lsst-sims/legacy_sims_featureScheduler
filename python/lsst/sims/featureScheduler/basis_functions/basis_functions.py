@@ -17,7 +17,8 @@ __all__ = ['Base_basis_function', 'Constant_basis_function', 'Target_map_basis_f
            'Az_modulo_basis_function', 'Dec_modulo_basis_function', 'Map_modulo_basis_function',
            'Template_generate_basis_function',
            'Footprint_nvis_basis_function', 'Third_observation_basis_function', 'Season_coverage_basis_function',
-           'N_obs_per_year_basis_function', 'Cadence_in_season_basis_function', 'Near_sun_twilight_basis_function']
+           'N_obs_per_year_basis_function', 'Cadence_in_season_basis_function', 'Near_sun_twilight_basis_function',
+           'N_obs_high_am_basis_function']
 
 
 class Base_basis_function(object):
@@ -186,6 +187,51 @@ def azRelPoint(azs, pointAz):
         if azRelMoon > np.pi:
             azRelMoon = 2.0 * np.pi - azRelMoon
     return azRelMoon
+
+
+class N_obs_high_am_basis_function(Base_basis_function):
+    """Reward only reward/count observations at high airmass
+    """
+
+    def __init__(self, nside=None, filtername='r', footprint=None, n_obs=3, season=300.,
+                 am_limits=[1.5, 2.2], out_of_bounds_val=np.nan):
+        super(N_obs_high_am_basis_function, self).__init__(nside=nside, filtername=filtername)
+        self.footprint = footprint
+        self.out_footprint = np.where((footprint == 0) | np.isnan(footprint))
+        self.am_limits = am_limits
+        self.season = season
+        self.survey_features['last_n_mjds'] = features.Last_N_obs_times(nside=nside, filtername=filtername,
+                                                                        n_obs=n_obs)
+
+        self.result = np.zeros(hp.nside2npix(self.nside), dtype=float) + out_of_bounds_val
+        self.out_of_bounds_val = out_of_bounds_val
+
+    def add_observation(self, observation, indx=None):
+        """
+        Parameters
+        ----------
+        observation : np.array
+            An array with information about the input observation
+        indx : np.array
+            The indices of the healpix map that the observation overlaps with
+        """
+
+        # Only count the observations if they 
+        if (observation['airmass'] > np.min(self.am_limits)) & (observation['airmass'] < np.max(self.am_limits)):
+            for feature in self.survey_features:
+                self.survey_features[feature].add_observation(observation, indx=indx)
+            if self.update_on_newobs:
+                self.recalc = True
+
+    def _calc_value(self, conditions, indx=None):
+        result = self.result.copy()
+        behind_pix = np.where(((conditions.mjd-self.survey_features['last_n_mjds'].feature[0]) > self.season) &
+                              (conditions.airmass > np.min(self.am_limits)) &
+                              (conditions.airmass < np.max(self.am_limits)))
+        result[behind_pix] = 1
+        result[self.out_footprint] = self.out_of_bounds_val
+
+        return result
 
 
 class N_obs_per_year_basis_function(Base_basis_function):
