@@ -194,7 +194,7 @@ class N_obs_high_am_basis_function(Base_basis_function):
     """
 
     def __init__(self, nside=None, filtername='r', footprint=None, n_obs=3, season=300.,
-                 am_limits=[1.5, 2.2], out_of_bounds_val=np.nan):
+                 am_limits=[1.5, 2.2], out_of_bounds_val=-10.):
         super(N_obs_high_am_basis_function, self).__init__(nside=nside, filtername=filtername)
         self.footprint = footprint
         self.out_footprint = np.where((footprint == 0) | np.isnan(footprint))
