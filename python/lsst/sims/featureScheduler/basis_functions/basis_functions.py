@@ -203,7 +203,7 @@ class N_obs_high_am_basis_function(Base_basis_function):
         self.survey_features['last_n_mjds'] = features.Last_N_obs_times(nside=nside, filtername=filtername,
                                                                         n_obs=n_obs)
 
-        self.result = np.zeros(hp.nside2npix(self.nside), dtype=float) + out_of_bounds_val
+        self.result = np.zeros(hp.nside2npix(self.nside), dtype=float)
         self.out_of_bounds_val = out_of_bounds_val
 
     def add_observation(self, observation, indx=None):
@@ -216,7 +216,7 @@ class N_obs_high_am_basis_function(Base_basis_function):
             The indices of the healpix map that the observation overlaps with
         """
 
-        # Only count the observations if they 
+        # Only count the observations if they are at the airmass limits
         if (observation['airmass'] > np.min(self.am_limits)) & (observation['airmass'] < np.max(self.am_limits)):
             for feature in self.survey_features:
                 self.survey_features[feature].add_observation(observation, indx=indx)
