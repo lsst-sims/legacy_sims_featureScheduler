@@ -194,7 +194,7 @@ class N_obs_high_am_basis_function(Base_basis_function):
     """
 
     def __init__(self, nside=None, filtername='r', footprint=None, n_obs=3, season=300.,
-                 am_limits=[1.5, 2.2], out_of_bounds_val=-10.):
+                 am_limits=[1.5, 2.2], out_of_bounds_val=np.nan):
         super(N_obs_high_am_basis_function, self).__init__(nside=nside, filtername=filtername)
         self.footprint = footprint
         self.out_footprint = np.where((footprint == 0) | np.isnan(footprint))
@@ -203,7 +203,7 @@ class N_obs_high_am_basis_function(Base_basis_function):
         self.survey_features['last_n_mjds'] = features.Last_N_obs_times(nside=nside, filtername=filtername,
                                                                         n_obs=n_obs)
 
-        self.result = np.zeros(hp.nside2npix(self.nside), dtype=float)
+        self.result = np.zeros(hp.nside2npix(self.nside), dtype=float) + out_of_bounds_val
         self.out_of_bounds_val = out_of_bounds_val
 
     def add_observation(self, observation, indx=None):
@@ -223,6 +223,18 @@ class N_obs_high_am_basis_function(Base_basis_function):
             if self.update_on_newobs:
                 self.recalc = True
 
+    def check_feasibility(self, conditions):
+        """If there is logic to decide if something is feasible (e.g., only if moon is down),
+        it can be calculated here. Helps prevent full __call__ from being called more than needed.
+        """
+        result = True
+        reward = self._calc_value(conditions)
+        # If there are no non-NaN values, we're not feasible now
+        if True not in np.isfinite(reward):
+            result = False
+
+        return result
+
     def _calc_value(self, conditions, indx=None):
         result = self.result.copy()
         behind_pix = np.where(((conditions.mjd-self.survey_features['last_n_mjds'].feature[0]) > self.season) &
@@ -230,6 +242,11 @@ class N_obs_high_am_basis_function(Base_basis_function):
                               (conditions.airmass < np.max(self.am_limits)))
         result[behind_pix] = 1
         result[self.out_footprint] = self.out_of_bounds_val
+
+        # Update the last time we had an mjd
+        self.mjd_last = conditions.mjd + 0
+        self.recalc = False
+        self.reward = result
 
         return result
 
