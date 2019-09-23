@@ -246,7 +246,7 @@ class N_obs_high_am_basis_function(Base_basis_function):
         # Update the last time we had an mjd
         self.mjd_last = conditions.mjd + 0
         self.recalc = False
-        self.reward = result
+        self.value = result
 
         return result
 
