@@ -384,7 +384,7 @@ def read_fields():
     return result
 
 
-def hp_kd_tree(nside=None, leafsize=100):
+def hp_kd_tree(nside=None, leafsize=100, decimals=5):
     """
     Generate a KD-tree of healpixel locations
 
@@ -404,6 +404,8 @@ def hp_kd_tree(nside=None, leafsize=100):
 
     hpid = np.arange(hp.nside2npix(nside))
     ra, dec = _hpid2RaDec(nside, hpid)
+    ra = np.round(ra, decimals=decimals)
+    dec = np.round(dec, decimals=decimals)
     return _buildTree(ra, dec, leafsize)
 
 
@@ -422,7 +424,7 @@ class hp_in_lsst_fov(object):
         if nside is None:
             nside = set_default_nside()
 
-        self.tree = hp_kd_tree(nside=nside)
+        self.tree = hp_kd_tree(nside=nside, decimals=decimals)
         self.radius = xyz_angular_radius(fov_radius)
         self.decimals = decimals
 
