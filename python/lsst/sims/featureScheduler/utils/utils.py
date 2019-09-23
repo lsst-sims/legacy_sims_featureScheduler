@@ -412,7 +412,7 @@ class hp_in_lsst_fov(object):
     Return the healpixels within a pointing. A very simple LSST camera model with
     no chip/raft gaps.
     """
-    def __init__(self, nside=None, fov_radius=1.75):
+    def __init__(self, nside=None, fov_radius=1.75, decimals=5):
         """
         Parameters
         ----------
@@ -424,6 +424,7 @@ class hp_in_lsst_fov(object):
 
         self.tree = hp_kd_tree(nside=nside)
         self.radius = xyz_angular_radius(fov_radius)
+        self.decimals = decimals
 
     def __call__(self, ra, dec, **kwargs):
         """
@@ -439,7 +440,10 @@ class hp_in_lsst_fov(object):
         indx : numpy array
             The healpixels that are within the FoV
         """
-        x, y, z = _xyz_from_ra_dec(np.max(ra), np.max(dec))
+        # Don't let cut vary because of machine precision
+        ra_round = np.round(ra, decimals=self.decimals)
+        dec_round = np.round(dec, decimals=self.decimals)
+        x, y, z = _xyz_from_ra_dec(np.max(ra_round), np.max(dec_round))
         indices = self.tree.query_ball_point((x, y, z), self.radius)
         return np.array(indices)
 
