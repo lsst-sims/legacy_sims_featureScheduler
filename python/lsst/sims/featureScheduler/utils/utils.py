@@ -384,7 +384,7 @@ def read_fields():
     return result
 
 
-def hp_kd_tree(nside=None, leafsize=100, decimals=5):
+def hp_kd_tree(nside=None, leafsize=100):
     """
     Generate a KD-tree of healpixel locations
 
@@ -404,8 +404,6 @@ def hp_kd_tree(nside=None, leafsize=100, decimals=5):
 
     hpid = np.arange(hp.nside2npix(nside))
     ra, dec = _hpid2RaDec(nside, hpid)
-    ra = np.round(ra, decimals=decimals)
-    dec = np.round(dec, decimals=decimals)
     return _buildTree(ra, dec, leafsize)
 
 
@@ -414,7 +412,7 @@ class hp_in_lsst_fov(object):
     Return the healpixels within a pointing. A very simple LSST camera model with
     no chip/raft gaps.
     """
-    def __init__(self, nside=None, fov_radius=1.75, decimals=5):
+    def __init__(self, nside=None, fov_radius=1.75):
         """
         Parameters
         ----------
@@ -424,10 +422,9 @@ class hp_in_lsst_fov(object):
         if nside is None:
             nside = set_default_nside()
 
-        self.decimals = decimals
-        self.tree = hp_kd_tree(nside=nside, decimals=self.decimals)
-        self.radius = np.round(xyz_angular_radius(fov_radius), decimals=self.decimals)
-        
+        self.tree = hp_kd_tree(nside=nside)
+        self.radius = xyz_angular_radius(fov_radius)
+
     def __call__(self, ra, dec, **kwargs):
         """
         Parameters
@@ -442,14 +439,9 @@ class hp_in_lsst_fov(object):
         indx : numpy array
             The healpixels that are within the FoV
         """
-        # Don't let cut vary because of machine precision
-        ra_round = np.round(ra, decimals=self.decimals)
-        dec_round = np.round(dec, decimals=self.decimals)
-        x, y, z = _xyz_from_ra_dec(np.max(ra_round), np.max(dec_round))
-        # let's just go crazy with the rounding!
-        x = np.round(x, decimals=self.decimals)
-        y = np.round(y, decimals=self.decimals)
-        z = np.round(z, decimals=self.decimals)
+
+        x, y, z = _xyz_from_ra_dec(np.max(ra), np.max(dec))
+
         indices = self.tree.query_ball_point((x, y, z), self.radius)
         return np.array(indices)
 
