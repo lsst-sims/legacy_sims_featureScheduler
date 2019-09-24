@@ -425,7 +425,7 @@ class hp_in_lsst_fov(object):
             nside = set_default_nside()
 
         self.tree = hp_kd_tree(nside=nside, decimals=decimals)
-        self.radius = xyz_angular_radius(fov_radius)
+        self.radius = np.round(xyz_angular_radius(fov_radius), decimals=self.decimals)
         self.decimals = decimals
 
     def __call__(self, ra, dec, **kwargs):
@@ -446,6 +446,10 @@ class hp_in_lsst_fov(object):
         ra_round = np.round(ra, decimals=self.decimals)
         dec_round = np.round(dec, decimals=self.decimals)
         x, y, z = _xyz_from_ra_dec(np.max(ra_round), np.max(dec_round))
+        # let's just go crazy with the rounding!
+        x = np.round(x, decimals=self.decimals)
+        y = np.round(y, decimals=self.decimals)
+        z = np.round(z, decimals=self.decimals)
         indices = self.tree.query_ball_point((x, y, z), self.radius)
         return np.array(indices)
 
