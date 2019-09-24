@@ -424,10 +424,10 @@ class hp_in_lsst_fov(object):
         if nside is None:
             nside = set_default_nside()
 
-        self.tree = hp_kd_tree(nside=nside, decimals=decimals)
-        self.radius = np.round(xyz_angular_radius(fov_radius), decimals=self.decimals)
         self.decimals = decimals
-
+        self.tree = hp_kd_tree(nside=nside, decimals=self.decimals)
+        self.radius = np.round(xyz_angular_radius(fov_radius), decimals=self.decimals)
+        
     def __call__(self, ra, dec, **kwargs):
         """
         Parameters
