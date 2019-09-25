@@ -9,6 +9,7 @@ import lsst.utils.tests
 import healpy as hp
 from lsst.sims.featureScheduler import sim_runner
 from lsst.sims.featureScheduler.modelObservatory import Model_observatory
+import lsst.sims.featureScheduler.detailers as detailers
 
 
 def gen_greedy_surveys(nside):
@@ -33,8 +34,9 @@ def gen_greedy_surveys(nside):
         bfs.append(bf.Clouded_out_basis_function())
 
         bfs.append(bf.Filter_loaded_basis_function(filternames=filtername))
+        bfs.append(bf.Planet_mask_basis_function(nside=nside))
 
-        weights = np.array([3.0, 0.3, 3., 3., 0., 0., 0., 0.])
+        weights = np.array([3.0, 0.3, 3., 3., 0., 0., 0., 0., 0.])
         surveys.append(Greedy_survey(bfs, weights, block_size=1, filtername=filtername,
                                      dither=True, nside=nside))
     return surveys
@@ -54,6 +56,7 @@ def gen_blob_surveys(nside):
 
     pair_surveys = []
     for filtername, filtername2 in zip(filter1s, filter2s):
+        detailer_list = []
         bfs = []
         bfs.append(bf.M5_diff_basis_function(filtername=filtername, nside=nside))
         if filtername2 is not None:
@@ -78,17 +81,20 @@ def gen_blob_surveys(nside):
         bfs.append(bf.Filter_loaded_basis_function(filternames=filternames))
         bfs.append(bf.Time_to_twilight_basis_function(time_needed=22.))
         bfs.append(bf.Not_twilight_basis_function())
+        bfs.append(bf.Planet_mask_basis_function(nside=nside))
 
-        weights = np.array([3.0, 3.0, .3, .3, 3., 3., 0., 0., 0., 0., 0., 0.])
+        weights = np.array([3.0, 3.0, .3, .3, 3., 3., 0., 0., 0., 0., 0., 0., 0.])
         if filtername2 is None:
             # Need to scale weights up so filter balancing still works properly.
-            weights = np.array([6.0, 0.6, 3., 3., 0., 0., 0., 0., 0., 0.])
+            weights = np.array([6.0, 0.6, 3., 3., 0., 0., 0., 0., 0., 0., 0.])
         if filtername2 is None:
             survey_name = 'blob, %s' % filtername
         else:
             survey_name = 'blob, %s%s' % (filtername, filtername2)
+        if filtername2 is not None:
+            detailer_list.append(detailers.Take_as_pairs_detailer(filtername=filtername2))
         pair_surveys.append(Blob_survey(bfs, weights, filtername1=filtername, filtername2=filtername2,
-                                        survey_note=survey_name, ignore_obs='DD'))
+                                        survey_note=survey_name, ignore_obs='DD', detailers=detailer_list))
     return pair_surveys
 
 
@@ -147,8 +153,8 @@ class TestFeatures(unittest.TestCase):
                                                           filename=None)
 
         # Make sure some blobs executed
-        assert('blob, gg, a' in observations['note'])
         assert('blob, gg, b' in observations['note'])
+        assert('blob, gg, a' in observations['note'])
         # assert('blob, u' in observations['note'])
 
         # Make sure some greedy executed

@@ -30,7 +30,7 @@ def gnomonic_project_tosky(x, y, raCen, decCen):
 
 class Dither_detailer(Base_detailer):
     """
-    make a uniform dither pattern.
+    make a uniform dither pattern. Offset by a maximum radius in a random direction.
 
     Parameters
     ----------
@@ -55,9 +55,14 @@ class Dither_detailer(Base_detailer):
             if night != self.current_night:
                 self.current_night = night
                 self.offset = (np.random.random((1, 2))-0.5) * 2.*self.max_dither
+                angle = np.random.random(1)*2*np.pi
+                radius = self.max_dither * np.sqrt(np.random.random(1))
+                self.offset = np.array([radius*np.cos(angle), radius*np.sin(angle)])
             offsets = np.tile(self.offset, (n_offsets, 1))
         else:
-            offsets = (np.random.random((n_offsets, 2))-0.5) * 2.*self.max_dither
+            angle = np.random.random(n_offsets)*2*np.pi
+            radius = self.max_dither * np.sqrt(np.random.random(n_offsets))
+            offsets = np.array([radius*np.cos(angle), radius*np.sin(angle)])
 
         return offsets
 
@@ -67,7 +72,7 @@ class Dither_detailer(Base_detailer):
         offsets = self._generate_offsets(len(observation_list), conditions.night)
         
         obs_array = np.concatenate(observation_list)
-        newRA, newDec = gnomonic_project_tosky(offsets[:, 0], offsets[:, 1], obs_array['RA'], obs_array['dec'])
+        newRA, newDec = gnomonic_project_tosky(offsets[0, :], offsets[1, :], obs_array['RA'], obs_array['dec'])
         for i, obs in enumerate(observation_list):
             observation_list[i]['RA'] = newRA[i]
             observation_list[i]['dec'] = newDec[i]

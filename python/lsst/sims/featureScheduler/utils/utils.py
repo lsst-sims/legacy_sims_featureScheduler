@@ -439,7 +439,9 @@ class hp_in_lsst_fov(object):
         indx : numpy array
             The healpixels that are within the FoV
         """
+
         x, y, z = _xyz_from_ra_dec(np.max(ra), np.max(dec))
+
         indices = self.tree.query_ball_point((x, y, z), self.radius)
         return np.array(indices)
 

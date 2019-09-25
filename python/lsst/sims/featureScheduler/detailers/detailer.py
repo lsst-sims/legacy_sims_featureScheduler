@@ -1,8 +1,10 @@
-from lsst.sims.utils import _raDec2Hpid, _approx_RaDec2AltAz
+from lsst.sims.utils import _raDec2Hpid, _approx_RaDec2AltAz, _angularSeparation
 import numpy as np
 from lsst.sims.featureScheduler.utils import approx_altaz2pa
+import copy
 
-__all__ = ["Base_detailer", "Zero_rot_detailer", "Comcam_90rot_detailer"]
+__all__ = ["Base_detailer", "Zero_rot_detailer", "Comcam_90rot_detailer", "Close_alt_detailer",
+           "Take_as_pairs_detailer", "Twilight_triple_detailer"]
 
 
 class Base_detailer(object):
@@ -58,13 +60,6 @@ class Zero_rot_detailer(Base_detailer):
     But, wait, what? Is it really the other way?
     """
 
-    def __init__(self, nside=32):
-        """
-        """
-        # Dict to hold all the features we want to track
-        self.survey_features = {}
-        self.nside = nside
-
     def __call__(self, observation_list, conditions):
 
         # XXX--should I convert the list into an array and get rid of this loop?
@@ -100,6 +95,101 @@ class Comcam_90rot_detailer(Base_detailer):
             obs['rotSkyPos'] = rsp
 
         return observation_list
+
+
+class Close_alt_detailer(Base_detailer):
+    """
+    re-order a list of observations so that the closest in altitude to the current pointing is first.
+
+    Parameters
+    ----------
+    alt_band : float (10)
+        The altitude band to try and stay in (degrees)
+    """
+    def __init__(self, alt_band=10.):
+        super(Close_alt_detailer, self).__init__()
+        self.alt_band = np.radians(alt_band)
+
+    def __call__(self, observation_list, conditions):
+        obs_array = np.concatenate(observation_list)
+        alt, az = _approx_RaDec2AltAz(obs_array['RA'], obs_array['dec'], conditions.site.latitude_rad,
+                                      conditions.site.longitude_rad, conditions.mjd)
+        alt_diff = np.abs(alt - conditions.telAlt)
+        in_band = np.where(alt_diff <= self.alt_band)[0]
+        if in_band.size == 0:
+            in_band = np.arange(alt.size)
+
+        # Find the closest in angular distance of the points that are in band
+        ang_dist = _angularSeparation(az[in_band], alt[in_band], conditions.telAz, conditions.telAlt)
+        good = np.min(np.where(ang_dist == ang_dist.min())[0])
+        indx = in_band[good]
+        result = observation_list[indx:] + observation_list[:indx]
+        return result
+
+
+class Take_as_pairs_detailer(Base_detailer):
+    def __init__(self, filtername='r'):
+        """
+        """
+        super(Take_as_pairs_detailer, self).__init__()
+        self.filtername = filtername
+
+    def __call__(self, observation_list, conditions):
+        paired = copy.deepcopy(observation_list)
+        for obs in paired:
+            obs['filter'] = self.filtername
+        if conditions.current_filter == self.filtername:
+            for obs in paired:
+                obs['note'] = obs['note'][0] + ', a'
+            for obs in observation_list:
+                obs['note'] = obs['note'][0] + ', b'
+            result = paired + observation_list
+        else:
+            for obs in paired:
+                obs['note'] = obs['note'][0] + ', b'
+            for obs in observation_list:
+                obs['note'] = obs['note'][0] + ', a'
+            result = observation_list + paired
+        return result
+
+
+class Twilight_triple_detailer(Base_detailer):
+    def __init__(self, slew_estimate=5.0, n_repeat=3):
+        super(Twilight_triple_detailer, self).__init__()
+        self.slew_estimate = slew_estimate
+        self.n_repeat = n_repeat
+
+    def __call__(self, observation_list, conditions):
+
+        obs_array = np.concatenate(observation_list)
+
+        # Estimate how much time is left in the twilgiht block
+        potential_times = np.array([conditions.sun_n18_setting - conditions.mjd,
+                                   conditions.sun_n12_rising - conditions.mjd])
+
+        potential_times = np.min(potential_times[np.where(potential_times > 0)]) * 24.*3600.
+
+        # How long will observations take?
+        cumulative_slew = np.arange(obs_array.size) * self.slew_estimate
+        cumulative_expt = np.cumsum(obs_array['exptime'])
+        cumulative_time = cumulative_slew + cumulative_expt
+        # If we are way over, truncate the list before doing the triple
+        if np.max(cumulative_time) > potential_times:
+            max_indx = np.where(cumulative_time/self.n_repeat <= potential_times)[0]
+            if np.size(max_indx) == 0:
+                # Very bad magic number fudge
+                max_indx = 3
+            else:
+                max_indx = np.max(max_indx)
+                if max_indx == 0:
+                    max_indx += 1
+            observation_list = observation_list[0:max_indx]
+
+        # Repeat the observations n times
+        out_obs = observation_list * self.n_repeat
+
+        return out_obs
+
 
 
 

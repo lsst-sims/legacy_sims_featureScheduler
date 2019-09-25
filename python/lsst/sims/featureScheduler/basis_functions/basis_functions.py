@@ -14,9 +14,11 @@ __all__ = ['Base_basis_function', 'Constant_basis_function', 'Target_map_basis_f
            'Filter_change_basis_function', 'Slewtime_basis_function',
            'Aggressive_Slewtime_basis_function', 'Skybrightness_limit_basis_function',
            'CableWrap_unwrap_basis_function', 'Cadence_enhance_basis_function', 'Azimuth_basis_function',
-           'Az_modulo_basis_function', 'Dec_modulo_basis_function', 'Template_generate_basis_function',
+           'Az_modulo_basis_function', 'Dec_modulo_basis_function', 'Map_modulo_basis_function',
+           'Template_generate_basis_function',
            'Footprint_nvis_basis_function', 'Third_observation_basis_function', 'Season_coverage_basis_function',
-           'N_obs_per_year_basis_function']
+           'N_obs_per_year_basis_function', 'Cadence_in_season_basis_function', 'Near_sun_twilight_basis_function',
+           'N_obs_high_am_basis_function']
 
 
 class Base_basis_function(object):
@@ -176,16 +178,105 @@ class Target_map_basis_function(Base_basis_function):
         return result
 
 
+def azRelPoint(azs, pointAz):
+    azRelMoon = (azs - pointAz) % (2.0*np.pi)
+    if isinstance(azs, np.ndarray):
+        over = np.where(azRelMoon > np.pi)
+        azRelMoon[over] = 2. * np.pi - azRelMoon[over]
+    else:
+        if azRelMoon > np.pi:
+            azRelMoon = 2.0 * np.pi - azRelMoon
+    return azRelMoon
+
+
+class N_obs_high_am_basis_function(Base_basis_function):
+    """Reward only reward/count observations at high airmass
+    """
+
+    def __init__(self, nside=None, filtername='r', footprint=None, n_obs=3, season=300.,
+                 am_limits=[1.5, 2.2], out_of_bounds_val=np.nan):
+        super(N_obs_high_am_basis_function, self).__init__(nside=nside, filtername=filtername)
+        self.footprint = footprint
+        self.out_footprint = np.where((footprint == 0) | np.isnan(footprint))
+        self.am_limits = am_limits
+        self.season = season
+        self.survey_features['last_n_mjds'] = features.Last_N_obs_times(nside=nside, filtername=filtername,
+                                                                        n_obs=n_obs)
+
+        self.result = np.zeros(hp.nside2npix(self.nside), dtype=float) + out_of_bounds_val
+        self.out_of_bounds_val = out_of_bounds_val
+
+    def add_observation(self, observation, indx=None):
+        """
+        Parameters
+        ----------
+        observation : np.array
+            An array with information about the input observation
+        indx : np.array
+            The indices of the healpix map that the observation overlaps with
+        """
+
+        # Only count the observations if they are at the airmass limits
+        if (observation['airmass'] > np.min(self.am_limits)) & (observation['airmass'] < np.max(self.am_limits)):
+            for feature in self.survey_features:
+                self.survey_features[feature].add_observation(observation, indx=indx)
+            if self.update_on_newobs:
+                self.recalc = True
+
+    def check_feasibility(self, conditions):
+        """If there is logic to decide if something is feasible (e.g., only if moon is down),
+        it can be calculated here. Helps prevent full __call__ from being called more than needed.
+        """
+        result = True
+        reward = self._calc_value(conditions)
+        # If there are no non-NaN values, we're not feasible now
+        if True not in np.isfinite(reward):
+            result = False
+
+        return result
+
+    def _calc_value(self, conditions, indx=None):
+        result = self.result.copy()
+        behind_pix = np.where(((conditions.mjd-self.survey_features['last_n_mjds'].feature[0]) > self.season) &
+                              (conditions.airmass > np.min(self.am_limits)) &
+                              (conditions.airmass < np.max(self.am_limits)))
+        result[behind_pix] = 1
+        result[self.out_footprint] = self.out_of_bounds_val
+
+        # Update the last time we had an mjd
+        self.mjd_last = conditions.mjd + 0
+        self.recalc = False
+        self.value = result
+
+        return result
+
+
 class N_obs_per_year_basis_function(Base_basis_function):
     """Reward areas that have not been observed N-times in the last year
+
+    Parameters
+    ----------
+    filtername : str ('r')
+        The filter to track
+    footprint : np.array
+        Should be a HEALpix map. Values of 0 or np.nan will be ignored.
+    n_obs : int (3)
+        The number of observations to demand
+    season : float (300)
+        The amount of time to allow pass before marking a region as "behind". Default 365.25 (days).
+    season_start_hour : float (-2)
+        When to start the season relative to RA 180 degrees away from the sun (hours)
+    season_end_hour : float (2)
+        When to consider a season ending, the RA relative to the sun + 180 degrees. (hours)
     """
-    def __init__(self, filtername='r', nside=None, footprint=None, n_obs=3, season=365.25,
-                 HA_limit=2.):
+    def __init__(self, filtername='r', nside=None, footprint=None, n_obs=3, season=300,
+                 season_start_hour=-4., season_end_hour=2.):
         super(N_obs_per_year_basis_function, self).__init__(nside=nside, filtername=filtername)
         self.footprint = footprint
         self.n_obs = n_obs
         self.season = season
-        self.HA_limit = np.radians(HA_limit * 360./24.)  # To radians
+        self.season_start_hour = (season_start_hour)*np.pi/12.  # To radians
+        self.season_end_hour = season_end_hour*np.pi/12.  # To radians
 
         self.survey_features['last_n_mjds'] = features.Last_N_obs_times(nside=nside, filtername=filtername,
                                                                         n_obs=n_obs)
@@ -198,13 +289,58 @@ class N_obs_per_year_basis_function(Base_basis_function):
         behind_pix = np.where((conditions.mjd-self.survey_features['last_n_mjds'].feature[0]) > self.season)
         result[behind_pix] = 1
 
-        # Could make this more sophisticated and look ahead to see if a pixel will be better some
-        # timestep in the future.
-        bad_ha = np.where((conditions.HA > self.HA_limit) & (conditions.HA < (2.*np.pi-self.HA_limit)))
-        result[bad_ha] = 0
+        # let's ramp up the weight depending on how far into the observing season the healpix is
+        mid_season_ra = (conditions.sunRA + np.pi) % (2.*np.pi)
+        # relative RA
+        relative_ra = (conditions.ra - mid_season_ra) % (2.*np.pi)
+        relative_ra = (self.season_end_hour - relative_ra) % (2.*np.pi)
+        # ok, now 
+        relative_ra[np.where(relative_ra > (self.season_end_hour-self.season_start_hour))] = 0
+
+        weight = relative_ra/(self.season_end_hour - self.season_start_hour)
+        result *= weight
 
         # mask off anything outside the footprint
         result[self.out_footprint] = 0
+
+        return result
+
+
+class Cadence_in_season_basis_function(Base_basis_function):
+    """Drive observations at least every N days in a given area
+
+    Parameters
+    ----------
+    drive_map : np.array
+        A HEALpix map with values of 1 where the cadence should be driven.
+    filtername : str
+        The filters that can count
+    season_span : float (2.5)
+        How long to consider a spot "in_season" (hours)
+    cadence : float (2.5)
+        How long to wait before activating the basis function (days)
+    """
+
+    def __init__(self, drive_map, filtername='griz', season_span=2.5, cadence=2.5, nside=None):
+        super(Cadence_in_season_basis_function, self).__init__(nside=nside, filtername=filtername)
+        self.drive_map = drive_map
+        self.season_span = season_span/12.*np.pi  # To radians
+        self.cadence = cadence
+        self.survey_features['last_observed'] = features.Last_observed(nside=nside, filtername=filtername)
+        self.result = np.zeros(hp.nside2npix(self.nside), dtype=float)
+
+    def _calc_value(self, conditions, indx=None):
+        result = self.result.copy()
+        ra_mid_season = (conditions.sunRA + np.pi) % (2.*np.pi)
+
+        angle_to_mid_season = np.abs(conditions.ra - ra_mid_season)
+        over = np.where(angle_to_mid_season > np.pi)
+        angle_to_mid_season[over] = 2.*np.pi - angle_to_mid_season[over]
+
+        days_lag = conditions.mjd - self.survey_features['last_observed'].feature
+
+        active_pix = np.where((days_lag >= self.cadence) & (self.drive_map == 1) & (angle_to_mid_season < self.season_span))
+        result[active_pix] = 1.
 
         return result
 
@@ -352,6 +488,27 @@ class Avoid_Fast_Revists(Base_basis_function):
         diff = conditions.mjd - self.survey_features['Last_observed'].feature[indx]
         bad = np.where(diff < self.gap_min)[0]
         result[indx[bad]] = self.penalty_val
+        return result
+
+
+class Near_sun_twilight_basis_function(Base_basis_function):
+    """Reward looking into the twilight for NEOs at high airmass
+
+    Parameters
+    ----------
+    max_airmass : float (2.5)
+        The maximum airmass to try and observe (unitless)
+    """
+
+    def __init__(self, nside=None, max_airmass=2.5):
+        super(Near_sun_twilight_basis_function, self).__init__(nside=nside)
+        self.max_airmass = max_airmass
+        self.result = np.zeros(hp.nside2npix(self.nside))
+
+    def _calc_value(self, conditions, indx=None):
+        result = self.result.copy()
+        good_pix = np.where((conditions.airmass < self.max_airmass) & (conditions.az_to_sun < np.pi/2.))
+        result[good_pix] = conditions.airmass[good_pix] / self.max_airmass
         return result
 
 
@@ -998,6 +1155,25 @@ class Dec_modulo_basis_function(Base_basis_function):
         night_index = np.max(conditions.night % self.mod_val)
         result = self.results[night_index]
 
+        return result
+
+
+class Map_modulo_basis_function(Base_basis_function):
+    """Similar to Dec_modulo, but now use input masks
+
+    Parameters
+    ----------
+    inmaps : list of hp arrays
+    """
+    def __init__(self, inmaps):
+        nside = hp.npix2nside(np.size(inmaps[0]))
+        super(Map_modulo_basis_function, self).__init__(nside=nside)
+        self.maps = inmaps
+        self.mod_val = len(inmaps)
+
+    def _calc_value(self, conditions, indx=None):
+        indx = np.max(conditions.night % self.mod_val)
+        result = self.maps[indx]
         return result
 
 

@@ -1,12 +1,14 @@
 import numpy as np
 import healpy as hp
-from lsst.sims.utils import _hpid2RaDec, Site, _angularSeparation
+from lsst.sims.utils import _hpid2RaDec, Site, _angularSeparation, _xyz_from_ra_dec
 import matplotlib.pylab as plt
 from lsst.sims.featureScheduler.basis_functions import Base_basis_function
+from lsst.sims.featureScheduler.utils import hp_in_lsst_fov
 
 
 __all__ = ['Zenith_mask_basis_function', 'Zenith_shadow_mask_basis_function',
-           'Moon_avoidance_basis_function', 'Map_cloud_basis_function']
+           'Moon_avoidance_basis_function', 'Map_cloud_basis_function',
+           'Planet_mask_basis_function']
 
 
 class Zenith_mask_basis_function(Base_basis_function):
@@ -32,6 +34,37 @@ class Zenith_mask_basis_function(Base_basis_function):
         alt_limit = np.where((conditions.alt > self.min_alt) &
                              (conditions.alt < self.max_alt))[0]
         result[alt_limit] = 1
+        return result
+
+
+class Planet_mask_basis_function(Base_basis_function):
+    """Mask the bright planets
+
+    Parameters
+    ----------
+    mask_radius : float (3.5)
+        The radius to mask around a planet (degrees).
+    planets : list of str (None)
+        A list of planet names to mask. Defaults to ['venus', 'mars', 'jupiter']. Not including
+        Saturn because it moves really slow and has average apparent mag of ~0.4, so fainter than Vega.
+
+    """
+    def __init__(self, mask_radius=3.5, planets=None, nside=None):
+        super(Planet_mask_basis_function, self).__init__(nside=nside)
+        if planets is None:
+            planets = ['venus', 'mars', 'jupiter']
+        self.planets = planets
+        self.mask_radius = np.radians(mask_radius)
+        self.result = np.zeros(hp.nside2npix(nside))
+        # set up a kdtree. Could maybe use healpy.query_disc instead.
+        self.in_fov = hp_in_lsst_fov(nside=nside, fov_radius=mask_radius)
+
+    def _calc_value(self, conditions, indx=None):
+        result = self.result.copy()
+        for pn in self.planets:
+            indices = self.in_fov(conditions.planet_positions[pn+'_RA'], conditions.planet_positions[pn+'_dec'])
+            result[indices] = np.nan
+
         return result
 
 
