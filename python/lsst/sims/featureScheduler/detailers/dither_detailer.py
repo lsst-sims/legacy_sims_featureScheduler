@@ -31,6 +31,8 @@ def gnomonic_project_tosky(x, y, raCen, decCen):
 class Dither_detailer(Base_detailer):
     """
     make a uniform dither pattern. Offset by a maximum radius in a random direction.
+    Mostly intended for DDF pointings, the BaseMarkovDF_survey class includes dithering
+    for large areas.
 
     Parameters
     ----------

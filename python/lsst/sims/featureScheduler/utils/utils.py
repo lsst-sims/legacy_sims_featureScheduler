@@ -20,6 +20,57 @@ import socket
 log = logging.getLogger(__name__)
 
 
+class int_rounded(object):
+    """
+    Class to help force comparisons be made on scaled up integers, preventing machine precision issues cross-platforms
+    """
+    def __init__(self, inval, scale=1e5):
+        self.initial = inval
+        self.value = np.round(inval * scale).astype(int)
+        self.scale = scale
+
+    def __eq__(self, other):
+        return self.value == other.value
+
+    def __ne__(self, other):
+        return self.value != other.value
+
+    def __lt__(self, other):
+        return self.value < other.value
+
+    def __le__(self, other):
+        return self.value <= other.value
+
+    def __gt__(self, other):
+        return self.value > other.value
+
+    def __ge__(self, other):
+        return self.value >= other.value
+
+    def __repr__(self):
+        return str(self.initial)
+
+    def __add__(self, other):
+        out_scale = np.min([self.scale, other.scale])
+        result = int_rounded(self.initial + other.initial, scale=out_scale)
+        return result
+
+    def __sub__(self, other):
+        out_scale = np.min([self.scale, other.scale])
+        result = int_rounded(self.initial - other.initial, scale=out_scale)
+        return result
+
+    def __mul__(self, other):
+        out_scale = np.min([self.scale, other.scale])
+        result = int_rounded(self.initial * other.initial, scale=out_scale)
+        return result
+
+    def __div__(self, other):
+        out_scale = np.min([self.scale, other.scale])
+        result = int_rounded(self.initial / other.initial, scale=out_scale)
+        return result
+
+
 def set_default_nside(nside=None):
     """
     Utility function to set a default nside value across the scheduler.
@@ -384,7 +435,7 @@ def read_fields():
     return result
 
 
-def hp_kd_tree(nside=None, leafsize=100):
+def hp_kd_tree(nside=None, leafsize=100, scale=1e5):
     """
     Generate a KD-tree of healpixel locations
 
@@ -404,7 +455,7 @@ def hp_kd_tree(nside=None, leafsize=100):
 
     hpid = np.arange(hp.nside2npix(nside))
     ra, dec = _hpid2RaDec(nside, hpid)
-    return _buildTree(ra, dec, leafsize)
+    return _buildTree(ra, dec, leafsize, scale=scale)
 
 
 class hp_in_lsst_fov(object):
@@ -412,7 +463,7 @@ class hp_in_lsst_fov(object):
     Return the healpixels within a pointing. A very simple LSST camera model with
     no chip/raft gaps.
     """
-    def __init__(self, nside=None, fov_radius=1.75):
+    def __init__(self, nside=None, fov_radius=1.75, scale=1e5):
         """
         Parameters
         ----------
@@ -422,8 +473,9 @@ class hp_in_lsst_fov(object):
         if nside is None:
             nside = set_default_nside()
 
-        self.tree = hp_kd_tree(nside=nside)
-        self.radius = xyz_angular_radius(fov_radius)
+        self.tree = hp_kd_tree(nside=nside, scale=scale)
+        self.radius = np.round(xyz_angular_radius(fov_radius)*scale).astype(int)
+        self.scale = scale
 
     def __call__(self, ra, dec, **kwargs):
         """
@@ -441,6 +493,9 @@ class hp_in_lsst_fov(object):
         """
 
         x, y, z = _xyz_from_ra_dec(np.max(ra), np.max(dec))
+        x = np.round(x * self.scale).astype(int)
+        y = np.round(y * self.scale).astype(int)
+        z = np.round(z * self.scale).astype(int)
 
         indices = self.tree.query_ball_point((x, y, z), self.radius)
         return np.array(indices)
@@ -1001,10 +1056,10 @@ def season_calc(night, offset=0, modulo=None, max_season=None, season_length=365
     if floor:
         result = np.floor(result)
     if max_season is not None:
-        over_indx = np.where(result >= max_season)
+        over_indx = np.where(int_rounded(result) >= int_rounded(max_season))
 
     if modulo is not None:
-        neg = np.where(result < 0)
+        neg = np.where(int_rounded(result) < 0)
         result = result % modulo
         result[neg] = -1
     if max_season is not None:
