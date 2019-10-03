@@ -2,7 +2,7 @@ import numpy as np
 from lsst.sims.featureScheduler.utils import (empty_observation, set_default_nside)
 import healpy as hp
 from lsst.sims.featureScheduler.surveys import BaseMarkovDF_survey
-from lsst.sims.featureScheduler.utils import (int_binned_stat,
+from lsst.sims.featureScheduler.utils import (int_binned_stat, int_rounded,
                                               gnomonic_project_toxy, tsp_convex)
 import copy
 from lsst.sims.utils import _angularSeparation, _hpid2RaDec, _approx_RaDec2AltAz
@@ -233,7 +233,7 @@ class Blob_survey(Greedy_survey):
                 self.smooth_reward()
 
             # Apply max altitude cut
-            too_high = np.where(conditions.alt > self.alt_max)
+            too_high = np.where(int_rounded(conditions.alt) > int_rounded(self.alt_max))
             self.reward[too_high] = np.nan
 
             # Select healpixels within some radius of the max
@@ -248,14 +248,15 @@ class Blob_survey(Greedy_survey):
 
             # Apply radius selection
             dists = _angularSeparation(self.ra[peak_reward], self.dec[peak_reward], self.ra, self.dec)
-            out_hp = np.where(dists > self.search_radius)
+            out_hp = np.where(int_rounded(dists) > int_rounded(self.search_radius))
             self.reward[out_hp] = np.nan
 
             # Apply az cut
             az_centered = conditions.az - conditions.az[peak_reward]
             az_centered[np.where(az_centered < 0)] += 2.*np.pi
 
-            az_out = np.where((az_centered > self.az_range/2.) & (az_centered < 2.*np.pi-self.az_range/2.))
+            az_out = np.where((int_rounded(az_centered) > int_rounded(self.az_range/2.)) &
+                              (int_rounded(az_centered) < int_rounded(2.*np.pi-self.az_range/2.)))
             self.reward[az_out] = np.nan
         else:
             self.reward = -np.inf
