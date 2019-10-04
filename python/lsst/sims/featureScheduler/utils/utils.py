@@ -23,6 +23,13 @@ log = logging.getLogger(__name__)
 class int_rounded(object):
     """
     Class to help force comparisons be made on scaled up integers, preventing machine precision issues cross-platforms
+
+    Parameters
+    ----------
+    inval : number-like thing
+        Some number that we want to compare
+    scale : float (1e5)
+        How much to scale inval before rounding and converting to an int.
     """
     def __init__(self, inval, scale=1e5):
         self.initial = inval
@@ -592,7 +599,8 @@ def WFD_healpixels(nside=None, dec_min=-60., dec_max=0.):
 
     ra, dec = ra_dec_hp_map(nside=nside)
     result = np.zeros(ra.size)
-    good = np.where((dec >= np.radians(dec_min)) & (dec <= np.radians(dec_max)))
+    good = np.where((int_rounded(dec) >= int_rounded(np.radians(dec_min))) &
+                    (int_rounded(dec) <= int_rounded(np.radians(dec_max))))
     result[good] += 1
     return result
 
@@ -622,7 +630,8 @@ def WFD_upper_edge_healpixels(nside=None, dec_min=2.8, dec_max=None):
 
     ra, dec = ra_dec_hp_map(nside=nside)
     result = np.zeros(ra.size)
-    good = np.where((dec >= np.radians(dec_min)) & (dec <= np.radians(dec_max)))
+    good = np.where((int_rounded(dec) >= int_rounded(np.radians(dec_min))) &
+                    (int_rounded(dec) <= int_rounded(np.radians(dec_max))))
     result[good] += 1
     return result
 
@@ -636,7 +645,7 @@ def SCP_healpixels(nside=None, dec_max=-60.):
 
     ra, dec = ra_dec_hp_map(nside=nside)
     result = np.zeros(ra.size)
-    good = np.where(dec < np.radians(dec_max))
+    good = np.where(int_rounded(dec) < int_rounded(np.radians(dec_max)))
     result[good] += 1
     return result
 
@@ -667,9 +676,9 @@ def NES_healpixels(nside=None, min_EB=-30.0, max_EB = 10.0, dec_min=2.8):
     result = np.zeros(ra.size)
     coord = SkyCoord(ra=ra*u.rad, dec=dec*u.rad)
     eclip_lat = coord.barycentrictrueecliptic.lat.radian
-    good = np.where((eclip_lat > np.radians(min_EB)) &
-                    (eclip_lat < np.radians(max_EB)) &
-                    (dec > np.radians(dec_min)))
+    good = np.where((int_rounded(eclip_lat) > int_rounded(np.radians(min_EB))) &
+                    (int_rounded(eclip_lat) < int_rounded(np.radians(max_EB))) &
+                    (int_rounded(dec) > int_rounded(np.radians(dec_min))))
     result[good] += 1
 
     return result
@@ -687,19 +696,23 @@ def galactic_plane_healpixels(nside=None, center_width=10., end_width=4.,
     result = np.zeros(ra.size)
     coord = SkyCoord(ra=ra*u.rad, dec=dec*u.rad)
     g_long, g_lat = coord.galactic.l.radian, coord.galactic.b.radian
-    good = np.where((g_long < np.radians(gal_long1)) & (np.abs(g_lat) < np.radians(center_width)))
+    good = np.where((int_rounded(g_long) < int_rounded(np.radians(gal_long1))) &
+                    (int_rounded(np.abs(g_lat)) < int_rounded(np.radians(center_width))))
     result[good] += 1
-    good = np.where((g_long > np.radians(gal_long2)) & (np.abs(g_lat) < np.radians(center_width)))
+    good = np.where((int_rounded(g_long) > int_rounded(np.radians(gal_long2))) &
+                    (int_rounded(np.abs(g_lat)) < int_rounded(np.radians(center_width))))
     result[good] += 1
     # Add tapers
     slope = -(np.radians(center_width)-np.radians(end_width))/(np.radians(gal_long1))
     lat_limit = slope*g_long+np.radians(center_width)
-    outside = np.where((g_long < np.radians(gal_long1)) & (np.abs(g_lat) > np.abs(lat_limit)))
+    outside = np.where((int_rounded(g_long) < int_rounded(np.radians(gal_long1))) &
+                       (int_rounded(np.abs(g_lat)) > int_rounded(np.abs(lat_limit))))
     result[outside] = 0
     slope = (np.radians(center_width)-np.radians(end_width))/(np.radians(360. - gal_long2))
     b = np.radians(center_width)-np.radians(360.)*slope
     lat_limit = slope*g_long+b
-    outside = np.where((g_long > np.radians(gal_long2)) & (np.abs(g_lat) > np.abs(lat_limit)))
+    outside = np.where((int_rounded(g_long) > int_rounded(np.radians(gal_long2))) &
+                       (int_rounded(np.abs(g_lat)) > int_rounded(np.abs(lat_limit))))
     result[outside] = 0
 
     return result

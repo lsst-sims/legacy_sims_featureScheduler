@@ -150,6 +150,9 @@ class Take_as_pairs_detailer(Base_detailer):
             for obs in observation_list:
                 obs['note'] = obs['note'][0] + ', a'
             result = observation_list + paired
+        # XXX--maybe a temp debugging thing, label what part of sequence each observation is.
+        for i, obs in enumerate(result):
+            obs['survey_id'] = i
         return result
 
 
