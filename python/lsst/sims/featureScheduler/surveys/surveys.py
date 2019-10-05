@@ -330,7 +330,7 @@ class Blob_survey(Greedy_survey):
         approx_end_time = np.size(better_order)*(self.slew_approx + self.exptime +
                                                  self.read_approx*(self.nexp - 1))
         flush_time = conditions.mjd + approx_end_time/3600./24. + self.flush_time
-        for indx in better_order:
+        for i, indx in enumerate(better_order):
             field = self.best_fields[indx]
             obs = empty_observation()
             obs['RA'] = self.fields['RA'][field]
@@ -345,6 +345,8 @@ class Blob_survey(Greedy_survey):
             obs['flush_by_mjd'] = flush_time
             # Add the mjd for debugging
             obs['mjd'] = conditions.mjd
+            # XXX temp debugging line
+            obs['survey_id'] = i
             observations.append(obs)
             counter2 += 1
 
