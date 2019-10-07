@@ -1,3 +1,4 @@
+from lsst.sims.featureScheduler.utils import int_rounded
 
 __all__ = ['filter_swap_scheduler', 'simple_filter_sched']
 
@@ -22,10 +23,10 @@ class filter_swap_scheduler(object):
 
 class simple_filter_sched(filter_swap_scheduler):
     def __init__(self, illum_limit=10.):
-        self.illum_limit = illum_limit
+        self.illum_limit_IR = int_rounded(illum_limit)
 
     def __call__(self, conditions):
-        if conditions.moonPhase > self.illum_limit:
+        if int_rounded(conditions.moonPhase) > self.illum_limit_IR:
             result = ['g', 'r', 'i', 'z', 'y']
         else:
             result = ['u', 'g', 'r', 'i', 'y']
