@@ -320,6 +320,10 @@ class Blob_survey(Greedy_survey):
         # Project the alt,az coordinates to a plane. Could consider scaling things to represent
         # time between points rather than angular distance.
         pointing_x, pointing_y = gnomonic_project_toxy(pointing_az, pointing_alt, mid_az, mid_alt)
+        # Round off positions so that we ensure identical cross-platform performance
+        scale = 1e6
+        pointing_x = np.round(pointing_x*scale).astype(int)
+        pointing_y = np.round(pointing_y*scale).astype(int)
         # Now I have a bunch of x,y pointings. Drop into TSP solver to get an effiencent route
         towns = np.vstack((pointing_x, pointing_y)).T
         # Leaving optimize=False for speed. The optimization step doesn't usually improve much.
