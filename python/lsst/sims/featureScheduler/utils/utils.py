@@ -20,6 +20,64 @@ import socket
 log = logging.getLogger(__name__)
 
 
+class int_rounded(object):
+    """
+    Class to help force comparisons be made on scaled up integers, preventing machine precision issues cross-platforms
+
+    Parameters
+    ----------
+    inval : number-like thing
+        Some number that we want to compare
+    scale : float (1e5)
+        How much to scale inval before rounding and converting to an int.
+    """
+    def __init__(self, inval, scale=1e5):
+        self.initial = inval
+        self.value = np.round(inval * scale).astype(int)
+        self.scale = scale
+
+    def __eq__(self, other):
+        return self.value == other.value
+
+    def __ne__(self, other):
+        return self.value != other.value
+
+    def __lt__(self, other):
+        return self.value < other.value
+
+    def __le__(self, other):
+        return self.value <= other.value
+
+    def __gt__(self, other):
+        return self.value > other.value
+
+    def __ge__(self, other):
+        return self.value >= other.value
+
+    def __repr__(self):
+        return str(self.initial)
+
+    def __add__(self, other):
+        out_scale = np.min([self.scale, other.scale])
+        result = int_rounded(self.initial + other.initial, scale=out_scale)
+        return result
+
+    def __sub__(self, other):
+        out_scale = np.min([self.scale, other.scale])
+        result = int_rounded(self.initial - other.initial, scale=out_scale)
+        return result
+
+    def __mul__(self, other):
+        out_scale = np.min([self.scale, other.scale])
+        result = int_rounded(self.initial * other.initial, scale=out_scale)
+        return result
+
+    def __div__(self, other):
+        out_scale = np.min([self.scale, other.scale])
+        result = int_rounded(self.initial / other.initial, scale=out_scale)
+        return result
+
+
 def set_default_nside(nside=None):
     """
     Utility function to set a default nside value across the scheduler.
@@ -384,7 +442,7 @@ def read_fields():
     return result
 
 
-def hp_kd_tree(nside=None, leafsize=100):
+def hp_kd_tree(nside=None, leafsize=100, scale=1e5):
     """
     Generate a KD-tree of healpixel locations
 
@@ -404,7 +462,7 @@ def hp_kd_tree(nside=None, leafsize=100):
 
     hpid = np.arange(hp.nside2npix(nside))
     ra, dec = _hpid2RaDec(nside, hpid)
-    return _buildTree(ra, dec, leafsize)
+    return _buildTree(ra, dec, leafsize, scale=scale)
 
 
 class hp_in_lsst_fov(object):
@@ -412,7 +470,7 @@ class hp_in_lsst_fov(object):
     Return the healpixels within a pointing. A very simple LSST camera model with
     no chip/raft gaps.
     """
-    def __init__(self, nside=None, fov_radius=1.75):
+    def __init__(self, nside=None, fov_radius=1.75, scale=1e5):
         """
         Parameters
         ----------
@@ -422,8 +480,9 @@ class hp_in_lsst_fov(object):
         if nside is None:
             nside = set_default_nside()
 
-        self.tree = hp_kd_tree(nside=nside)
-        self.radius = xyz_angular_radius(fov_radius)
+        self.tree = hp_kd_tree(nside=nside, scale=scale)
+        self.radius = np.round(xyz_angular_radius(fov_radius)*scale).astype(int)
+        self.scale = scale
 
     def __call__(self, ra, dec, **kwargs):
         """
@@ -441,6 +500,9 @@ class hp_in_lsst_fov(object):
         """
 
         x, y, z = _xyz_from_ra_dec(np.max(ra), np.max(dec))
+        x = np.round(x * self.scale).astype(int)
+        y = np.round(y * self.scale).astype(int)
+        z = np.round(z * self.scale).astype(int)
 
         indices = self.tree.query_ball_point((x, y, z), self.radius)
         return np.array(indices)
@@ -537,7 +599,8 @@ def WFD_healpixels(nside=None, dec_min=-60., dec_max=0.):
 
     ra, dec = ra_dec_hp_map(nside=nside)
     result = np.zeros(ra.size)
-    good = np.where((dec >= np.radians(dec_min)) & (dec <= np.radians(dec_max)))
+    good = np.where((int_rounded(dec) >= int_rounded(np.radians(dec_min))) &
+                    (int_rounded(dec) <= int_rounded(np.radians(dec_max))))
     result[good] += 1
     return result
 
@@ -567,7 +630,8 @@ def WFD_upper_edge_healpixels(nside=None, dec_min=2.8, dec_max=None):
 
     ra, dec = ra_dec_hp_map(nside=nside)
     result = np.zeros(ra.size)
-    good = np.where((dec >= np.radians(dec_min)) & (dec <= np.radians(dec_max)))
+    good = np.where((int_rounded(dec) >= int_rounded(np.radians(dec_min))) &
+                    (int_rounded(dec) <= int_rounded(np.radians(dec_max))))
     result[good] += 1
     return result
 
@@ -581,7 +645,7 @@ def SCP_healpixels(nside=None, dec_max=-60.):
 
     ra, dec = ra_dec_hp_map(nside=nside)
     result = np.zeros(ra.size)
-    good = np.where(dec < np.radians(dec_max))
+    good = np.where(int_rounded(dec) < int_rounded(np.radians(dec_max)))
     result[good] += 1
     return result
 
@@ -612,9 +676,9 @@ def NES_healpixels(nside=None, min_EB=-30.0, max_EB = 10.0, dec_min=2.8):
     result = np.zeros(ra.size)
     coord = SkyCoord(ra=ra*u.rad, dec=dec*u.rad)
     eclip_lat = coord.barycentrictrueecliptic.lat.radian
-    good = np.where((eclip_lat > np.radians(min_EB)) &
-                    (eclip_lat < np.radians(max_EB)) &
-                    (dec > np.radians(dec_min)))
+    good = np.where((int_rounded(eclip_lat) > int_rounded(np.radians(min_EB))) &
+                    (int_rounded(eclip_lat) < int_rounded(np.radians(max_EB))) &
+                    (int_rounded(dec) > int_rounded(np.radians(dec_min))))
     result[good] += 1
 
     return result
@@ -632,19 +696,23 @@ def galactic_plane_healpixels(nside=None, center_width=10., end_width=4.,
     result = np.zeros(ra.size)
     coord = SkyCoord(ra=ra*u.rad, dec=dec*u.rad)
     g_long, g_lat = coord.galactic.l.radian, coord.galactic.b.radian
-    good = np.where((g_long < np.radians(gal_long1)) & (np.abs(g_lat) < np.radians(center_width)))
+    good = np.where((int_rounded(g_long) < int_rounded(np.radians(gal_long1))) &
+                    (int_rounded(np.abs(g_lat)) < int_rounded(np.radians(center_width))))
     result[good] += 1
-    good = np.where((g_long > np.radians(gal_long2)) & (np.abs(g_lat) < np.radians(center_width)))
+    good = np.where((int_rounded(g_long) > int_rounded(np.radians(gal_long2))) &
+                    (int_rounded(np.abs(g_lat)) < int_rounded(np.radians(center_width))))
     result[good] += 1
     # Add tapers
     slope = -(np.radians(center_width)-np.radians(end_width))/(np.radians(gal_long1))
     lat_limit = slope*g_long+np.radians(center_width)
-    outside = np.where((g_long < np.radians(gal_long1)) & (np.abs(g_lat) > np.abs(lat_limit)))
+    outside = np.where((int_rounded(g_long) < int_rounded(np.radians(gal_long1))) &
+                       (int_rounded(np.abs(g_lat)) > int_rounded(np.abs(lat_limit))))
     result[outside] = 0
     slope = (np.radians(center_width)-np.radians(end_width))/(np.radians(360. - gal_long2))
     b = np.radians(center_width)-np.radians(360.)*slope
     lat_limit = slope*g_long+b
-    outside = np.where((g_long > np.radians(gal_long2)) & (np.abs(g_lat) > np.abs(lat_limit)))
+    outside = np.where((int_rounded(g_long) > int_rounded(np.radians(gal_long2))) &
+                       (int_rounded(np.abs(g_lat)) > int_rounded(np.abs(lat_limit))))
     result[outside] = 0
 
     return result
@@ -1001,10 +1069,10 @@ def season_calc(night, offset=0, modulo=None, max_season=None, season_length=365
     if floor:
         result = np.floor(result)
     if max_season is not None:
-        over_indx = np.where(result >= max_season)
+        over_indx = np.where(int_rounded(result) >= int_rounded(max_season))
 
     if modulo is not None:
-        neg = np.where(result < 0)
+        neg = np.where(int_rounded(result) < int_rounded(0))
         result = result % modulo
         result[neg] = -1
     if max_season is not None:

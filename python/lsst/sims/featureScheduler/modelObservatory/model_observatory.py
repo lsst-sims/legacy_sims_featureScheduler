@@ -594,7 +594,7 @@ class Model_observatory(object):
             result = False
         return result
 
-    def check_mjd(self, mjd, cloud_skip=20.):
+    def check_mjd(self, mjd, cloud_skip=20., scale=1e6):
         """See if an mjd is ok to observe
         Parameters
         ----------
@@ -609,6 +609,10 @@ class Model_observatory(object):
         mdj : float
             If True, the input mjd. If false, a good mjd to skip forward to.
         """
+
+        # Try to enforce same machine precision on the mjd
+        #mjd = np.round(mjd*scale)/scale
+
         passed = True
         new_mjd = mjd + 0
 

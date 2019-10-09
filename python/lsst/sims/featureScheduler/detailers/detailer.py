@@ -1,6 +1,6 @@
 from lsst.sims.utils import _raDec2Hpid, _approx_RaDec2AltAz, _angularSeparation
 import numpy as np
-from lsst.sims.featureScheduler.utils import approx_altaz2pa
+from lsst.sims.featureScheduler.utils import approx_altaz2pa, int_rounded
 import copy
 
 __all__ = ["Base_detailer", "Zero_rot_detailer", "Comcam_90rot_detailer", "Close_alt_detailer",
@@ -108,14 +108,14 @@ class Close_alt_detailer(Base_detailer):
     """
     def __init__(self, alt_band=10.):
         super(Close_alt_detailer, self).__init__()
-        self.alt_band = np.radians(alt_band)
+        self.alt_band = int_rounded(np.radians(alt_band))
 
     def __call__(self, observation_list, conditions):
         obs_array = np.concatenate(observation_list)
         alt, az = _approx_RaDec2AltAz(obs_array['RA'], obs_array['dec'], conditions.site.latitude_rad,
                                       conditions.site.longitude_rad, conditions.mjd)
         alt_diff = np.abs(alt - conditions.telAlt)
-        in_band = np.where(alt_diff <= self.alt_band)[0]
+        in_band = np.where(int_rounded(alt_diff) <= self.alt_band)[0]
         if in_band.size == 0:
             in_band = np.arange(alt.size)
 
@@ -150,6 +150,9 @@ class Take_as_pairs_detailer(Base_detailer):
             for obs in observation_list:
                 obs['note'] = obs['note'][0] + ', a'
             result = observation_list + paired
+        # XXX--maybe a temp debugging thing, label what part of sequence each observation is.
+        for i, obs in enumerate(result):
+            obs['survey_id'] = i
         return result
 
 

@@ -2,7 +2,7 @@ import numpy as np
 from lsst.sims.featureScheduler.utils import (empty_observation, set_default_nside)
 import healpy as hp
 from lsst.sims.featureScheduler.surveys import BaseMarkovDF_survey
-from lsst.sims.featureScheduler.utils import (int_binned_stat,
+from lsst.sims.featureScheduler.utils import (int_binned_stat, int_rounded,
                                               gnomonic_project_toxy, tsp_convex)
 import copy
 from lsst.sims.utils import _angularSeparation, _hpid2RaDec, _approx_RaDec2AltAz
@@ -233,7 +233,7 @@ class Blob_survey(Greedy_survey):
                 self.smooth_reward()
 
             # Apply max altitude cut
-            too_high = np.where(conditions.alt > self.alt_max)
+            too_high = np.where(int_rounded(conditions.alt) > int_rounded(self.alt_max))
             self.reward[too_high] = np.nan
 
             # Select healpixels within some radius of the max
@@ -248,14 +248,15 @@ class Blob_survey(Greedy_survey):
 
             # Apply radius selection
             dists = _angularSeparation(self.ra[peak_reward], self.dec[peak_reward], self.ra, self.dec)
-            out_hp = np.where(dists > self.search_radius)
+            out_hp = np.where(int_rounded(dists) > int_rounded(self.search_radius))
             self.reward[out_hp] = np.nan
 
             # Apply az cut
             az_centered = conditions.az - conditions.az[peak_reward]
             az_centered[np.where(az_centered < 0)] += 2.*np.pi
 
-            az_out = np.where((az_centered > self.az_range/2.) & (az_centered < 2.*np.pi-self.az_range/2.))
+            az_out = np.where((int_rounded(az_centered) > int_rounded(self.az_range/2.)) &
+                              (int_rounded(az_centered) < int_rounded(2.*np.pi-self.az_range/2.)))
             self.reward[az_out] = np.nan
         else:
             self.reward = -np.inf
@@ -319,6 +320,10 @@ class Blob_survey(Greedy_survey):
         # Project the alt,az coordinates to a plane. Could consider scaling things to represent
         # time between points rather than angular distance.
         pointing_x, pointing_y = gnomonic_project_toxy(pointing_az, pointing_alt, mid_az, mid_alt)
+        # Round off positions so that we ensure identical cross-platform performance
+        scale = 1e6
+        pointing_x = np.round(pointing_x*scale).astype(int)
+        pointing_y = np.round(pointing_y*scale).astype(int)
         # Now I have a bunch of x,y pointings. Drop into TSP solver to get an effiencent route
         towns = np.vstack((pointing_x, pointing_y)).T
         # Leaving optimize=False for speed. The optimization step doesn't usually improve much.
@@ -329,7 +334,7 @@ class Blob_survey(Greedy_survey):
         approx_end_time = np.size(better_order)*(self.slew_approx + self.exptime +
                                                  self.read_approx*(self.nexp - 1))
         flush_time = conditions.mjd + approx_end_time/3600./24. + self.flush_time
-        for indx in better_order:
+        for i, indx in enumerate(better_order):
             field = self.best_fields[indx]
             obs = empty_observation()
             obs['RA'] = self.fields['RA'][field]
@@ -344,6 +349,8 @@ class Blob_survey(Greedy_survey):
             obs['flush_by_mjd'] = flush_time
             # Add the mjd for debugging
             obs['mjd'] = conditions.mjd
+            # XXX temp debugging line
+            obs['survey_id'] = i
             observations.append(obs)
             counter2 += 1
 

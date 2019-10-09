@@ -3,7 +3,7 @@ import healpy as hp
 from lsst.sims.utils import _hpid2RaDec, Site, _angularSeparation, _xyz_from_ra_dec
 import matplotlib.pylab as plt
 from lsst.sims.featureScheduler.basis_functions import Base_basis_function
-from lsst.sims.featureScheduler.utils import hp_in_lsst_fov
+from lsst.sims.featureScheduler.utils import hp_in_lsst_fov, int_rounded
 
 
 __all__ = ['Zenith_mask_basis_function', 'Zenith_shadow_mask_basis_function',
@@ -31,8 +31,8 @@ class Zenith_mask_basis_function(Base_basis_function):
     def _calc_value(self, conditions, indx=None):
 
         result = self.result.copy()
-        alt_limit = np.where((conditions.alt > self.min_alt) &
-                             (conditions.alt < self.max_alt))[0]
+        alt_limit = np.where((int_rounded(conditions.alt) > int_rounded(self.min_alt)) &
+                             (int_rounded(conditions.alt) < int_rounded(self.max_alt)))[0]
         result[alt_limit] = 1
         return result
 
@@ -49,7 +49,7 @@ class Planet_mask_basis_function(Base_basis_function):
         Saturn because it moves really slow and has average apparent mag of ~0.4, so fainter than Vega.
 
     """
-    def __init__(self, mask_radius=3.5, planets=None, nside=None):
+    def __init__(self, mask_radius=3.5, planets=None, nside=None, scale=1e5):
         super(Planet_mask_basis_function, self).__init__(nside=nside)
         if planets is None:
             planets = ['venus', 'mars', 'jupiter']
@@ -57,7 +57,7 @@ class Planet_mask_basis_function(Base_basis_function):
         self.mask_radius = np.radians(mask_radius)
         self.result = np.zeros(hp.nside2npix(nside))
         # set up a kdtree. Could maybe use healpy.query_disc instead.
-        self.in_fov = hp_in_lsst_fov(nside=nside, fov_radius=mask_radius)
+        self.in_fov = hp_in_lsst_fov(nside=nside, fov_radius=mask_radius, scale=scale)
 
     def _calc_value(self, conditions, indx=None):
         result = self.result.copy()
@@ -98,8 +98,8 @@ class Zenith_shadow_mask_basis_function(Base_basis_function):
         site = Site(name=site)
         self.lat_rad = site.latitude_rad
         self.lon_rad = site.longitude_rad
-        self.decband[np.where((self.dec < (self.lat_rad+self.zenith_radius)) &
-                              (self.dec > (self.lat_rad-self.zenith_radius)))] = 1
+        self.decband[np.where((int_rounded(self.dec) < int_rounded(self.lat_rad+self.zenith_radius)) &
+                              (int_rounded(self.dec) > int_rounded(self.lat_rad-self.zenith_radius)))] = 1
 
         self.result = np.empty(hp.nside2npix(self.nside), dtype=float)
         self.result.fill(self.penalty)
@@ -107,10 +107,10 @@ class Zenith_shadow_mask_basis_function(Base_basis_function):
     def _calc_value(self, conditions, indx=None):
 
         result = self.result.copy()
-        alt_limit = np.where((conditions.alt > self.min_alt) &
-                             (conditions.alt < self.max_alt))[0]
+        alt_limit = np.where((int_rounded(conditions.alt) > int_rounded(self.min_alt)) &
+                             (int_rounded(conditions.alt) < int_rounded(self.max_alt)))[0]
         result[alt_limit] = 1
-        to_mask = np.where((conditions.HA > (2.*np.pi-self.shadow_minutes-self.zenith_radius)) &
+        to_mask = np.where((int_rounded(conditions.HA) > int_rounded(2.*np.pi-self.shadow_minutes-self.zenith_radius)) &
                            (self.decband == 1))
         result[to_mask] = np.nan
         return result
@@ -130,7 +130,7 @@ class Moon_avoidance_basis_function(Base_basis_function):
         super(Moon_avoidance_basis_function, self).__init__(nside=nside)
         self.update_on_newobs = False
 
-        self.moon_distance = np.radians(moon_distance)
+        self.moon_distance = int_rounded(np.radians(moon_distance))
         self.result = np.ones(hp.nside2npix(self.nside), dtype=float)
 
     def _calc_value(self, conditions, indx=None):
@@ -140,7 +140,7 @@ class Moon_avoidance_basis_function(Base_basis_function):
                                               conditions.moonAz,
                                               conditions.moonAlt)
 
-        result[angular_distance < self.moon_distance] = np.nan
+        result[int_rounded(angular_distance) < self.moon_distance] = np.nan
 
         return result
 

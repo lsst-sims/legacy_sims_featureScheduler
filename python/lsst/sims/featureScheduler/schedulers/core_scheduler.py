@@ -3,7 +3,7 @@ from builtins import object
 import numpy as np
 import healpy as hp
 from lsst.sims.utils import _hpid2RaDec
-from lsst.sims.featureScheduler.utils import hp_in_lsst_fov, set_default_nside, hp_in_comcam_fov
+from lsst.sims.featureScheduler.utils import hp_in_lsst_fov, set_default_nside, hp_in_comcam_fov, int_rounded
 import logging
 
 
@@ -123,7 +123,7 @@ class Core_scheduler(object):
         """
         result = False
         if len(self.queue) > 0:
-            if (mjd < self.queue[0]['flush_by_mjd']) | (self.queue[0]['flush_by_mjd'] == 0):
+            if (int_rounded(mjd) < int_rounded(self.queue[0]['flush_by_mjd'])) | (self.queue[0]['flush_by_mjd'] == 0):
                 result = True
         return result
 
@@ -142,7 +142,7 @@ class Core_scheduler(object):
             return None
         else:
             # If the queue has gone stale, flush and refill. Zero means no flush_by was set.
-            if (self.conditions.mjd > self.queue[0]['flush_by_mjd']) & (self.queue[0]['flush_by_mjd'] != 0):
+            if (int_rounded(self.conditions.mjd) > int_rounded(self.queue[0]['flush_by_mjd'])) & (self.queue[0]['flush_by_mjd'] != 0):
                 self.flushed += len(self.queue)
                 self.flush_queue()
                 self._fill_queue()

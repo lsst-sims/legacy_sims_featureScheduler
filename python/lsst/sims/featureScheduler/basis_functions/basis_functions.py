@@ -1,6 +1,7 @@
 import numpy as np
 from lsst.sims.featureScheduler import features
 from lsst.sims.featureScheduler import utils
+from lsst.sims.featureScheduler.utils import int_rounded
 import healpy as hp
 from lsst.sims.skybrightness_pre import M5percentiles
 import matplotlib.pylab as plt
@@ -237,9 +238,9 @@ class N_obs_high_am_basis_function(Base_basis_function):
 
     def _calc_value(self, conditions, indx=None):
         result = self.result.copy()
-        behind_pix = np.where(((conditions.mjd-self.survey_features['last_n_mjds'].feature[0]) > self.season) &
-                              (conditions.airmass > np.min(self.am_limits)) &
-                              (conditions.airmass < np.max(self.am_limits)))
+        behind_pix = np.where((int_rounded(conditions.mjd-self.survey_features['last_n_mjds'].feature[0]) > int_rounded(self.season)) &
+                              (int_rounded(conditions.airmass) > int_rounded(np.min(self.am_limits))) &
+                              (int_rounded(conditions.airmass) < int_rounded(np.max(self.am_limits))))
         result[behind_pix] = 1
         result[self.out_footprint] = self.out_of_bounds_val
 
@@ -295,7 +296,7 @@ class N_obs_per_year_basis_function(Base_basis_function):
         relative_ra = (conditions.ra - mid_season_ra) % (2.*np.pi)
         relative_ra = (self.season_end_hour - relative_ra) % (2.*np.pi)
         # ok, now 
-        relative_ra[np.where(relative_ra > (self.season_end_hour-self.season_start_hour))] = 0
+        relative_ra[np.where(int_rounded(relative_ra) > int_rounded(self.season_end_hour-self.season_start_hour))] = 0
 
         weight = relative_ra/(self.season_end_hour - self.season_start_hour)
         result *= weight
@@ -334,12 +335,14 @@ class Cadence_in_season_basis_function(Base_basis_function):
         ra_mid_season = (conditions.sunRA + np.pi) % (2.*np.pi)
 
         angle_to_mid_season = np.abs(conditions.ra - ra_mid_season)
-        over = np.where(angle_to_mid_season > np.pi)
+        over = np.where(int_rounded(angle_to_mid_season) > int_rounded(np.pi))
         angle_to_mid_season[over] = 2.*np.pi - angle_to_mid_season[over]
 
         days_lag = conditions.mjd - self.survey_features['last_observed'].feature
 
-        active_pix = np.where((days_lag >= self.cadence) & (self.drive_map == 1) & (angle_to_mid_season < self.season_span))
+        active_pix = np.where((int_rounded(days_lag) >= int_rounded(self.cadence)) &
+                              (self.drive_map == 1) &
+                              (int_rounded(angle_to_mid_season) < int_rounded(self.season_span)))
         result[active_pix] = 1.
 
         return result
@@ -378,7 +381,7 @@ class Season_coverage_basis_function(Base_basis_function):
         # Find the area that still needs observation
         feature = self.survey_features['n_obs_season'].feature
         not_enough = np.where((self.footprint > 0) & (feature < self.n_per_season) &
-                              ((season-np.floor(season) > self.season_frac_start)) &
+                              ((int_rounded(season-np.floor(season)) > int_rounded(self.season_frac_start))) &
                               (season >= 0))
         result[not_enough] = 1
         return result
@@ -411,7 +414,7 @@ class Footprint_nvis_basis_function(Base_basis_function):
 
     def _calc_value(self, conditions, indx=None):
         result = self.result.copy()
-        diff = self.footprint*self.nvis - self.survey_features['N_obs'].feature
+        diff = int_rounded(self.footprint*self.nvis - self.survey_features['N_obs'].feature)
 
         result[np.where(diff > 0)] = 1
 
@@ -435,8 +438,8 @@ class Third_observation_basis_function(Base_basis_function):
         super(Third_observation_basis_function, self).__init__(nside=nside)
         self.filtername1 = filtername1
         self.filtername2 = filtername2
-        self.gap_min = gap_min/60./24.
-        self.gap_max = gap_max/60./24.
+        self.gap_min = int_rounded(gap_min/60./24.)
+        self.gap_max = int_rounded(gap_max/60./24.)
 
         self.survey_features = {}
         self.survey_features['last_obs_f1'] = features.Last_observed(filtername=filtername1, nside=nside)
@@ -446,8 +449,8 @@ class Third_observation_basis_function(Base_basis_function):
 
     def _calc_value(self, conditions, indx=None):
         result = self.result.copy()
-        d1 = conditions.mjd - self.survey_features['last_obs_f1'].feature
-        d2 = conditions.mjd - self.survey_features['last_obs_f2'].feature
+        d1 = int_rounded(conditions.mjd - self.survey_features['last_obs_f1'].feature)
+        d2 = int_rounded(conditions.mjd - self.survey_features['last_obs_f2'].feature)
         good = np.where((d1 > self.gap_min) & (d1 < self.gap_max) &
                         (d2 > self.gap_min) & (d2 < self.gap_max))
         result[good] = 1
@@ -475,7 +478,7 @@ class Avoid_Fast_Revists(Base_basis_function):
         self.filtername = filtername
         self.penalty_val = penalty_val
 
-        self.gap_min = gap_min/60./24.
+        self.gap_min = int_rounded(gap_min/60./24.)
         self.nside = nside
 
         self.survey_features = dict()
@@ -485,7 +488,7 @@ class Avoid_Fast_Revists(Base_basis_function):
         result = np.ones(hp.nside2npix(self.nside), dtype=float)
         if indx is None:
             indx = np.arange(result.size)
-        diff = conditions.mjd - self.survey_features['Last_observed'].feature[indx]
+        diff = int_rounded(conditions.mjd - self.survey_features['Last_observed'].feature[indx])
         bad = np.where(diff < self.gap_min)[0]
         result[indx[bad]] = self.penalty_val
         return result
@@ -502,12 +505,13 @@ class Near_sun_twilight_basis_function(Base_basis_function):
 
     def __init__(self, nside=None, max_airmass=2.5):
         super(Near_sun_twilight_basis_function, self).__init__(nside=nside)
-        self.max_airmass = max_airmass
+        self.max_airmass = int_rounded(max_airmass)
         self.result = np.zeros(hp.nside2npix(self.nside))
 
     def _calc_value(self, conditions, indx=None):
         result = self.result.copy()
-        good_pix = np.where((conditions.airmass < self.max_airmass) & (conditions.az_to_sun < np.pi/2.))
+        good_pix = np.where((int_rounded(conditions.airmass) < self.max_airmass) &
+                            (int_rounded(conditions.az_to_sun) < int_rounded(np.pi/2.)))
         result[good_pix] = conditions.airmass[good_pix] / self.max_airmass
         return result
 
@@ -532,8 +536,8 @@ class Visit_repeat_basis_function(Base_basis_function):
 
         super(Visit_repeat_basis_function, self).__init__(nside=nside, filtername=filtername)
 
-        self.gap_min = gap_min/60./24.
-        self.gap_max = gap_max/60./24.
+        self.gap_min = int_rounded(gap_min/60./24.)
+        self.gap_max = int_rounded(gap_max/60./24.)
         self.npairs = npairs
 
         self.survey_features = {}
@@ -550,7 +554,7 @@ class Visit_repeat_basis_function(Base_basis_function):
         result = np.zeros(hp.nside2npix(self.nside), dtype=float)
         if indx is None:
             indx = np.arange(result.size)
-        diff = conditions.mjd - self.survey_features['Last_observed'].feature[indx]
+        diff = int_rounded(conditions.mjd - self.survey_features['Last_observed'].feature[indx])
         good = np.where((diff >= self.gap_min) & (diff <= self.gap_max) &
                         (self.survey_features['Pair_in_night'].feature[indx] < self.npairs))[0]
         result[indx[good]] += 1.
@@ -611,7 +615,7 @@ class Strict_filter_basis_function(Base_basis_function):
         in_filter = (conditions.current_filter == self.filtername) | (conditions.current_filter is None)
 
         # Has enough time past?
-        time_past = (conditions.mjd - self.survey_features['Last_observation'].feature['mjd']) > self.time_lag
+        time_past = int_rounded(conditions.mjd - self.survey_features['Last_observation'].feature['mjd']) > int_rounded(self.time_lag)
 
         # Did twilight start/end?
         twi_changed = (conditions.sunAlt - self.twi_change) * (self.survey_features['Last_observation'].feature['sunAlt']- self.twi_change) < 0
@@ -699,10 +703,10 @@ class Goal_Strict_filter_basis_function(Base_basis_function):
             bonus[before_lag] = -np.inf if self.unseen_before_lag else 0.
             after_lag = np.where(time >= lag_max)
             bonus[after_lag] = 1. if time < self.time_lag_boost else self.boost_gain
-        elif time <= lag_min:
+        elif int_rounded(time) <= int_rounded(lag_min):
             return -np.inf if self.unseen_before_lag else 0.
-        elif time >= lag_max:
-            return 1. if time < self.time_lag_boost else self.boost_gain
+        elif int_rounded(time) >= int_rounded(lag_max):
+            return 1. if int_rounded(time) < int_rounded(self.time_lag_boost) else self.boost_gain
 
         return bonus * need
 
@@ -731,7 +735,7 @@ class Goal_Strict_filter_basis_function(Base_basis_function):
 
         # Has enough time past?
         lag = conditions.mjd - self.survey_features['Last_filter_change'].feature['mjd']
-        time_past = lag > self.time_lag_min
+        time_past = int_rounded(lag) > int_rounded(self.time_lag_min)
 
         # Did twilight start/end?
         twi_changed = (conditions.sunAlt - self.twi_change) * \
@@ -889,19 +893,19 @@ class Skybrightness_limit_basis_function(Base_basis_function):
          The maximum sky brightness (mags).
 
     """
-    def __init__(self, nside=None, filtername='r', min=20., max=30.):
+    def __init__(self, nside=None, filtername='r', sbmin=20., sbmax=30.):
         super(Skybrightness_limit_basis_function, self).__init__(nside=nside, filtername=filtername)
 
-        self.min = min
-        self.max = max
+        self.min = int_rounded(sbmin)
+        self.max = int_rounded(sbmax)
         self.result = np.empty(hp.nside2npix(self.nside), dtype=float)
         self.result.fill(np.nan)
 
     def _calc_value(self, conditions, indx=None):
         result = self.result.copy()
 
-        good = np.where(np.bitwise_and(conditions.skybrightness[self.filtername] > self.min,
-                                       conditions.skybrightness[self.filtername] < self.max))
+        good = np.where(np.bitwise_and(int_rounded(conditions.skybrightness[self.filtername]) > self.min,
+                                       int_rounded(conditions.skybrightness[self.filtername]) < self.max))
         result[good] = 1.0
 
         return result
@@ -1058,9 +1062,11 @@ class Cadence_enhance_basis_function(Base_basis_function):
             result = 0
         else:
             mjd_diff = conditions.mjd - self.survey_features['last_observed'].feature[ind]
-            to_supress = np.where((mjd_diff > self.supress_window[0]) & (mjd_diff < self.supress_window[1]))
+            to_supress = np.where((int_rounded(mjd_diff) > int_rounded(self.supress_window[0])) &
+                                  (int_rounded(mjd_diff) < int_rounded(self.supress_window[1])))
             result[ind[to_supress]] = self.supress_val
-            to_enhance = np.where((mjd_diff > self.enhance_window[0]) & (mjd_diff < self.enhance_window[1]))
+            to_enhance = np.where((int_rounded(mjd_diff) > int_rounded(self.enhance_window[0])) &
+                                  (int_rounded(mjd_diff) < int_rounded(self.enhance_window[1])))
             result[ind[to_enhance]] = self.enhance_val
         return result
 
@@ -1112,9 +1118,11 @@ class Az_modulo_basis_function(Base_basis_function):
         az_lim = self.az_limits[np.max(conditions.night) % self.mod_val]
 
         if az_lim[0] < az_lim[1]:
-            out_pix = np.where((conditions.az < az_lim[0]) | (conditions.az > az_lim[1]))
+            out_pix = np.where((int_rounded(conditions.az) < int_rounded(az_lim[0])) |
+                               (int_rounded(conditions.az) > int_rounded(az_lim[1])))
         else:
-            out_pix = np.where((conditions.az < az_lim[0]) | (conditions.az > az_lim[1]))[0]
+            out_pix = np.where((int_rounded(conditions.az) < int_rounded(az_lim[0])) |
+                               (int_rounded(conditions.az) > int_rounded(az_lim[1])))[0]
         result[out_pix] = self.out_of_bounds_val
         return result
 
@@ -1202,7 +1210,7 @@ class Template_generate_basis_function(Base_basis_function):
 
     def _calc_value(self, conditions, **kwargs):
         result = self.result.copy()
-        overdue = np.where((conditions.mjd - self.survey_features['Last_observed'].feature) > self.day_gap)
+        overdue = np.where((int_rounded(conditions.mjd - self.survey_features['Last_observed'].feature)) > int_rounded(self.day_gap))
         result[overdue] = 1
         result[self.out_of_bounds] = 0
 
