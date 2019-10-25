@@ -101,6 +101,7 @@ class Footprint_rolling_basis_function(Base_basis_function):
         self.survey_features['N_obs'] = features.N_observations(nside=nside, filtername=filtername)
 
         for i, temp in enumerate(footprints[0:-1]):
+            # Observation in a season, in filtername
             self.survey_features['N_obs_%i' % i] = features.N_observations_season(i, filtername=filtername,
                                                                                   nside=self.nside,
                                                                                   modulo=season_modulo,
@@ -114,7 +115,8 @@ class Footprint_rolling_basis_function(Base_basis_function):
                                                                                       nside=self.nside,
                                                                                       max_season=max_season,
                                                                                       season_length=season_length)
-        # Set the final one to be -1
+        # Set a season for -1 (for before rolling or after max_season)
+        # XXX--may just want to set this to self.survey_features['N_obs_all'] and self.survey_features['N_obs'] ?
         self.survey_features['N_obs_%i' % -1] = features.N_observations_season(-1, filtername=filtername,
                                                                                nside=self.nside,
                                                                                modulo=season_modulo,
@@ -142,7 +144,7 @@ class Footprint_rolling_basis_function(Base_basis_function):
                                     modulo=self.season_modulo, max_season=self.max_season,
                                     season_length=self.season_length)
 
-        # let's compute the constant parts of the footprint like before
+        # Compute the constant parts of the footprint like before
         desired = self.footprints[-1] / self.all_footprints_sum * np.sum(self.survey_features['N_obs_all'].feature)
         result[self.constant_footprint_indx] = desired[self.constant_footprint_indx] - self.survey_features['N_obs'].feature[self.constant_footprint_indx]
 
@@ -150,7 +152,7 @@ class Footprint_rolling_basis_function(Base_basis_function):
         for season in np.unique(seasons[self.rolling_footprint_indx]):
             season_indx = np.where(seasons[self.rolling_footprint_indx] == season)[0]
             desired = self.footprints[season][self.rolling_footprint_indx][season_indx] / self.all_rolling_sum * np.sum(self.survey_features['N_obs_all_%i' % season].feature[self.rolling_footprint_indx])
-            result[self.rolling_footprint_indx][season_indx] = desired - self.survey_features['N_obs_%i' % season].feature[self.rolling_footprint_indx][season_indx]
+            result[self.rolling_footprint_indx[season_indx]] = desired - self.survey_features['N_obs_%i' % season].feature[self.rolling_footprint_indx][season_indx]
 
         result[self.out_of_bounds_area] = self.out_of_bounds_val
         return result
