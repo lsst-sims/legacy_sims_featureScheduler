@@ -18,6 +18,7 @@ import warnings
 import matplotlib.pylab as plt
 from lsst.ts.observatory.model import ObservatoryState
 from importlib import import_module
+from lsst.sims.featureScheduler.utils import Constellation, starlink_constellation
 
 __all__ = ['Model_observatory']
 
@@ -273,7 +274,8 @@ class Model_observatory(object):
     """
 
     def __init__(self, nside=None, mjd_start=59853.5, seed=42, quickTest=True,
-                 alt_min=5., lax_dome=True, cloud_limit=0.3, sim_ToO=None):
+                 alt_min=5., lax_dome=True, cloud_limit=0.3, sim_ToO=None, satellites=None,
+                 satellite_wait=15.):
         """
         Parameters
         ----------
@@ -289,6 +291,12 @@ class Model_observatory(object):
             The limit to stop taking observations if the cloud model returns something equal or higher
         sim_ToO : sim_targetoO object (None)
             If one would like to inject simulated ToOs into the telemetry stream.
+        satellites : str (None)
+            If we should include a satellite constellation to avoid. Valid values of
+            None, 'Starlink', 'supersize' for no consetllation, a Starlink like constellation, and
+            a 4x Starlink size respectively.
+        satellite_wait : float (15)
+            The amount of time to wait for satellites to clear before trying again (seconds)
         """
 
         if nside is None:
@@ -379,6 +387,19 @@ class Model_observatory(object):
         self.mjd = to_set_mjd
 
         self.obsID_counter = 0
+
+        # Set up any artificial satellite constellation to run
+        # 1-second satellite steps
+        if satellites == 'Starlink':
+            tles = starlink_constellation()
+            self.constellation = Constellation(tles)
+        elif satellites == 'supersize':
+            tles = starlink_constellation(supersize=True)
+            self.constellation = Constellation(tles)
+        else:
+            self.constellation = None
+        self.satellite_wait = satellite_wait/3600./24.
+        self.sat_try_limit = 4
 
     def get_info(self):
         """
@@ -668,8 +689,41 @@ class Model_observatory(object):
         start_dec = self.observatory.current_state.dec_rad
         slewtime, visittime = self.observatory.observe_times(target)
 
+        # Check if we need to pause for a satellite to clear
+        if self.constellation is not None:
+            try_number = 1
+            # Assume the alt and az change duriing exposure not too important. I think
+            # this means we risk some glancing collisions, which maybe not the biggest deal
+            in_fov = self.constellation.check_pointing(self.observatory.current_state.alt,
+                                                       self.observatory.current_state.az,
+                                                       self.mjd)
+            while (in_fov > 0) & (try_number <= self.sat_try_limit):
+                self.mjd += self.satellite_wait
+                try_number += 1
+                t = Time(self.mjd, format='mjd')
+                self.observatory.update_state(t.unix)
+                slewtime, visittime = self.observatory.observe_times(target)
+                in_fov = self.constellation.check_pointing(self.observatory.current_state.alt,
+                                                           self.observatory.current_state.az,
+                                                           self.mjd)
+                
+            if in_fov > 0:
+                # We sat at an RA, Dec for a while and there were always satellites in the way.
+                # Give up and return None and make the scheduler try something else
+                result = None
+                # check if we need to advance to the next night
+                now_night = self.night
+                if now_night == start_night:
+                    new_night = False
+                else:
+                    new_night = True
+                # Here we could log the failed observation if we want to keep track of those?
+                return result, new_night
+
+
         # Check if the mjd after slewtime and visitime is fine:
         observation_worked, new_mjd = self.check_mjd(self.mjd + (slewtime + visittime)/24./3600.)
+
         if observation_worked:
             observation['visittime'] = visittime
             observation['slewtime'] = slewtime
