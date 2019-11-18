@@ -273,7 +273,8 @@ class Model_observatory(object):
     """
 
     def __init__(self, nside=None, mjd_start=59853.5, seed=42, quickTest=True,
-                 alt_min=5., lax_dome=True, cloud_limit=0.3, sim_ToO=None):
+                 alt_min=5., lax_dome=True, cloud_limit=0.3, sim_ToO=None,
+                 seeing_db=None):
         """
         Parameters
         ----------
@@ -289,6 +290,8 @@ class Model_observatory(object):
             The limit to stop taking observations if the cloud model returns something equal or higher
         sim_ToO : sim_targetoO object (None)
             If one would like to inject simulated ToOs into the telemetry stream.
+        seeing_db : filename of the seeing data database (None)
+            If one would like to use an alternate seeing database
         """
 
         if nside is None:
@@ -349,7 +352,7 @@ class Model_observatory(object):
             self.downtimes = self.downtimes[good]
             diff = self.downtimes['start'][1:] - self.downtimes['end'][0:-1]
 
-        self.seeing_data = SeeingData(mjd_start_time)
+        self.seeing_data = SeeingData(mjd_start_time, seeing_db=seeing_db)
         self.seeing_model = SeeingModel()
         self.seeing_indx_dict = {}
         for i, filtername in enumerate(self.seeing_model.filter_list):
@@ -594,7 +597,7 @@ class Model_observatory(object):
             result = False
         return result
 
-    def check_mjd(self, mjd, cloud_skip=20., scale=1e6):
+    def check_mjd(self, mjd, cloud_skip=20.):
         """See if an mjd is ok to observe
         Parameters
         ----------
@@ -609,10 +612,6 @@ class Model_observatory(object):
         mdj : float
             If True, the input mjd. If false, a good mjd to skip forward to.
         """
-
-        # Try to enforce same machine precision on the mjd
-        #mjd = np.round(mjd*scale)/scale
-
         passed = True
         new_mjd = mjd + 0
 
