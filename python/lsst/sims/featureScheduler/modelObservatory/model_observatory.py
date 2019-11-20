@@ -275,7 +275,7 @@ class Model_observatory(object):
 
     def __init__(self, nside=None, mjd_start=59853.5, seed=42, quickTest=True,
                  alt_min=5., lax_dome=True, cloud_limit=0.3, sim_ToO=None, satellites=None,
-                 satellite_wait=15.):
+                 satellite_wait=90.):
         """
         Parameters
         ----------
@@ -295,8 +295,8 @@ class Model_observatory(object):
             If we should include a satellite constellation to avoid. Valid values of
             None, 'Starlink', 'supersize' for no consetllation, a Starlink like constellation, and
             a 4x Starlink size respectively.
-        satellite_wait : float (15)
-            The amount of time to wait for satellites to clear before trying again (seconds)
+        satellite_wait : float (90)
+            The amount of time to look into future (seconds)
         """
 
         if nside is None:
@@ -399,7 +399,11 @@ class Model_observatory(object):
         else:
             self.constellation = None
         self.satellite_wait = satellite_wait/3600./24.
-        self.sat_try_limit = 4
+        # Use 1s timesteps
+        self.tstep = 1./3600./24.
+        self.mjd_steps = np.arange(-self.tstep, self.satellite_wait+2.*self.tstep, self.tstep)
+        #self.sat_try_limit = 4
+        self.sat_skip_time = 20./3600./24.
 
     def get_info(self):
         """
@@ -691,27 +695,23 @@ class Model_observatory(object):
 
         # Check if we need to pause for a satellite to clear
         if self.constellation is not None:
-            try_number = 1
-            # Assume the alt and az change duriing exposure not too important. I think
-            # this means we risk some glancing collisions, which maybe not the biggest deal
-            in_fov = self.constellation.check_pointing(self.observatory.current_state.alt,
-                                                       self.observatory.current_state.az,
-                                                       self.mjd)
-            while (in_fov > 0) & (try_number <= self.sat_try_limit):
-                self.mjd += self.satellite_wait
-                try_number += 1
-                t = Time(self.mjd, format='mjd')
-                self.observatory.update_state(t.unix)
-                slewtime, visittime = self.observatory.observe_times(target)
-                in_fov = self.constellation.check_pointing(self.observatory.current_state.alt,
-                                                           self.observatory.current_state.az,
-                                                           self.mjd)
-                
-            if in_fov > 0:
-                # We sat at an RA, Dec for a while and there were always satellites in the way.
-                # Give up and return None and make the scheduler try something else
+            # Figure out if we can get an exptime length clear spot
+            mjds = self.mjd+slewtime/3600./24. + self.mjd_steps
+            sats = self.constellation.look_ahead(self.observatory.current_state.alt,
+                                                 self.observatory.current_state.az,
+                                                 mjds)
+            # for convienence, say there is a sat before and after
+            sats[0] = 1
+            sats[-1] = 1
+
+            in_fov = np.where(np.array(sats) == 1)[0]
+            gaps = mjds[in_fov][1:] - mjds[in_fov][0:-1]
+            large_enough = np.where(gaps > (observation['visittime']/3600./24.+self.tstep*2))[0]
+            # If we are blocked out at this alt az for the next 2 mintues
+            if np.size(large_enough) == 0:
+                # advance time ahead by some skip time I guess?
                 result = None
-                # check if we need to advance to the next night
+                self.mjd +=  slewtime/3600./24.  # self.sat_skip_time 
                 now_night = self.night
                 if now_night == start_night:
                     new_night = False
@@ -719,7 +719,10 @@ class Model_observatory(object):
                     new_night = True
                 # Here we could log the failed observation if we want to keep track of those?
                 return result, new_night
+            soonest_time = mjds[in_fov[np.min(large_enough)]+1]
 
+            # advance the mjd to the start of the gap time
+            self.mjd = soonest_time - slewtime/3600./24.
 
         # Check if the mjd after slewtime and visitime is fine:
         observation_worked, new_mjd = self.check_mjd(self.mjd + (slewtime + visittime)/24./3600.)

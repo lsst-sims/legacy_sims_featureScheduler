@@ -12,7 +12,7 @@ import healpy as hp
 
 
 __all__ = ["tle_from_orbital_parameters", "create_constellation",
-           "starlink_constellation", "Constellation"]
+           "starlink_constellation", "Constellation", "Constellation_p"]
 
 
 def satellite_mean_motion(altitude, mu=const.GM_earth, r_earth=const.R_earth):
@@ -60,8 +60,8 @@ def tle_from_orbital_parameters(sat_name, sat_nr, epoch, inclination, raan,
     return '\n'.join([tle0, tle1, tle2])
 
 
-def create_constellation(altitudes, inclinations, nplanes, sats_per_plane, epoch=22050.1, name='Test'):
-
+def create_constellation(altitudes, inclinations, nplanes, sats_per_plane, epoch=22050.1, name='Test', seed=42):
+    np.random.seed(seed)
     my_sat_tles = []
     sat_nr = 8000
     for alt, inc, n, s in zip(
@@ -257,3 +257,63 @@ class Constellation(object):
             in_fov += np.size(np.where(ang_distances <= self.fov_rad)[0])
         in_fov = in_fov/mjds.size
         return in_fov
+
+    def look_ahead(self, pointing_alt, pointing_az, mjds):
+        """
+        Return 1 if satellite in FoV, 0 if clear
+        """
+        result = []
+        for mjd in mjds:
+            self.update_mjd(mjd)
+            ang_distances = _angularSeparation(self.azimuth_rad[self.above_alt_limit], self.altitudes_rad[self.above_alt_limit],
+                                               np.radians(pointing_az), np.radians(pointing_alt))
+            if np.size(np.where(ang_distances <= self.fov_rad)[0]) > 0:
+                result.append(1)
+            else:
+                result.append(0)
+        return result
+
+
+class Constellation_p(Constellation):
+    """
+    Break constellation into parallel bits
+    need to start engines first with something like:
+    ipcluster start -n 4
+
+    """
+
+    def __init__(self, sat_tle_list, alt_limit=30., fov=3.5, tstep=1., exptime=30.):
+        import ipyparallel as ipp
+
+        self.rc = ipp.Client()
+        self.dview = self.rc[:]
+
+        n_cores = len(self.rc)
+
+        tle_chunks = np.array_split(sat_tle_list, n_cores)
+        tle_chunks = [chunk.tolist() for chunk in tle_chunks]
+
+        self.dview['c_kwargs'] = {'alt_limit': alt_limit, 'fov': fov, 'tstep': tstep, 'exptime': exptime}
+
+        self.dview.execute('from lsst.sims.featureScheduler.utils import Constellation')
+        for view, chunk in zip(self.rc, tle_chunks):
+            view['tle'] = chunk
+
+        self.dview.execute("constellation = Constellation(tle, **c_kwargs)")
+
+    def check_pointing(self, pointing_alt, pointing_az, mjd):
+        pass
+
+    def look_ahead(self, pointing_alt, pointing_az, mjds):
+        # pass the pointings and mjds to the views
+        self.dview['pointing_alt'] = pointing_alt
+        self.dview['pointing_az'] = pointing_az
+        self.dview['mjds'] = mjds
+
+        self.dview.execute('result = constellation.look_ahead(pointing_alt, pointing_az, mjds)')
+        results = self.dview['result']
+        # Need to do a quick merge of these
+
+        return results
+
+
