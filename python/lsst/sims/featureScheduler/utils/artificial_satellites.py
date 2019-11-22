@@ -7,7 +7,7 @@ from astropy.coordinates import EarthLocation
 from lsst.sims.utils import Site
 import ephem
 from lsst.sims.utils import _angularSeparation, _buildTree, _xyz_from_ra_dec, xyz_angular_radius
-from lsst.sims.featureScheduler.utils import read_fields
+from lsst.sims.featureScheduler.utils import read_fields, gnomonic_project_toxy
 import healpy as hp
 
 
@@ -122,6 +122,34 @@ def starlink_constellation(supersize=False):
     return my_sat_tles
 
 
+def inside_circle(p1, p2, radius=np.radians(3.5)):
+    # https://codereview.stackexchange.com/questions/86421/line-segment-to-circle-collision-algorithm
+
+    # XXX -- need to check this some more to make sure it works properly!
+    vec = p2 - p1
+    if np.size(p1.shape) == 1:
+        axis = 0
+    else:
+        axis = 1
+
+    a = np.sum(vec*vec, axis=axis)
+    b = 2.*np.sum(vec*p1, axis=axis)
+    c = np.sum(p1*p1, axis=axis) - 2.*radius**2
+
+    disc = b**2 - 4*a*c
+
+    result = np.ones(np.size(disc), dtype=int)
+    result[np.where(disc < 0)] = 0
+
+    sqrt_disc = np.sqrt(disc)
+    t1 = (-b + sqrt_disc)/(2. * a)
+    t2 = (-b - sqrt_disc)/(2. * a)
+
+    outside = np.where(((t1 < 0) | (t1 > 1)) & ((t2 < 0) | (t2 > 1)))
+    result[outside] = 0
+    return result
+
+
 class Constellation(object):
     """
     Have a class to hold ephem satellite objects
@@ -134,7 +162,7 @@ class Constellation(object):
         The time step to use when computing satellite positions in an exposure
     """
 
-    def __init__(self, sat_tle_list, alt_limit=30., fov=3.5, tstep=1., exptime=30.):
+    def __init__(self, sat_tle_list, alt_limit=20., fov=3.5, tstep=1., exptime=30.):
         self.sat_list = [ephem.readtle(tle.split('\n')[0], tle.split('\n')[1], tle.split('\n')[2]) for tle in sat_tle_list]
         self.alt_limit_rad = np.radians(alt_limit)
         self.fov_rad = np.radians(fov)
@@ -143,6 +171,10 @@ class Constellation(object):
         self.tsteps = np.arange(0, exptime+tstep, tstep)/3600./24.  # to days
 
         self.radius = xyz_angular_radius(fov)
+
+    def _alt_check(self, pointing_alt):
+        if np.radians(pointing_alt) < self.alt_limit_rad:
+            raise ValueError(f'altitude below limit where we are tracking satellites, tried {pointing_alt} deg, limit {np.degrees(self.alt_limit_rad)}')
 
     def _make_fields(self):
         """
@@ -205,10 +237,13 @@ class Constellation(object):
         # Keep track of the ones that are up and illuminated
         self.above_alt_limit = np.where((self.altitudes_rad >= self.alt_limit_rad) & (self.eclip == False))[0]
 
-    def fields_hit(self, mjd, fraction=False):
+    def _deprecated_fields_hit(self, mjd, fraction=False):
         """
         Return an array that lists the number of hits in each field pointing
         """
+
+        # XXX -- update to use check_times method, or just turn down tsteps
+
         mjds = mjd + self.tsteps
         result = self.fields_empty.copy()
 
@@ -229,7 +264,7 @@ class Constellation(object):
             result = n_hit/self.fields_empty.size
         return result
 
-    def check_pointing(self, pointing_alt, pointing_az, mjd):
+    def _deprecated_check_pointing(self, pointing_alt, pointing_az, mjd):
         """
         See if a pointing has a satellite in it
 
@@ -247,8 +282,12 @@ class Constellation(object):
             on average more than one satellite in the FoV. Zero means there was no satllite in the image the entire exposure.
         """
 
+        self._alt_check(pointing_alt)
+
         mjds = mjd + self.tsteps
         in_fov = 0
+
+        # Maybe just compute position at start, and at end, then see if they cross the FoV?
 
         for mjd in mjds:
             self.update_mjd(mjd)
@@ -258,10 +297,55 @@ class Constellation(object):
         in_fov = in_fov/mjds.size
         return in_fov
 
-    def look_ahead(self, pointing_alt, pointing_az, mjds):
+    def check_times(self, pointing_alt, pointing_az, mjd1, mjd2):
+        """
+        pointing_alt : float
+            The altitude (degrees)
+        pointing_az : float
+            The azimuth (degrees)
+        mjd1 : float
+            The start of an exposure (days)
+        mjd2 : float
+            The end of an exposure (days)
+
+        Returns
+        -------
+        0 if there are no satellite collisions, 1 if there is
+        """
+        # Let's make sure nothing intercepts
+        result = 0
+        self._alt_check(pointing_alt)
+
+        self.update_mjd(mjd1)
+        alt1_rad = self.altitudes_rad.copy()
+        az1_rad = self.azimuth_rad.copy()
+
+        self.update_mjd(mjd2)
+
+        if np.size(self.above_alt_limit) == 0:
+            return result
+
+        alt1_rad = alt1_rad[self.above_alt_limit]
+        az1_rad = az1_rad[self.above_alt_limit]
+
+        alt2_rad = self.altitudes_rad[self.above_alt_limit].copy()
+        az2_rad = self.azimuth_rad[self.above_alt_limit].copy()
+
+        # Project to x,y centered on the pointing
+        x1, y1 = gnomonic_project_toxy(az1_rad, alt1_rad, np.radians(pointing_az), np.radians(pointing_alt))
+        x2, y2 = gnomonic_project_toxy(az2_rad, alt2_rad, np.radians(pointing_az), np.radians(pointing_alt))
+
+        result = np.max(inside_circle(np.array([x1, y1]).T, np.array([x2, y2]).T, radius=self.fov_rad))
+
+        return result
+
+    def _deprecated_look_ahead(self, pointing_alt, pointing_az, mjds):
         """
         Return 1 if satellite in FoV, 0 if clear
         """
+
+        self._alt_check(pointing_alt)
+
         result = []
         for mjd in mjds:
             self.update_mjd(mjd)
@@ -284,6 +368,7 @@ class Constellation_p(Constellation):
 
     def __init__(self, sat_tle_list, alt_limit=30., fov=3.5, tstep=1., exptime=30.):
         import ipyparallel as ipp
+        self.alt_limit_rad = np.radians(alt_limit)
 
         self.rc = ipp.Client()
         self.dview = self.rc[:]
@@ -302,17 +387,32 @@ class Constellation_p(Constellation):
         self.dview.execute("constellation = Constellation(tle, **c_kwargs)")
 
     def check_pointing(self, pointing_alt, pointing_az, mjd):
-        pass
+
+        self._alt_check(pointing_alt)
+
+        self.dview['pointing_alt'] = pointing_alt
+        self.dview['pointing_az'] = pointing_az
+        self.dview['mjd'] = mjd
+
+        self.dview.execute("result = constellation.check_pointing(pointing_alt, pointing_az, mjd)")
+        results = self.dview['result']
+        results = np.sum(results, axis=0)
+        return results
 
     def look_ahead(self, pointing_alt, pointing_az, mjds):
+
+        self._alt_check(pointing_alt)
+
         # pass the pointings and mjds to the views
         self.dview['pointing_alt'] = pointing_alt
         self.dview['pointing_az'] = pointing_az
         self.dview['mjds'] = mjds
 
-        self.dview.execute('result = constellation.look_ahead(pointing_alt, pointing_az, mjds)')
+        self.dview.execute('result = constellation.look_ahead(pointing_alt, pointing_az, mjds)', block=True)
         results = self.dview['result']
+        results = np.sum(results, axis=0)
         # Need to do a quick merge of these
+        results[np.where(results > 0)] = 1
 
         return results
 

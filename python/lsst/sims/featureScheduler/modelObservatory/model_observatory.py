@@ -275,7 +275,7 @@ class Model_observatory(object):
 
     def __init__(self, nside=None, mjd_start=59853.5, seed=42, quickTest=True,
                  alt_min=5., lax_dome=True, cloud_limit=0.3, sim_ToO=None, satellites=None,
-                 satellite_wait=90.):
+                 satellite_wait=10.):
         """
         Parameters
         ----------
@@ -392,18 +392,20 @@ class Model_observatory(object):
         # 1-second satellite steps
         if satellites == 'Starlink':
             tles = starlink_constellation()
-            self.constellation = Constellation(tles)
+            self.constellation = Constellation(tles, alt_limit=alt_min-10.)
         elif satellites == 'supersize':
             tles = starlink_constellation(supersize=True)
             self.constellation = Constellation(tles)
         else:
             self.constellation = None
+
+        # How long to wait if there is going to be a collision
         self.satellite_wait = satellite_wait/3600./24.
         # Use 1s timesteps
-        self.tstep = 1./3600./24.
-        self.mjd_steps = np.arange(-self.tstep, self.satellite_wait+2.*self.tstep, self.tstep)
+        #self.tstep = 1./3600./24.
+        #self.mjd_steps = np.arange(-self.tstep, self.satellite_wait+2.*self.tstep, self.tstep)
         #self.sat_try_limit = 4
-        self.sat_skip_time = 20./3600./24.
+        #self.sat_skip_time = satellite_wait/3600./24.
 
     def get_info(self):
         """
@@ -695,23 +697,22 @@ class Model_observatory(object):
 
         # Check if we need to pause for a satellite to clear
         if self.constellation is not None:
-            # Figure out if we can get an exptime length clear spot
-            mjds = self.mjd+slewtime/3600./24. + self.mjd_steps
-            sats = self.constellation.look_ahead(self.observatory.current_state.alt,
-                                                 self.observatory.current_state.az,
-                                                 mjds)
-            # for convienence, say there is a sat before and after
-            sats[0] = 1
-            sats[-1] = 1
+            hit = False
 
-            in_fov = np.where(np.array(sats) == 1)[0]
-            gaps = mjds[in_fov][1:] - mjds[in_fov][0:-1]
-            large_enough = np.where(gaps > (observation['visittime']/3600./24.+self.tstep*2))[0]
-            # If we are blocked out at this alt az for the next 2 mintues
-            if np.size(large_enough) == 0:
-                # advance time ahead by some skip time I guess?
+            # Check if we're chasing something too low
+            if self.observatory.current_state.alt_rad < self.constellation.alt_limit_rad:
+                hit = True
+            else:
+                cp = self.constellation.check_times(self.observatory.current_state.alt,
+                                                    self.observatory.current_state.az,
+                                                    np.max(self.mjd),
+                                                    np.max(self.mjd + observation['exptime']/3600/24.))
+                if cp > 0:
+                    hit = True
+
+            if hit:
                 result = None
-                self.mjd +=  slewtime/3600./24.  # self.sat_skip_time 
+                self.mjd += self.satellite_wait + slewtime/3600./24.
                 now_night = self.night
                 if now_night == start_night:
                     new_night = False
@@ -719,10 +720,6 @@ class Model_observatory(object):
                     new_night = True
                 # Here we could log the failed observation if we want to keep track of those?
                 return result, new_night
-            soonest_time = mjds[in_fov[np.min(large_enough)]+1]
-
-            # advance the mjd to the start of the gap time
-            self.mjd = soonest_time - slewtime/3600./24.
 
         # Check if the mjd after slewtime and visitime is fine:
         observation_worked, new_mjd = self.check_mjd(self.mjd + (slewtime + visittime)/24./3600.)
