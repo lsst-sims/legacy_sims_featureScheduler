@@ -72,7 +72,7 @@ class Dither_detailer(Base_detailer):
 
         # Generate offsets in RA and Dec
         offsets = self._generate_offsets(len(observation_list), conditions.night)
-        
+
         obs_array = np.concatenate(observation_list)
         newRA, newDec = gnomonic_project_tosky(offsets[0, :], offsets[1, :], obs_array['RA'], obs_array['dec'])
         for i, obs in enumerate(observation_list):
@@ -109,10 +109,12 @@ class Camera_rot_detailer(Base_detailer):
         if self.per_night:
             if night != self.current_night:
                 self.current_night = night
-                self.offset = np.random.random(1) * self.range - self.min_rot
+                self.offset = np.random.random(1) * self.range + self.min_rot
             offsets = np.ones(n_offsets) * self.offset
         else:
-            offsets = np.random.random(n_offsets) * self.range - self.min_rot
+            offsets = np.random.random(n_offsets) * self.range + self.min_rot
+
+        offsets = offsets % (2.*np.pi)
 
         return offsets
 
@@ -125,6 +127,6 @@ class Camera_rot_detailer(Base_detailer):
             alt, az = _approx_RaDec2AltAz(obs['RA'], obs['dec'], conditions.site.latitude_rad,
                                           conditions.site.longitude_rad, conditions.mjd)
             obs_pa = approx_altaz2pa(alt, az, conditions.site.latitude_rad)
-            obs['rotSkyPos'] = (obs_pa + offsets[i] + 2.*np.pi) % (2.*np.pi)
+            obs['rotSkyPos'] = (obs_pa + offsets[i]) % (2.*np.pi)
 
         return observation_list
