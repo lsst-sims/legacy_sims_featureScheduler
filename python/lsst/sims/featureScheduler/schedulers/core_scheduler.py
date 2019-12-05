@@ -33,7 +33,7 @@ class Core_scheduler(object):
         generate a default if set to None.
     """
 
-    def __init__(self, surveys, nside=None, camera='LSST', rotator_limits=[80., 260.]):
+    def __init__(self, surveys, nside=None, camera='LSST', rotator_limits=[85., 275.]):
         """
         Parameters
         ----------
@@ -170,7 +170,6 @@ class Core_scheduler(object):
                     diff = np.abs(self.rotator_limits - rotTelPos_expected)
                     limit_indx = np.min(np.where(diff == np.min(diff))[0])
                     observation['rotSkyPos'] = (obs_pa - self.rotator_limits[limit_indx]) % (2.*np.pi)
-
             return observation
 
     def _fill_queue(self):
