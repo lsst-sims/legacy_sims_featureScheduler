@@ -4,6 +4,10 @@ import numpy as np
 import healpy as hp
 from lsst.sims.utils import _hpid2RaDec
 from lsst.sims.featureScheduler.utils import hp_in_lsst_fov, set_default_nside, hp_in_comcam_fov, int_rounded
+from lsst.sims.utils import _approx_RaDec2AltAz
+from lsst.sims.featureScheduler.utils import approx_altaz2pa
+
+
 import logging
 
 
@@ -29,7 +33,7 @@ class Core_scheduler(object):
         generate a default if set to None.
     """
 
-    def __init__(self, surveys, nside=None, camera='LSST'):
+    def __init__(self, surveys, nside=None, camera='LSST', rotator_limits=[85., 265.]):
         """
         Parameters
         ----------
@@ -42,6 +46,7 @@ class Core_scheduler(object):
         camera : str ('LSST')
             Which camera to use for computing overlapping HEALpixels for an observation.
             Can be 'LSST' or 'comcam'
+        rotator_limits : sequence of floats
         """
         if nside is None:
             nside = set_default_nside()
@@ -70,6 +75,7 @@ class Core_scheduler(object):
 
         # keep track of how many observations get flushed from the queue
         self.flushed = 0
+        self.rotator_limits = np.sort(np.radians(rotator_limits))
 
     def flush_queue(self):
         """"
@@ -147,6 +153,18 @@ class Core_scheduler(object):
             if len(self.queue) == 0:
                 return None
             observation = self.queue.pop(0)
+            # XXX--insert a last minute check here to see if rotation angle needs to be updated
+            alt, az = _approx_RaDec2AltAz(observation['RA'], observation['dec'], self.conditions.site.latitude_rad,
+                                          self.conditions.site.longitude_rad, self.conditions.mjd)
+            obs_pa = approx_altaz2pa(alt, az, self.conditions.site.latitude_rad)
+            rotTelPos_expected = (obs_pa - observation['rotSkyPos']) % (2.*np.pi)
+            
+            if (rotTelPos_expected > self.rotator_limits[0]) & (rotTelPos_expected < self.rotator_limits[1]):
+                import pdb ;pdb.set_trace()
+                diff = np.abs(self.rotator_limits - rotTelPos_expected)
+                limit_indx = np.min(np.where(diff == np.min(diff))[0])
+                observation['rotSkyPos'] = (obs_pa - self.rotator_limits[limit_indx]) % (2.*np.pi)
+
             return observation
 
     def _fill_queue(self):
