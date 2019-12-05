@@ -42,7 +42,6 @@ class BaseSurvey(object):
         self.ignore_obs = ignore_obs
 
         self.reward = None
-        self.sequence = False  # Specifies the survey gives sequence of observations
         self.survey_index = None
 
         self.basis_functions = basis_functions

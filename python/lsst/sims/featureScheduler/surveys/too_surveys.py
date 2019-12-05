@@ -22,8 +22,6 @@ class ToO_master(BaseSurvey):
         self.example_ToO_survey = example_ToO_survey
         self.surveys = []
         self.highest_reward = -np.inf
-        # XXX--TODO:  ugh, I think I want to take out the sequence stuff perhaps
-        self.sequence = False
 
     def add_observation(self, observation, indx=None):
         if len(self.surveys) > 0:

@@ -56,7 +56,6 @@ class Deep_drilling_survey(BaseSurvey):
         self.survey_name = survey_name
         self.reward_value = reward_value
         self.flush_pad = flush_pad/60./24.  # To days
-        self.sequence = True  # Specifies the survey gives sequence of observations
         self.filter_sequence = []
         if type(sequence) == str:
             self.observations = []

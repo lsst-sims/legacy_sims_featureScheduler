@@ -49,8 +49,6 @@ class Core_scheduler(object):
         self.log = logging.getLogger("Core_scheduler")
         # initialize a queue of observations to request
         self.queue = []
-        # Are the observations in the queue part of a sequence.
-        self.queue_is_sequence = False
         # The indices of self.survey_lists that provided the last addition(s) to the queue
         self.survey_index = [None, None]
 
@@ -78,7 +76,6 @@ class Core_scheduler(object):
         Like it sounds, clear any currently queued desired observations.
         """
         self.queue = []
-        self.queue_is_sequence = False
         self.survey_index = [None, None]
 
     def add_observation(self, observation):
@@ -134,6 +131,7 @@ class Core_scheduler(object):
         Returns
         -------
         observation object (ra,dec,filter,rotangle)
+        Returns None if the queue fails to fill
         """
         if len(self.queue) == 0:
             self._fill_queue()
@@ -149,20 +147,7 @@ class Core_scheduler(object):
             if len(self.queue) == 0:
                 return None
             observation = self.queue.pop(0)
-            if self.queue_is_sequence:
-                if self.survey_lists[self.survey_index[0]][self.survey_index[1]].check_continue(observation, self.conditions):
-                    return observation
-                else:
-                    self.log.warning('Sequence interrupted! Cleaning queue!')
-                    self.flush_queue()
-                    self._fill_queue()
-                    if len(self.queue) == 0:
-                        return None
-                    else:
-                        observation = self.queue.pop(0)
-                        return observation
-            else:
-                return observation
+            return observation
 
     def _fill_queue(self):
         """
@@ -191,7 +176,6 @@ class Core_scheduler(object):
             # Survey return list of observations
             result = self.survey_lists[self.survey_index[0]][self.survey_index[1]].generate_observations(self.conditions)
             self.queue = result
-            self.queue_is_sequence = self.survey_lists[self.survey_index[0]][self.survey_index[1]].sequence
 
         if len(self.queue) == 0:
             self.log.warning('Failed to fill queue')
