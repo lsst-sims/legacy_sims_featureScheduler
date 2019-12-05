@@ -53,10 +53,9 @@ def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, su
     new_night = False
 
     while mjd < end_mjd:
-        # XXX--Note, this might not work well for "sequences"
         if not scheduler._check_queue_mjd_only(observatory.mjd):
             scheduler.update_conditions(observatory.return_conditions())
-        desired_obs = scheduler.request_observation()
+        desired_obs = scheduler.request_observation(mjd=observatory.mjd)
         if desired_obs is None:
             # No observation. Just step into the future and try again.
             warnings.warn('No observation. Step into the future and trying again.')

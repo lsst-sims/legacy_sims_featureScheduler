@@ -33,7 +33,7 @@ class Core_scheduler(object):
         generate a default if set to None.
     """
 
-    def __init__(self, surveys, nside=None, camera='LSST', rotator_limits=[85., 265.]):
+    def __init__(self, surveys, nside=None, camera='LSST', rotator_limits=[80., 260.]):
         """
         Parameters
         ----------
@@ -130,15 +130,22 @@ class Core_scheduler(object):
                 result = True
         return result
 
-    def request_observation(self):
+    def request_observation(self, mjd=None):
         """
         Ask the scheduler what it wants to observe next
+
+        Paramters
+        ---------
+        mjd : float (None)
+            The Modified Julian Date. If None, it uses the MJD from the conditions from the last conditions update.
 
         Returns
         -------
         observation object (ra,dec,filter,rotangle)
         Returns None if the queue fails to fill
         """
+        if mjd is None:
+            mjd = self.conditions.mjd
         if len(self.queue) == 0:
             self._fill_queue()
 
@@ -146,24 +153,23 @@ class Core_scheduler(object):
             return None
         else:
             # If the queue has gone stale, flush and refill. Zero means no flush_by was set.
-            if (int_rounded(self.conditions.mjd) > int_rounded(self.queue[0]['flush_by_mjd'])) & (self.queue[0]['flush_by_mjd'] != 0):
+            if (int_rounded(mjd) > int_rounded(self.queue[0]['flush_by_mjd'])) & (self.queue[0]['flush_by_mjd'] != 0):
                 self.flushed += len(self.queue)
                 self.flush_queue()
                 self._fill_queue()
             if len(self.queue) == 0:
                 return None
             observation = self.queue.pop(0)
-            # XXX--insert a last minute check here to see if rotation angle needs to be updated
-            alt, az = _approx_RaDec2AltAz(observation['RA'], observation['dec'], self.conditions.site.latitude_rad,
-                                          self.conditions.site.longitude_rad, self.conditions.mjd)
-            obs_pa = approx_altaz2pa(alt, az, self.conditions.site.latitude_rad)
-            rotTelPos_expected = (obs_pa - observation['rotSkyPos']) % (2.*np.pi)
-            
-            if (rotTelPos_expected > self.rotator_limits[0]) & (rotTelPos_expected < self.rotator_limits[1]):
-                import pdb ;pdb.set_trace()
-                diff = np.abs(self.rotator_limits - rotTelPos_expected)
-                limit_indx = np.min(np.where(diff == np.min(diff))[0])
-                observation['rotSkyPos'] = (obs_pa - self.rotator_limits[limit_indx]) % (2.*np.pi)
+            # If we are limiting the camera rotator
+            if self.rotator_limits is not None:
+                alt, az = _approx_RaDec2AltAz(observation['RA'], observation['dec'], self.conditions.site.latitude_rad,
+                                              self.conditions.site.longitude_rad, mjd)
+                obs_pa = approx_altaz2pa(alt, az, self.conditions.site.latitude_rad)
+                rotTelPos_expected = (obs_pa - observation['rotSkyPos']) % (2.*np.pi)
+                if (rotTelPos_expected > self.rotator_limits[0]) & (rotTelPos_expected < self.rotator_limits[1]):
+                    diff = np.abs(self.rotator_limits - rotTelPos_expected)
+                    limit_indx = np.min(np.where(diff == np.min(diff))[0])
+                    observation['rotSkyPos'] = (obs_pa - self.rotator_limits[limit_indx]) % (2.*np.pi)
 
             return observation
 
