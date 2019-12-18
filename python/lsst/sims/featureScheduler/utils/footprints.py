@@ -19,7 +19,7 @@ from lsst.sims.utils import Site
 from lsst.utils import getPackageDir
 
 __all__ = ['ra_dec_hp_map', 'generate_all_sky', 'get_dustmap',
-           'WFD_healpixels', 'WFD_no_gp_healpixels', 'WFD_no_dust_healpixels',
+           'WFD_healpixels', 'WFD_no_gp_healpixels', 'WFD_bigsky_healpixels', 'WFD_no_dust_healpixels',
            'SCP_healpixels', 'NES_healpixels',
            'galactic_plane_healpixels', #'low_lat_plane_healpixels', 'bulge_healpixels',
            'magellanic_clouds_healpixels',
@@ -94,7 +94,7 @@ def generate_all_sky(nside=None, elevation_limit=20, mask=hp.UNSEEN):
             'gal_lat': gal_lat, 'gal_lon': gal_lon}
 
 
-def WFD_healpixels(nside=None, dec_min=-62.5, dec_max=2.5):
+def WFD_healpixels(nside=None, dec_min=-62.5, dec_max=3.6):
     """
     Define a region based on declination limits only.
 
@@ -106,7 +106,7 @@ def WFD_healpixels(nside=None, dec_min=-62.5, dec_max=2.5):
     dec_min : float, opt
         Minimum declination of the region (deg). Default -62.5.
     dec_max : float, opt
-        Maximum declination of the region (deg). Default 2.5.
+        Maximum declination of the region (deg). Default 3.6.
 
     Returns
     -------
@@ -125,7 +125,7 @@ def WFD_healpixels(nside=None, dec_min=-62.5, dec_max=2.5):
     return result
 
 
-def WFD_no_gp_healpixels(nside, dec_min=-62.5, dec_max=2.5,
+def WFD_no_gp_healpixels(nside, dec_min=-62.5, dec_max=3.6,
                          center_width=10., end_width=4., gal_long1=290., gal_long2=70.):
     """
     Define a wide fast deep region with a galactic plane limit.
@@ -160,7 +160,13 @@ def WFD_no_gp_healpixels(nside, dec_min=-62.5, dec_max=2.5,
     return sky
 
 
-def WFD_no_dust_healpixels(nside, dec_min=-72.5, dec_max=12.5, dust_limit=0.2):
+def WFD_bigsky_healpixels(nside):
+    sky = WFD_no_gp_healpixels(nside, dec_min=-72.25, dec_max=12.4, center_width=14.9,
+                               gal_long1=0, gal_long2=360)
+    return sky
+
+
+def WFD_no_dust_healpixels(nside, dec_min=-72.25, dec_max=12.4, dust_limit=0.19):
     """Define a WFD region with a dust extinction limit.
 
     Parameters
