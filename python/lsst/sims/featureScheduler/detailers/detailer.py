@@ -189,7 +189,9 @@ class Twilight_triple_detailer(Base_detailer):
             observation_list = observation_list[0:max_indx]
 
         # Repeat the observations n times
-        out_obs = observation_list * self.n_repeat
+        out_obs = []
+        for i in range(self.n_repeat):
+            out_obs.extend(copy.deepcopy(observation_list))
 
         return out_obs
 
