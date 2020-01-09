@@ -4,7 +4,7 @@ from lsst.sims.featureScheduler.utils import approx_altaz2pa, int_rounded
 import copy
 
 __all__ = ["Base_detailer", "Zero_rot_detailer", "Comcam_90rot_detailer", "Close_alt_detailer",
-           "Take_as_pairs_detailer", "Twilight_triple_detailer"]
+           "Take_as_pairs_detailer", "Twilight_triple_detailer", "Spider_rot_detailer"]
 
 
 class Base_detailer(object):
@@ -68,6 +68,23 @@ class Zero_rot_detailer(Base_detailer):
                                           conditions.site.longitude_rad, conditions.mjd)
             obs_pa = approx_altaz2pa(alt, az, conditions.site.latitude_rad)
             obs['rotSkyPos'] = obs_pa
+
+        return observation_list
+
+
+class Spider_rot_detailer(Base_detailer):
+    """
+    Set the camera rotation to +/- 45 degrees so diffraction spikes align along chip rows
+    and columns
+    """
+
+    def __call__(self, observation_list, conditions):
+        indx = int(conditions.night % 2)
+        rotTelPos = np.radians([45., 315.][indx])
+
+        for obs in observation_list:
+            obs['rotSkyPos'] = np.nan
+            obs['rotTelPos'] = rotTelPos
 
         return observation_list
 
