@@ -512,7 +512,7 @@ class Near_sun_twilight_basis_function(Base_basis_function):
         result = self.result.copy()
         good_pix = np.where((int_rounded(conditions.airmass) < self.max_airmass) &
                             (int_rounded(conditions.az_to_sun) < int_rounded(np.pi/2.)))
-        result[good_pix] = conditions.airmass[good_pix] / self.max_airmass
+        result[good_pix] = conditions.airmass[good_pix] / self.max_airmass.value
         return result
 
 

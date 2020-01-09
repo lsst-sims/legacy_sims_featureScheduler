@@ -348,7 +348,7 @@ class Blob_survey(Greedy_survey):
             obs['block_id'] = self.counter
             obs['flush_by_mjd'] = flush_time
             # Add the mjd for debugging
-            obs['mjd'] = conditions.mjd
+            # obs['mjd'] = conditions.mjd
             # XXX temp debugging line
             obs['survey_id'] = i
             observations.append(obs)

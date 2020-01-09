@@ -4,6 +4,10 @@ import numpy as np
 import healpy as hp
 from lsst.sims.utils import _hpid2RaDec
 from lsst.sims.featureScheduler.utils import hp_in_lsst_fov, set_default_nside, hp_in_comcam_fov, int_rounded
+from lsst.sims.utils import _approx_RaDec2AltAz
+from lsst.sims.featureScheduler.utils import approx_altaz2pa
+
+
 import logging
 
 
@@ -29,7 +33,7 @@ class Core_scheduler(object):
         generate a default if set to None.
     """
 
-    def __init__(self, surveys, nside=None, camera='LSST'):
+    def __init__(self, surveys, nside=None, camera='LSST', rotator_limits=[85., 275.]):
         """
         Parameters
         ----------
@@ -42,6 +46,7 @@ class Core_scheduler(object):
         camera : str ('LSST')
             Which camera to use for computing overlapping HEALpixels for an observation.
             Can be 'LSST' or 'comcam'
+        rotator_limits : sequence of floats
         """
         if nside is None:
             nside = set_default_nside()
@@ -49,8 +54,6 @@ class Core_scheduler(object):
         self.log = logging.getLogger("Core_scheduler")
         # initialize a queue of observations to request
         self.queue = []
-        # Are the observations in the queue part of a sequence.
-        self.queue_is_sequence = False
         # The indices of self.survey_lists that provided the last addition(s) to the queue
         self.survey_index = [None, None]
 
@@ -72,13 +75,13 @@ class Core_scheduler(object):
 
         # keep track of how many observations get flushed from the queue
         self.flushed = 0
+        self.rotator_limits = np.sort(np.radians(rotator_limits))
 
     def flush_queue(self):
         """"
         Like it sounds, clear any currently queued desired observations.
         """
         self.queue = []
-        self.queue_is_sequence = False
         self.survey_index = [None, None]
 
     def add_observation(self, observation):
@@ -127,14 +130,22 @@ class Core_scheduler(object):
                 result = True
         return result
 
-    def request_observation(self):
+    def request_observation(self, mjd=None):
         """
         Ask the scheduler what it wants to observe next
+
+        Paramters
+        ---------
+        mjd : float (None)
+            The Modified Julian Date. If None, it uses the MJD from the conditions from the last conditions update.
 
         Returns
         -------
         observation object (ra,dec,filter,rotangle)
+        Returns None if the queue fails to fill
         """
+        if mjd is None:
+            mjd = self.conditions.mjd
         if len(self.queue) == 0:
             self._fill_queue()
 
@@ -142,27 +153,24 @@ class Core_scheduler(object):
             return None
         else:
             # If the queue has gone stale, flush and refill. Zero means no flush_by was set.
-            if (int_rounded(self.conditions.mjd) > int_rounded(self.queue[0]['flush_by_mjd'])) & (self.queue[0]['flush_by_mjd'] != 0):
+            if (int_rounded(mjd) > int_rounded(self.queue[0]['flush_by_mjd'])) & (self.queue[0]['flush_by_mjd'] != 0):
                 self.flushed += len(self.queue)
                 self.flush_queue()
                 self._fill_queue()
             if len(self.queue) == 0:
                 return None
             observation = self.queue.pop(0)
-            if self.queue_is_sequence:
-                if self.survey_lists[self.survey_index[0]][self.survey_index[1]].check_continue(observation, self.conditions):
-                    return observation
-                else:
-                    self.log.warning('Sequence interrupted! Cleaning queue!')
-                    self.flush_queue()
-                    self._fill_queue()
-                    if len(self.queue) == 0:
-                        return None
-                    else:
-                        observation = self.queue.pop(0)
-                        return observation
-            else:
-                return observation
+            # If we are limiting the camera rotator
+            if self.rotator_limits is not None:
+                alt, az = _approx_RaDec2AltAz(observation['RA'], observation['dec'], self.conditions.site.latitude_rad,
+                                              self.conditions.site.longitude_rad, mjd)
+                obs_pa = approx_altaz2pa(alt, az, self.conditions.site.latitude_rad)
+                rotTelPos_expected = (obs_pa - observation['rotSkyPos']) % (2.*np.pi)
+                if (rotTelPos_expected > self.rotator_limits[0]) & (rotTelPos_expected < self.rotator_limits[1]):
+                    diff = np.abs(self.rotator_limits - rotTelPos_expected)
+                    limit_indx = np.min(np.where(diff == np.min(diff))[0])
+                    observation['rotSkyPos'] = (obs_pa - self.rotator_limits[limit_indx]) % (2.*np.pi)
+            return observation
 
     def _fill_queue(self):
         """
@@ -191,7 +199,6 @@ class Core_scheduler(object):
             # Survey return list of observations
             result = self.survey_lists[self.survey_index[0]][self.survey_index[1]].generate_observations(self.conditions)
             self.queue = result
-            self.queue_is_sequence = self.survey_lists[self.survey_index[0]][self.survey_index[1]].sequence
 
         if len(self.queue) == 0:
             self.log.warning('Failed to fill queue')

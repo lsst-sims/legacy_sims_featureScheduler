@@ -9,7 +9,7 @@ import lsst.sims.downtimeModel as downtimeModel
 from lsst.sims.seeingModel import SeeingData, SeeingModel
 from lsst.sims.cloudModel import CloudData
 from lsst.sims.featureScheduler.features import Conditions
-from lsst.sims.featureScheduler.utils import set_default_nside
+from lsst.sims.featureScheduler.utils import set_default_nside, approx_altaz2pa
 from lsst.ts.observatory.model import ObservatoryModel, Target
 from astropy.coordinates import EarthLocation
 from astropy.time import Time
@@ -643,6 +643,17 @@ class Model_observatory(object):
         else:
             return True, mjd
 
+    def _update_rotSkyPos(self, observation):
+        """If we have an undefined rotSkyPos, try to fill it out.
+        """
+        alt, az = _approx_RaDec2AltAz(observation['RA'], observation['dec'], self.site.latitude_rad,
+                                      self.site.longitude_rad, self.mjd)
+        obs_pa = approx_altaz2pa(alt, az, self.site.latitude_rad)
+        observation['rotSkyPos'] = (obs_pa + observation['rotTelPos']) % (2*np.pi)
+        observation['rotTelPos'] = 0.
+
+        return observation
+
     def observe(self, observation):
         """Try to make an observation
 
@@ -659,6 +670,9 @@ class Model_observatory(object):
         # Make sure the kinematic model is set to the correct mjd
         t = Time(self.mjd, format='mjd')
         self.observatory.update_state(t.unix)
+
+        if np.isnan(observation['rotSkyPos']):
+            observation = self._update_rotSkyPos(observation)
 
         target = Target(band_filter=observation['filter'], ra_rad=observation['RA'],
                         dec_rad=observation['dec'], ang_rad=observation['rotSkyPos'],

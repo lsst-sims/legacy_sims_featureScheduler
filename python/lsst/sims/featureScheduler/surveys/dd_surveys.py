@@ -56,7 +56,6 @@ class Deep_drilling_survey(BaseSurvey):
         self.survey_name = survey_name
         self.reward_value = reward_value
         self.flush_pad = flush_pad/60./24.  # To days
-        self.sequence = True  # Specifies the survey gives sequence of observations
         self.filter_sequence = []
         if type(sequence) == str:
             self.observations = []
@@ -195,7 +194,7 @@ def generate_dd_surveys(nside=None, nexp=2, detailers=None, reward_value=100):
     RA = 9.45
     dec = -44.
     survey_name = 'DD:ELAISS1'
-    ha_limits = ([0., 1.5], [21.5, 24.])
+    ha_limits = ([0., 1.5], [22.5, 24.])
     bfs = dd_bfs(RA, dec, survey_name, ha_limits)
     surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='rgizy',
                                         nvis=[20, 10, 20, 26, 20],
@@ -213,7 +212,7 @@ def generate_dd_surveys(nside=None, nexp=2, detailers=None, reward_value=100):
     survey_name = 'DD:XMM-LSS'
     RA = 35.708333
     dec = -4-45/60.
-    ha_limits = ([0., 1.5], [21.5, 24.])
+    ha_limits = ([0., 1.5], [22.5, 24.])
     bfs = dd_bfs(RA, dec, survey_name, ha_limits)
 
     surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='rgizy',
@@ -227,6 +226,7 @@ def generate_dd_surveys(nside=None, nexp=2, detailers=None, reward_value=100):
                                         nexp=nexp, detailers=detailers))
 
     # Extended Chandra Deep Field South
+    # XXX -- this one can pass too close to zenith
     RA = 53.125
     dec = -28.-6/60.
     survey_name = 'DD:ECDFS'
@@ -246,7 +246,7 @@ def generate_dd_surveys(nside=None, nexp=2, detailers=None, reward_value=100):
     RA = 150.1
     dec = 2.+10./60.+55/3600.
     survey_name = 'DD:COSMOS'
-    ha_limits = ([0., 2.5], [21.5, 24.])
+    ha_limits = ([0., 1.5], [22.5, 24.])
     bfs = dd_bfs(RA, dec, survey_name, ha_limits)
     surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='rgizy',
                                         nvis=[20, 10, 20, 26, 20],
@@ -262,7 +262,7 @@ def generate_dd_surveys(nside=None, nexp=2, detailers=None, reward_value=100):
     survey_name = 'DD:290'
     RA = 349.386443
     dec = -63.321004
-    ha_limits = ([0., 1.5], [21.5, 24.])
+    ha_limits = ([0., 1.5], [22.5, 24.])
     bfs = dd_bfs(RA, dec, survey_name, ha_limits)
     surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='rgizy',
                                         nvis=[20, 10, 20, 26, 20],
