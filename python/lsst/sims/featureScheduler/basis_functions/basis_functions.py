@@ -19,7 +19,7 @@ __all__ = ['Base_basis_function', 'Constant_basis_function', 'Target_map_basis_f
            'Template_generate_basis_function',
            'Footprint_nvis_basis_function', 'Third_observation_basis_function', 'Season_coverage_basis_function',
            'N_obs_per_year_basis_function', 'Cadence_in_season_basis_function', 'Near_sun_twilight_basis_function',
-           'N_obs_high_am_basis_function']
+           'N_obs_high_am_basis_function', 'Good_seeing_basis_function']
 
 
 class Base_basis_function(object):
@@ -1182,6 +1182,47 @@ class Map_modulo_basis_function(Base_basis_function):
     def _calc_value(self, conditions, indx=None):
         indx = np.max(conditions.night % self.mod_val)
         result = self.maps[indx]
+        return result
+
+
+class Good_seeing_basis_function(Base_basis_function):
+    """Drive observations in good seeing conditions"""
+
+    def __init__(self, nside=None, filtername='r', footprint=None, FWHMeff_limit=0.8,
+                 mag_diff=0.75):
+        super(Good_seeing_basis_function, self).__init__(nside=nside)
+
+        self.filtername = filtername
+        self.FWHMeff_limit = FWHMeff_limit
+        if footprint is None:
+            fp = utils.standard_goals(nside=nside)[filtername]
+        else:
+            fp = footprint
+        self.out_of_bounds = np.where(fp == 0)[0]
+        self.result = fp*0
+
+        self.mag_diff = mag_diff
+        self.survey_features = {}
+        self.survey_features['coadd_depth_all'] = features.Coadded_depth(filtername=filtername,
+                                                                         nside=nside)
+        self.survey_features['coadd_depth_good'] = features.Coadded_depth(filtername=filtername,
+                                                                          nside=nside,
+                                                                          FWHMeff_limit=FWHMeff_limit)
+
+    def _calc_value(self, conditions, **kwargs):
+        # Seeing is "bad"
+        if conditions.FWHMeff[self.filtername].min() > self.FWHMeff_limit:
+            return 0
+        result = self.result.copy()
+
+        diff = self.survey_features['coadd_depth_all'].feature - self.survey_features['coadd_depth_good'].feature
+        # Where are there things we want to observe?
+        good_pix = np.where((diff > self.mag_diff) &
+                            (conditions.FWHMeff[self.filtername] <= self.FWHMeff_limit))
+        # Hm, should this scale by the mag differences? Probably.
+        result[good_pix] = diff[good_pix]
+        result[self.out_of_bounds] = 0
+
         return result
 
 
