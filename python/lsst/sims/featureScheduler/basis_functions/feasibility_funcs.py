@@ -270,8 +270,8 @@ class Look_ahead_ddf_basis_function(Base_basis_function):
         self.ra_hours = RA/360.*24.
         self.HA_limits = np.array(ha_limits)
         self.sun_alt_limit = str(int(sun_alt_limit)).replace('-', 'n')
-        self.time_jump = time_jump / 60.  # To hours
-        self.time_needed = time_needed / 60.  # To hours
+        self.time_jump = time_jump / 60. / 24.  # To days
+        self.time_needed = time_needed / 60. / 24.  # To days
         self.aggressive_fraction = aggressive_fraction
         self.survey_features['Ntot'] = features.N_obs_survey()
         self.survey_features['N_survey'] = features.N_obs_survey(note=self.survey_name)
@@ -286,6 +286,18 @@ class Look_ahead_ddf_basis_function(Base_basis_function):
         if (target_HA > 12) & (target_HA < 24.-self.time_jump):
             if available_time > (self.time_needed + self.time_jump):
                 result = False
+                # If we paused for better conditions, but the moon will rise, turn things back on.
+                if conditions.moonAlt < 0:
+                    if conditions.moonrise > conditions.mjd:
+                        if (conditions.moonrise - conditions.mjd) > self.time_jump:
+                            result = True
+        # If the moon is up and will set soon, pause
+        if conditions.moonAlt > 0:
+            time_after_moonset = getattr(conditions, 'sun_' + self.sun_alt_limit + '_rising') - conditions.moonset
+            if conditions.moonset > self.time_jump:
+                if time_after_moonset > self.time_needed:
+                    result = False
+
         # If the survey has fallen far behind, be agressive and observe anytime it's up.
         if ratio < self.aggressive_fraction:
             result = True
