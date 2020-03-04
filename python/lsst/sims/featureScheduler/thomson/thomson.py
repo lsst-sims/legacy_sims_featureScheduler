@@ -34,8 +34,8 @@ def elec_potential(x0):
     Potential energy
     """
 
-    theta = x0[0:x0.size/2]
-    phi = x0[x0.size/2:]
+    theta = x0[0:int(x0.size/2)]
+    phi = x0[int(x0.size/2):]
 
     x, y, z = thetaphi2xyz(theta, phi)
     # Distance squared
@@ -72,6 +72,7 @@ def potential_single(coord0, x, y, z):
     U = np.sum(1./np.sqrt(dsq))
     return U
 
+
 def xyz2U(x, y, z):
     """
     compute the potential
@@ -88,6 +89,7 @@ def xyz2U(x, y, z):
     d = np.sqrt(dsq)
     U = np.sum(1./d)
     return U
+
 
 def iterate_potential_smart(x0, stepfrac=0.1):
     """
@@ -128,8 +130,8 @@ def iterate_potential_random(x0, stepsize=.05):
     Given a bunch of theta,phi values, shift things around to minimize potential
     """
 
-    theta = x0[0:x0.size/2]
-    phi = x0[x0.size/2:]
+    theta = x0[0:int(x0.size/2)]
+    phi = x0[int(x0.size/2):]
 
     x, y, z = thetaphi2xyz(theta, phi)
     # Distance squared
@@ -178,8 +180,8 @@ def ang_potential(x0):
     """
     If distance is computed along sphere rather than through 3-space.
     """
-    theta = x0[0:x0.size/2]
-    phi = np.pi/2-x0[x0.size/2:]
+    theta = x0[0:int(x0.size/2)]
+    phi = np.pi/2-x0[int(x0.size/2):]
 
     indices = np.triu_indices(theta.size, k=1)
 
@@ -232,8 +234,8 @@ def even_points(npts, use_fib_init=True, method='CG', potential_func=elec_potent
     min_fit = minimize(potential_func, x, method='CG', options={'maxiter': maxiter})
 
     x = min_fit.x
-    theta = x[0:x.size/2]
-    phi = x[x.size/2:]
+    theta = x[0:int(x.size/2)]
+    phi = x[int(x.size/2):]
     # Looks like I get the same energy values as https://en.wikipedia.org/wiki/Thomson_problem
     return theta, phi
 
