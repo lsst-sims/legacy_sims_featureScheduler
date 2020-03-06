@@ -241,7 +241,7 @@ def even_points(npts, use_fib_init=True, method='CG', potential_func=elec_potent
 
 
 def elec_potential_xyz(x0):
-    x0 = x0.reshape(3, x0.size/3)
+    x0 = x0.reshape(3, int(x0.size/3))
     x = x0[0, :]
     y = x0[1, :]
     z = x0[2, :]
@@ -264,7 +264,7 @@ def elec_potential_xyz(x0):
 
 
 def x02sphere(x0):
-    x0 = x0.reshape(3, x0.size/3)
+    x0 = x0.reshape(3, int(x0.size/3))
     x = x0[0, :]
     y = x0[1, :]
     z = x0[2, :]
@@ -278,7 +278,7 @@ def x02sphere(x0):
 
 
 def even_points_xyz(npts, use_fib_init=True, method='CG', potential_func=elec_potential_xyz, maxiter=None,
-                    callback=None):
+                    callback=None, verbose=True):
     """
     Distribute npts over a sphere and minimize their potential, making them
     "evenly" distributed
@@ -295,10 +295,18 @@ def even_points_xyz(npts, use_fib_init=True, method='CG', potential_func=elec_po
         phi = np.arccos(2.*np.random.rand(npts)-1.)
 
     x = np.concatenate(thetaphi2xyz(theta, phi))
+
+    if verbose:
+        print('initial potential=', elec_potential_xyz(x))
     # XXX--need to check if this is the best minimizer
     min_fit = minimize(potential_func, x, method='CG', options={'maxiter': maxiter}, callback=callback)
 
+    if verbose:
+        print('final potential=', elec_potential_xyz(min_fit.x))
+        print('niteration=', min_fit.nit)
+
     x = x02sphere(min_fit.x)
+
 
     # Looks like I get the same energy values as https://en.wikipedia.org/wiki/Thomson_problem
     return x
