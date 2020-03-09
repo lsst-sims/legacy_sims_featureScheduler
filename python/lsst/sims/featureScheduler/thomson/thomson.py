@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.optimize import minimize
 from lsst.sims.utils import _angularSeparation
+from numba import jit
 
 __all__ = ['thetaphi2xyz', 'even_points', 'elec_potential', 'ang_potential', 'fib_sphere_grid',
            'iterate_potential_random', 'iterate_potential_smart', 'even_points_xyz', 'elec_potential_xyz',
@@ -100,7 +101,6 @@ def iterate_potential_smart(x0, stepfrac=0.1):
     theta = x0[0:x0.size/2]
     phi = x0[x0.size/2:]
     x, y, z = thetaphi2xyz(theta, phi)
-    
     U_input = xyz2U(x, y, z)
 
     # Now to loop over each point, and find where it's potenital minimum would be, and move it 
@@ -263,6 +263,29 @@ def elec_potential_xyz(x0):
     return U
 
 
+@jit()
+def elec_p_xyx_loop(x0):
+    """do this with a brutal loop that can be numba ified
+    """
+    x0 = x0.reshape(3, int(x0.size/3))
+    x = x0[0, :]
+    y = x0[1, :]
+    z = x0[2, :]
+    U = 0.
+
+    r = np.sqrt(x**2 + y**2 + z**2)
+    x = x/r
+    y = y/r
+    z = z/r
+
+    npts = x.size
+    for i in range(npts-1):
+        for j in range(i+1, npts):
+            dsq = (x[i]-x[j])**2 + (y[i]-y[j])**2 + (z[i]-z[j])**2
+            U += 1./np.sqrt(dsq)
+    return U
+
+
 def x02sphere(x0):
     x0 = x0.reshape(3, int(x0.size/3))
     x = x0[0, :]
@@ -277,7 +300,7 @@ def x02sphere(x0):
     return np.concatenate((x, y, z))
 
 
-def even_points_xyz(npts, use_fib_init=True, method='CG', potential_func=elec_potential_xyz, maxiter=None,
+def even_points_xyz(npts, use_fib_init=True, method='CG', potential_func=elec_p_xyx_loop, maxiter=None,
                     callback=None, verbose=True):
     """
     Distribute npts over a sphere and minimize their potential, making them
@@ -307,8 +330,5 @@ def even_points_xyz(npts, use_fib_init=True, method='CG', potential_func=elec_po
 
     x = x02sphere(min_fit.x)
 
-
     # Looks like I get the same energy values as https://en.wikipedia.org/wiki/Thomson_problem
     return x
-
-
