@@ -8,7 +8,7 @@ from lsst.sims.featureScheduler.utils import hp_in_lsst_fov, int_rounded
 
 __all__ = ['Zenith_mask_basis_function', 'Zenith_shadow_mask_basis_function',
            'Moon_avoidance_basis_function', 'Map_cloud_basis_function',
-           'Planet_mask_basis_function']
+           'Planet_mask_basis_function', 'Mask_azimuth_basis_function']
 
 
 class Zenith_mask_basis_function(Base_basis_function):
@@ -238,3 +238,22 @@ class Map_cloud_basis_function(Base_basis_function):
         result[clouded] = self.out_of_bounds_val
 
         return result
+
+
+class Mask_azimuth_basis_function(Base_basis_function):
+    """Mask pixels based on azimuth
+    """
+    def __init__(self, nside=None, out_of_bounds_val=np.nan, az_min=0., az_max=180.):
+        super(Mask_azimuth_basis_function, self).__init__(nside=nside)
+        self.az_min = np.radians(az_min)
+        self.az_max = np.radians(az_max)
+        self.out_of_bounds_val = out_of_bounds_val
+        self.result = np.ones(hp.nside2npix(self.nside))
+
+    def _calc_value(self, conditions, indx=None):
+        to_mask = np.where((conditions.az > self.az_min) & (conditions.az < self.az_max))[0]
+        result = self.result.copy()
+        result[to_mask] = self.out_of_bounds_val
+
+        return result
+
