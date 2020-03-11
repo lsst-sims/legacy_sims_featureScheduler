@@ -1,7 +1,10 @@
 import numpy as np
 from scipy.optimize import minimize
 from lsst.sims.utils import _angularSeparation
-from numba import jit
+try:
+    from numba import jit
+except ImportError:
+    pass
 
 __all__ = ['thetaphi2xyz', 'even_points', 'elec_potential', 'ang_potential', 'fib_sphere_grid',
            'iterate_potential_random', 'iterate_potential_smart', 'even_points_xyz', 'elec_potential_xyz',
