@@ -160,7 +160,7 @@ class TestFeatures(unittest.TestCase):
         # Make sure some greedy executed
         assert('' in observations['note'])
         # Check that the a DD was observed
-        assert('DD:ECDFS' in observations['note'])
+        assert('DD:ELAISS1' in observations['note'])
         # Make sure a few different filters were observed
         assert(len(np.unique(observations['filter'])) > 3)
         # Make sure lots of observations executed
