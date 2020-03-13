@@ -4,7 +4,7 @@ from lsst.sims.utils import _angularSeparation
 try:
     from numba import jit
 except ImportError:
-    pass
+    jit = None
 
 __all__ = ['thetaphi2xyz', 'even_points', 'elec_potential', 'ang_potential', 'fib_sphere_grid',
            'iterate_potential_random', 'iterate_potential_smart', 'even_points_xyz', 'elec_potential_xyz',
