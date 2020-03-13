@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.optimize import minimize
 from lsst.sims.utils import _angularSeparation
+from numba import jit
 
 
 __all__ = ['thetaphi2xyz', 'even_points', 'elec_potential', 'ang_potential', 'fib_sphere_grid',
@@ -263,6 +264,7 @@ def elec_potential_xyz(x0):
     return U
 
 
+@jit()
 def elec_p_xyx_loop(x0):
     """do this with a brutal loop that can be numba ified
     """
