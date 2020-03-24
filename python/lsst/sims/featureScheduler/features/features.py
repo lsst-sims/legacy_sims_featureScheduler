@@ -396,9 +396,9 @@ class N_obs_night(BaseSurveyFeature):
         self.night = None
 
     def add_observation(self, observation, indx=None):
-        if observation['night'][0] != self.night:
+        if observation['night'] != self.night:
             self.feature *= 0
-            self.night = observation['night'][0]
+            self.night = observation['night']
         if observation['filter'][0] in self.filtername:
             self.feature[indx] += 1
 
