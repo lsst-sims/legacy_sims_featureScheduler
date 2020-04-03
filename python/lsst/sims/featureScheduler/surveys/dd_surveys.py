@@ -119,6 +119,9 @@ class Deep_drilling_survey(BaseSurvey):
         if self._check_feasibility(conditions):
             result = copy.deepcopy(self.observations)
 
+            # Toss any filters that are not currently loaded
+            result = [obs for obs in result if obs['filter'] in conditions.mounted_filters]
+
             if self.filter_match_shuffle:
                 filters_remaining = list(self.filter_indices.keys())
                 random.shuffle(filters_remaining)

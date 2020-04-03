@@ -329,21 +329,30 @@ class N_observations_current_season(BaseSurveyFeature):
 class Coadded_depth(BaseSurveyFeature):
     """
     Track the co-added depth that has been reached accross the sky
+
+    Parameters
+    ----------
+    FWHMeff_limit : float (100)
+        The effective FWHM of the seeing (arcsecond). Images will only be added to the
+        coadded depth if the observation FWHM is less than or equal to the limit.  Default 100.
     """
-    def __init__(self, filtername='r', nside=None):
+    def __init__(self, filtername='r', nside=None, FWHMeff_limit=100.):
         if nside is None:
             nside = utils.set_default_nside()
         self.filtername = filtername
+        self.FWHMeff_limit = FWHMeff_limit
         # Starting at limiting mag of zero should be fine.
         self.feature = np.zeros(hp.nside2npix(nside), dtype=float)
 
     def add_observation(self, observation, indx=None):
 
-        if observation['filter'][0] == self.filtername:
-            m5 = m5_flat_sed(observation['filter'][0], observation['skybrightness'][0],
-                             observation['FWHMeff'][0], observation['exptime'][0],
-                             observation['airmass'][0])
-            self.feature[indx] = 1.25 * np.log10(10.**(0.8*self.feature[indx]) + 10.**(0.8*m5))
+        if observation['filter'] == self.filtername:
+            if observation['FWHMeff'] <= self.FWHMeff_limit:
+                m5 = m5_flat_sed(observation['filter'], observation['skybrightness'],
+                                 observation['FWHMeff'], observation['exptime'],
+                                 observation['airmass'])
+
+                self.feature[indx] = 1.25 * np.log10(10.**(0.8*self.feature[indx]) + 10.**(0.8*m5))
 
 
 class Last_observed(BaseSurveyFeature):
@@ -387,9 +396,9 @@ class N_obs_night(BaseSurveyFeature):
         self.night = None
 
     def add_observation(self, observation, indx=None):
-        if observation['night'][0] != self.night:
+        if observation['night'] != self.night:
             self.feature *= 0
-            self.night = observation['night'][0]
+            self.night = observation['night']
         if observation['filter'][0] in self.filtername:
             self.feature[indx] += 1
 
