@@ -401,6 +401,8 @@ class N_obs_night(BaseSurveyFeature):
             self.night = observation['night']
         if observation['filter'][0] in self.filtername:
             self.feature[indx] += 1
+        if (self.filtername == '') | (self.filtername is None):
+            self.feature[indx] += 1
 
 
 class Pair_in_night(BaseSurveyFeature):
