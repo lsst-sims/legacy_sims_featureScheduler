@@ -258,7 +258,7 @@ class BaseMarkovDF_survey(BaseSurvey):
         """If we want to smooth the reward function.
         """
         if hp.isnpixok(self.reward.size):
-            self.reward_smooth = hp.sphtfunc.smoothing(self.reward.filled(),
+            self.reward_smooth = hp.sphtfunc.smoothing(self.reward,
                                                        fwhm=self.smoothing_kernel,
                                                        verbose=False)
             good = ~np.isnan(self.reward_smooth)
@@ -279,11 +279,12 @@ class BaseMarkovDF_survey(BaseSurvey):
         else:
             # If not feasable, negative infinity reward
             self.reward = -np.inf
+            return self.reward
         if self.smoothing_kernel is not None:
             self.smooth_reward()
-            return self.reward_smooth
-        else:
-            return self.reward
+            self.reward = self.reward_smooth
+            
+        return self.reward
 
     def generate_observations_rough(self, conditions):
 

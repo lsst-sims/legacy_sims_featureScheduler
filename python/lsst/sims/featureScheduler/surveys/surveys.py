@@ -277,6 +277,8 @@ class Blob_survey(Greedy_survey):
 
         # Now that we have the reward map,
         # Note, using nanmax, so masked pixels might be included in the pointing.
+        # I guess I should document that it's not "NaN pixels can't be observed", but
+        # "non-NaN pixles CAN be observed", which probably is not intuitive.
         potential_hp = np.where(~np.isnan(self.reward) == True)
         ufields, reward_by_field = int_binned_stat(self.hp2fields[potential_hp],
                                                    self.reward[potential_hp],
