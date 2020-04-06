@@ -6,7 +6,7 @@ from lsst.sims.featureScheduler.surveys import BaseMarkovDF_survey
 from lsst.sims.featureScheduler.utils import (int_binned_stat, int_rounded,
                                               gnomonic_project_toxy, tsp_convex)
 import copy
-from lsst.sims.utils import _angularSeparation, _hpid2RaDec, _approx_RaDec2AltAz
+from lsst.sims.utils import _angularSeparation, _hpid2RaDec, _approx_RaDec2AltAz, hp_grow_sort
 
 __all__ = ['Greedy_survey', 'Blob_survey']
 
@@ -284,14 +284,27 @@ class Blob_survey(Greedy_survey):
         ufields, reward_by_field = int_binned_stat(self.hp2fields[potential_hp],
                                                    self.reward[potential_hp],
                                                    statistic=np.nanmax)
-        # chop off any nans
-        not_nans = np.where(~np.isnan(reward_by_field) == True)
-        ufields = ufields[not_nans]
-        reward_by_field = reward_by_field[not_nans]
+        valid_fields = ufields[~np.isnan(ufields)]
 
-        order = np.argsort(reward_by_field)
-        ufields = ufields[order][::-1][0:self.nvisit_block]
-        self.best_fields = ufields
+
+        ordered_hp = hp_grow_sort(self.reward)
+        ordered_fields = self.hp2fields[ordered_hp]
+        # Remove duplicate field pointings
+        _u_of, u_indx = np.unique(ordered_fields, return_index=True)
+        best_fields = ordered_fields[u_indx]
+        # remove any pointings that have a NaN reward
+        xy, x_ind, y_ind = np.intersect1d(best_fields, valid_fields, return_indices=True)
+
+        self.best_fields = best_fields[x_ind][0:self.nvisit_block]
+
+        # chop off any nans
+        #not_nans = np.where(~np.isnan(reward_by_field) == True)
+        #ufields = ufields[not_nans]
+        #reward_by_field = reward_by_field[not_nans]
+
+        #order = np.argsort(reward_by_field)
+        #ufields = ufields[order][::-1][0:self.nvisit_block]
+        #self.best_fields = ufields
 
         if len(self.best_fields) == 0:
             # everything was nans, or self.nvisit_block was zero
@@ -304,6 +317,7 @@ class Blob_survey(Greedy_survey):
                                                         conditions.site.longitude_rad,
                                                         conditions.mjd,
                                                         lmst=conditions.lmst)
+
 
         # Let's find a good spot to project the points to a plane
         mid_alt = (np.max(pointing_alt) - np.min(pointing_alt))/2.
