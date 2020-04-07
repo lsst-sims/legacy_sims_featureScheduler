@@ -106,6 +106,8 @@ class Blob_survey(Greedy_survey):
         Scale the block size to fill up to twilight. Set to False if running in twilight
     min_area : float (None)
         If set, demand the reward function have an area of so many square degrees before executing
+    distance_weight : float (0.)
+        The amount to weight distance from the maximum field when constructing the blob (unitless)
     """
     def __init__(self, basis_functions, basis_weights,
                  filtername1='r', filtername2='g',
@@ -117,7 +119,7 @@ class Blob_survey(Greedy_survey):
                  smoothing_kernel=None, nside=None,
                  dither=True, seed=42, ignore_obs=None,
                  survey_note='blob', detailers=None, camera='LSST',
-                 twilight_scale=True, min_area=None):
+                 twilight_scale=True, min_area=None, distance_weight=0.):
 
         if nside is None:
             nside = set_default_nside()
@@ -167,6 +169,21 @@ class Blob_survey(Greedy_survey):
         # If we are only using one filter, this could be useful
         if (self.filtername2 is None) | (self.filtername1 == self.filtername2):
             self.filtername = self.filtername1
+
+        self.distance_weight = distance_weight
+        if distance_weight > 0:
+            # Construct an array to look up distance between i,jth fields
+            nfields = self.fields.size
+            ra_array = np.zeros((nfields, nfields), dtype=float)
+            dec_array = np.zeros((nfields, nfields), dtype=float)
+
+            # Broadcast to fill large array
+            ra_array[:] = self.fields['RA']
+            dec_array[:] = self.fields['dec']
+
+            # This works because we use full-sky rotations for dithering, so
+            # these distances are invariant
+            self.field_distances = _angularSeparation(ra_array, dec_array, ra_array.T, dec_array.T)
 
     def _check_feasibility(self, conditions):
         """
@@ -288,7 +305,13 @@ class Blob_survey(Greedy_survey):
         ufields = ufields[not_nans]
         reward_by_field = reward_by_field[not_nans]
 
-        order = np.argsort(reward_by_field)
+        if self.distance_weight > 0:
+            max_field = ufields[np.where(reward_by_field == reward_by_field.max())].max()
+            field_distances = self.field_distances[max_field][ufields]
+            distance_reward = 1./field_distances * self.distance_weight
+            order = np.argsort(reward_by_field/np.max(reward_by_field) + distance_reward)
+        else:
+            order = np.argsort(reward_by_field)
         ufields = ufields[order][::-1][0:self.nvisit_block]
         self.best_fields = ufields
 
