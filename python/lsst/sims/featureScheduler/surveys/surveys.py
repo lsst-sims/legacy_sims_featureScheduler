@@ -275,6 +275,7 @@ class Blob_survey(Greedy_survey):
             self._spin_fields()
             self.night = conditions.night.copy()
 
+
         # Now that we have the reward map,
         # Note, using nanmax, so masked pixels might be included in the pointing.
         # I guess I should document that it's not "NaN pixels can't be observed", but
@@ -287,24 +288,17 @@ class Blob_survey(Greedy_survey):
         valid_fields = ufields[~np.isnan(ufields)]
 
 
+
+        # Note, returns highest first
         ordered_hp = hp_grow_sort(self.reward)
         ordered_fields = self.hp2fields[ordered_hp]
+        orig_order = np.arange(ordered_fields.size)
         # Remove duplicate field pointings
         _u_of, u_indx = np.unique(ordered_fields, return_index=True)
-        best_fields = ordered_fields[u_indx]
-        # remove any pointings that have a NaN reward
-        xy, x_ind, y_ind = np.intersect1d(best_fields, valid_fields, return_indices=True)
+        new_order = np.argsort(orig_order[u_indx])
+        best_fields = ordered_fields[u_indx[new_order]]
 
-        self.best_fields = best_fields[x_ind][0:self.nvisit_block]
-
-        # chop off any nans
-        #not_nans = np.where(~np.isnan(reward_by_field) == True)
-        #ufields = ufields[not_nans]
-        #reward_by_field = reward_by_field[not_nans]
-
-        #order = np.argsort(reward_by_field)
-        #ufields = ufields[order][::-1][0:self.nvisit_block]
-        #self.best_fields = ufields
+        self.best_fields = best_fields[0:self.nvisit_block]
 
         if len(self.best_fields) == 0:
             # everything was nans, or self.nvisit_block was zero
@@ -317,7 +311,6 @@ class Blob_survey(Greedy_survey):
                                                         conditions.site.longitude_rad,
                                                         conditions.mjd,
                                                         lmst=conditions.lmst)
-
 
         # Let's find a good spot to project the points to a plane
         mid_alt = (np.max(pointing_alt) - np.min(pointing_alt))/2.
