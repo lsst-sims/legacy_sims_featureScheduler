@@ -1,6 +1,7 @@
 import numpy as np
 from lsst.sims.featureScheduler.utils import (empty_observation, set_default_nside)
 import healpy as hp
+import matplotlib.pylab as plt
 from lsst.sims.featureScheduler.surveys import BaseMarkovDF_survey
 from lsst.sims.featureScheduler.utils import (int_binned_stat, int_rounded,
                                               gnomonic_project_toxy, tsp_convex)
@@ -228,7 +229,6 @@ class Blob_survey(Greedy_survey):
                 basis_value = bf(conditions, indx=indx)
                 self.reward += basis_value*weight
                 # might be faster to pull this out into the feasabiliity check?
-
             if self.smoothing_kernel is not None:
                 self.smooth_reward()
 
@@ -279,6 +279,7 @@ class Blob_survey(Greedy_survey):
         # Note, using nanmax, so masked pixels might be included in the pointing.
         # I guess I should document that it's not "NaN pixels can't be observed", but
         # "non-NaN pixles CAN be observed", which probably is not intuitive.
+
         potential_hp = np.where(~np.isnan(self.reward) == True)
         ufields, reward_by_field = int_binned_stat(self.hp2fields[potential_hp],
                                                    self.reward[potential_hp],

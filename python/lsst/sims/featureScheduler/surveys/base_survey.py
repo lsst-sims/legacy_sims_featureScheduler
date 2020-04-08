@@ -258,12 +258,18 @@ class BaseMarkovDF_survey(BaseSurvey):
         """If we want to smooth the reward function.
         """
         if hp.isnpixok(self.reward.size):
-            self.reward_smooth = hp.sphtfunc.smoothing(self.reward,
+            # Need to swap NaNs to hp.UNSEEN so smoothing doesn't spread mask
+            reward_temp = self.reward + 0
+            mask = np.isnan(reward_temp)
+            reward_temp[mask] = hp.UNSEEN
+            self.reward_smooth = hp.sphtfunc.smoothing(reward_temp,
                                                        fwhm=self.smoothing_kernel,
                                                        verbose=False)
-            good = ~np.isnan(self.reward_smooth)
+            self.reward_smooth[mask] = np.nan
+            self.reward = self.reward_smooth
+            #good = ~np.isnan(self.reward_smooth)
             # Round off to prevent strange behavior early on
-            self.reward_smooth[good] = np.round(self.reward_smooth[good], decimals=4)
+            #self.reward_smooth[good] = np.round(self.reward_smooth[good], decimals=4)
 
     def calc_reward_function(self, conditions):
         self.reward_checked = True
@@ -282,8 +288,7 @@ class BaseMarkovDF_survey(BaseSurvey):
             return self.reward
         if self.smoothing_kernel is not None:
             self.smooth_reward()
-            self.reward = self.reward_smooth
-            
+
         return self.reward
 
     def generate_observations_rough(self, conditions):
