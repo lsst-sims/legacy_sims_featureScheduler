@@ -263,6 +263,25 @@ class Blob_survey(Greedy_survey):
         self.reward_checked = True
         return self.reward
 
+    def simple_order_sort(self):
+        """Fall back if we can't link contiguous blobs in the reward map
+        """
+
+        # Assuming reward has already been calcualted
+
+        potential_hp = np.where(~np.isnan(self.reward) == True)
+        ufields, reward_by_field = int_binned_stat(self.hp2fields[potential_hp],
+                                                   self.reward[potential_hp],
+                                                   statistic=np.nanmax)
+        # chop off any nans
+        not_nans = np.where(~np.isnan(reward_by_field) == True)
+        ufields = ufields[not_nans]
+        reward_by_field = reward_by_field[not_nans]
+
+        order = np.argsort(reward_by_field)
+        ufields = ufields[order][::-1][0:self.nvisit_block]
+        self.best_fields = ufields
+
     def generate_observations_rough(self, conditions):
         """
         Find a good block of observations.
@@ -298,7 +317,11 @@ class Blob_survey(Greedy_survey):
         new_order = np.argsort(orig_order[u_indx])
         best_fields = ordered_fields[u_indx[new_order]]
 
-        self.best_fields = best_fields[0:self.nvisit_block]
+        if np.size(best_fields) < self.nvisit_block:
+            # Let's fall back to the simple sort
+            self.simple_order_sort()
+        else:
+            self.best_fields = best_fields[0:self.nvisit_block]
 
         if len(self.best_fields) == 0:
             # everything was nans, or self.nvisit_block was zero
