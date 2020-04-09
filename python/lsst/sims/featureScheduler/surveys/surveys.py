@@ -312,6 +312,8 @@ class Blob_survey(Greedy_survey):
                                                         conditions.mjd,
                                                         lmst=conditions.lmst)
 
+        if np.min(pointing_alt) < 0:
+            import pdb ; pdb.set_trace()
         # Let's find a good spot to project the points to a plane
         mid_alt = (np.max(pointing_alt) - np.min(pointing_alt))/2.
 
