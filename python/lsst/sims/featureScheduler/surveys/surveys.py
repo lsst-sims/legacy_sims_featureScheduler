@@ -6,7 +6,7 @@ from lsst.sims.featureScheduler.surveys import BaseMarkovDF_survey
 from lsst.sims.featureScheduler.utils import (int_binned_stat, int_rounded,
                                               gnomonic_project_toxy, tsp_convex)
 import copy
-from lsst.sims.utils import _angularSeparation, _hpid2RaDec, _approx_RaDec2AltAz, hp_grow_sort
+from lsst.sims.utils import _angularSeparation, _hpid2RaDec, _approx_RaDec2AltAz, hp_grow_argsort
 
 __all__ = ['Greedy_survey', 'Blob_survey']
 
@@ -290,7 +290,7 @@ class Blob_survey(Greedy_survey):
 
 
         # Note, returns highest first
-        ordered_hp = hp_grow_sort(self.reward)
+        ordered_hp = hp_grow_argsort(self.reward)
         ordered_fields = self.hp2fields[ordered_hp]
         orig_order = np.arange(ordered_fields.size)
         # Remove duplicate field pointings
@@ -312,8 +312,6 @@ class Blob_survey(Greedy_survey):
                                                         conditions.mjd,
                                                         lmst=conditions.lmst)
 
-        if np.min(pointing_alt) < 0:
-            import pdb ; pdb.set_trace()
         # Let's find a good spot to project the points to a plane
         mid_alt = (np.max(pointing_alt) - np.min(pointing_alt))/2.
 
