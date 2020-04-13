@@ -6,7 +6,7 @@ from lsst.sims.featureScheduler.surveys import BaseMarkovDF_survey
 from lsst.sims.featureScheduler.utils import (int_binned_stat, int_rounded,
                                               gnomonic_project_toxy, tsp_convex)
 import copy
-from lsst.sims.utils import _angularSeparation, _hpid2RaDec, _approx_RaDec2AltAz
+from lsst.sims.utils import _angularSeparation, _hpid2RaDec, _approx_RaDec2AltAz, hp_grow_argsort
 
 __all__ = ['Greedy_survey', 'Blob_survey']
 
@@ -263,6 +263,29 @@ class Blob_survey(Greedy_survey):
         self.reward_checked = True
         return self.reward
 
+    def simple_order_sort(self):
+        """Fall back if we can't link contiguous blobs in the reward map
+        """
+
+        # Assuming reward has already been calcualted
+
+        potential_hp = np.where(~np.isnan(self.reward) == True)
+
+        # Note, using nanmax, so masked pixels might be included in the pointing.
+        # I guess I should document that it's not "NaN pixels can't be observed", but
+        # "non-NaN pixles CAN be observed", which probably is not intuitive.
+        ufields, reward_by_field = int_binned_stat(self.hp2fields[potential_hp],
+                                                   self.reward[potential_hp],
+                                                   statistic=np.nanmax)
+        # chop off any nans
+        not_nans = np.where(~np.isnan(reward_by_field) == True)
+        ufields = ufields[not_nans]
+        reward_by_field = reward_by_field[not_nans]
+
+        order = np.argsort(reward_by_field)
+        ufields = ufields[order][::-1][0:self.nvisit_block]
+        self.best_fields = ufields
+
     def generate_observations_rough(self, conditions):
         """
         Find a good block of observations.
@@ -275,23 +298,20 @@ class Blob_survey(Greedy_survey):
             self._spin_fields()
             self.night = conditions.night.copy()
 
-        # Now that we have the reward map,
-        # Note, using nanmax, so masked pixels might be included in the pointing.
-        # I guess I should document that it's not "NaN pixels can't be observed", but
-        # "non-NaN pixles CAN be observed", which probably is not intuitive.
+        # Note, returns highest first
+        ordered_hp = hp_grow_argsort(self.reward)
+        ordered_fields = self.hp2fields[ordered_hp]
+        orig_order = np.arange(ordered_fields.size)
+        # Remove duplicate field pointings
+        _u_of, u_indx = np.unique(ordered_fields, return_index=True)
+        new_order = np.argsort(orig_order[u_indx])
+        best_fields = ordered_fields[u_indx[new_order]]
 
-        potential_hp = np.where(~np.isnan(self.reward) == True)
-        ufields, reward_by_field = int_binned_stat(self.hp2fields[potential_hp],
-                                                   self.reward[potential_hp],
-                                                   statistic=np.nanmax)
-        # chop off any nans
-        not_nans = np.where(~np.isnan(reward_by_field) == True)
-        ufields = ufields[not_nans]
-        reward_by_field = reward_by_field[not_nans]
-
-        order = np.argsort(reward_by_field)
-        ufields = ufields[order][::-1][0:self.nvisit_block]
-        self.best_fields = ufields
+        if np.size(best_fields) < self.nvisit_block:
+            # Let's fall back to the simple sort
+            self.simple_order_sort()
+        else:
+            self.best_fields = best_fields[0:self.nvisit_block]
 
         if len(self.best_fields) == 0:
             # everything was nans, or self.nvisit_block was zero
