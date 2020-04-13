@@ -270,6 +270,10 @@ class Blob_survey(Greedy_survey):
         # Assuming reward has already been calcualted
 
         potential_hp = np.where(~np.isnan(self.reward) == True)
+
+        # Note, using nanmax, so masked pixels might be included in the pointing.
+        # I guess I should document that it's not "NaN pixels can't be observed", but
+        # "non-NaN pixles CAN be observed", which probably is not intuitive.
         ufields, reward_by_field = int_binned_stat(self.hp2fields[potential_hp],
                                                    self.reward[potential_hp],
                                                    statistic=np.nanmax)
@@ -293,20 +297,6 @@ class Blob_survey(Greedy_survey):
         if self.dither & (conditions.night != self.night):
             self._spin_fields()
             self.night = conditions.night.copy()
-
-
-        # Now that we have the reward map,
-        # Note, using nanmax, so masked pixels might be included in the pointing.
-        # I guess I should document that it's not "NaN pixels can't be observed", but
-        # "non-NaN pixles CAN be observed", which probably is not intuitive.
-
-        potential_hp = np.where(~np.isnan(self.reward) == True)
-        ufields, reward_by_field = int_binned_stat(self.hp2fields[potential_hp],
-                                                   self.reward[potential_hp],
-                                                   statistic=np.nanmax)
-        valid_fields = ufields[~np.isnan(ufields)]
-
-
 
         # Note, returns highest first
         ordered_hp = hp_grow_argsort(self.reward)
