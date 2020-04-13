@@ -558,8 +558,9 @@ class Model_observatory(object):
                                                                  extrapolate=True)[observation['filter'][0]]
 
         observation['fivesigmadepth'] = m5_flat_sed(observation['filter'][0], observation['skybrightness'],
-                                                    observation['FWHMeff'], observation['exptime'],
-                                                    observation['airmass'])
+                                                    observation['FWHMeff'],
+                                                    observation['exptime']/observation['nexp'],
+                                                    observation['airmass'], nexp=observation['nexp'])
 
         lmst, last = calcLmstLast(self.mjd, self.site.longitude_rad)
         observation['lmst'] = lmst
