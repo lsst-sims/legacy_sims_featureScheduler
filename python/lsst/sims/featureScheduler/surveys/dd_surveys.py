@@ -34,9 +34,6 @@ class Deep_drilling_survey(BaseSurvey):
         The reward value to report if it is able to start (unitless).
     readtime : float (2.)
         Readout time for computing approximate time of observing the sequence. (seconds)
-    filter_match_shuffle : bool (True)
-        If True, switch up the order filters are executed in (first sequence will be currently
-        loaded filter if possible)
     flush_pad : float (30.)
         How long to hold observations in the queue after they were expected to be completed (minutes).
     """
@@ -45,7 +42,7 @@ class Deep_drilling_survey(BaseSurvey):
                  nvis=[20, 10, 20, 26, 20],
                  exptime=30., nexp=2, ignore_obs=None, survey_name='DD',
                  reward_value=None, readtime=2., filter_change_time=120.,
-                 nside=None, filter_match_shuffle=True, flush_pad=30., seed=42, detailers=None):
+                 nside=None, flush_pad=30., seed=42, detailers=None):
         super(Deep_drilling_survey, self).__init__(nside=nside, basis_functions=basis_functions,
                                                    detailers=detailers, ignore_obs=ignore_obs)
         random.seed(a=seed)
@@ -69,20 +66,20 @@ class Deep_drilling_survey(BaseSurvey):
                     obs['nexp'] = nexp
                     obs['note'] = survey_name
                     self.observations.append(obs)
-                    self.filter_sequence.append(filtername)
         else:
             self.observations = sequence
-            self.filter_sequence = [obs['filter'] for obs in sequence]
+
+        # Let's just make this an array for ease of use
+        self.observations = np.concatenate(self.observations)
+        order = np.argsort(self.observations['filter'])
+        self.observations = self.observations[order]
+
+        n_filter_change = np.size(np.unique(self.observations['filter']))
 
         # Make an estimate of how long a seqeunce will take. Assumes no major rotational or spatial
         # dithering slowing things down.
-        self.approx_time = np.sum([o['exptime']+readtime*o['nexp'] for o in self.observations])/3600./24. \
-                           + filter_change_time*len(sequence)/3600./24.  # to days
-        self.filter_match_shuffle = filter_match_shuffle
-        self.filter_indices = {}
-        self.filter_sequence = np.array(self.filter_sequence)
-        for filtername in np.unique(self.filter_sequence):
-            self.filter_indices[filtername] = np.where(self.filter_sequence == filtername)[0]
+        self.approx_time = np.sum(self.observations['exptime']+readtime*self.observations['nexp'])/3600./24. \
+                           + filter_change_time*n_filter_change/3600./24.  # to days
 
         if self.reward_value is None:
             self.extra_features['Ntot'] = features.N_obs_survey()
@@ -119,22 +116,21 @@ class Deep_drilling_survey(BaseSurvey):
         if self._check_feasibility(conditions):
             result = copy.deepcopy(self.observations)
 
-            # Toss any filters that are not currently loaded
-            result = [obs for obs in result if obs['filter'] in conditions.mounted_filters]
+            # Set the flush_by
+            result['flush_by_mjd'] = conditions.mjd + self.approx_time + self.flush_pad
 
-            if self.filter_match_shuffle:
-                filters_remaining = list(self.filter_indices.keys())
-                random.shuffle(filters_remaining)
-                # If we want to observe the currrent filter, put it first
-                if conditions.current_filter in filters_remaining:
-                    filters_remaining.insert(0, filters_remaining.pop(filters_remaining.index(conditions.current_filter)))
-                final_result = []
-                for filtername in filters_remaining:
-                    final_result.extend(result[np.min(self.filter_indices[filtername]):np.max(self.filter_indices[filtername])+1])
-                result = final_result
-            # Let's set the mjd to flush the queue by
-            for i, obs in enumerate(result):
-                result[i]['flush_by_mjd'] = conditions.mjd + self.approx_time + self.flush_pad
+            # remove filters that are not mounted
+            mask = np.isin(result['filter'], conditions.mounted_filters)
+            result = result[mask]
+            # Put current loaded filter first
+            ind1 = np.where(result['filter'] == conditions.current_filter)[0]
+            ind2 = np.where(result['filter'] != conditions.current_filter)[0]
+            result = result[ind1.tolist() + (ind2.tolist())]
+
+            # convert to list of array. Arglebargle, don't understand why I need a reshape there
+            final_result = [row.reshape(1,) for row in result]
+            result = final_result
+
         return result
 
 
