@@ -40,7 +40,7 @@ class Deep_drilling_survey(BaseSurvey):
 
     def __init__(self, basis_functions, RA, dec, sequence='rgizy',
                  nvis=[20, 10, 20, 26, 20],
-                 exptime=30., nexp=2, ignore_obs=None, survey_name='DD',
+                 exptime=30., u_exptime=30., nexp=2, ignore_obs=None, survey_name='DD',
                  reward_value=None, readtime=2., filter_change_time=120.,
                  nside=None, flush_pad=30., seed=42, detailers=None):
         super(Deep_drilling_survey, self).__init__(nside=nside, basis_functions=basis_functions,
@@ -60,7 +60,10 @@ class Deep_drilling_survey(BaseSurvey):
                 for j in range(num):
                     obs = empty_observation()
                     obs['filter'] = filtername
-                    obs['exptime'] = exptime
+                    if filtername == 'u':
+                        obs['exptime'] = u_exptime
+                    else:
+                        obs['exptime'] = exptime
                     obs['RA'] = self.ra
                     obs['dec'] = self.dec
                     obs['nexp'] = nexp
@@ -158,7 +161,8 @@ def dd_bfs(RA, dec, survey_name, ha_limits, frac_total=0.0185/2., aggressive_fra
 
 
 def generate_dd_surveys(nside=None, nexp=2, detailers=None, reward_value=100,
-                        frac_total=0.0185/2., aggressive_frac=0.011/2.):
+                        frac_total=0.0185/2., aggressive_frac=0.011/2., exptime=30, u_exptime=30,
+                        nvis_master=[8, 20, 10, 20, 26, 20]):
     """Utility to return a list of standard deep drilling field surveys.
 
     XXX-Someone double check that I got the coordinates right!
@@ -174,7 +178,7 @@ def generate_dd_surveys(nside=None, nexp=2, detailers=None, reward_value=100,
     ha_limits = ([0., 1.5], [21.5, 24.])
     bfs = dd_bfs(RA, dec, survey_name, ha_limits, frac_total=frac_total, aggressive_frac=aggressive_frac)
     surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='urgizy',
-                                        nvis=[8, 20, 10, 20, 26, 20],
+                                        nvis=nvis_master,
                                         survey_name=survey_name, reward_value=reward_value,
                                         nside=nside, nexp=nexp, detailers=detailers))
 
@@ -186,7 +190,7 @@ def generate_dd_surveys(nside=None, nexp=2, detailers=None, reward_value=100,
     bfs = dd_bfs(RA, dec, survey_name, ha_limits, frac_total=frac_total, aggressive_frac=aggressive_frac)
 
     surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='urgizy',
-                                        nvis=[8, 20, 10, 20, 26, 20], survey_name=survey_name, reward_value=reward_value,
+                                        nvis=nvis_master, survey_name=survey_name, reward_value=reward_value,
                                         nside=nside, nexp=nexp, detailers=detailers))
 
     # Extended Chandra Deep Field South
@@ -196,7 +200,7 @@ def generate_dd_surveys(nside=None, nexp=2, detailers=None, reward_value=100,
     ha_limits = [[0.5, 3.0], [20., 22.5]]
     bfs = dd_bfs(RA, dec, survey_name, ha_limits, frac_total=frac_total, aggressive_frac=aggressive_frac)
     surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='urgizy',
-                                        nvis=[8, 20, 10, 20, 26, 20],
+                                        nvis=nvis_master,
                                         survey_name=survey_name, reward_value=reward_value, nside=nside,
                                         nexp=nexp, detailers=detailers))
 
@@ -207,26 +211,29 @@ def generate_dd_surveys(nside=None, nexp=2, detailers=None, reward_value=100,
     ha_limits = ([0., 2.5], [21.5, 24.])
     bfs = dd_bfs(RA, dec, survey_name, ha_limits, frac_total=frac_total, aggressive_frac=aggressive_frac)
     surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='urgizy',
-                                        nvis=[8, 20, 10, 20, 26, 20],
+                                        nvis=nvis_master,
                                         survey_name=survey_name, reward_value=reward_value, nside=nside,
                                         nexp=nexp, detailers=detailers))
 
     # Euclid Fields
     # I can use the sequence kwarg to do two positions per sequence
     filters = 'urgizy'
-    nviss = [8, 5, 7, 19, 24, 5]
+    nviss = nvis_master
     survey_name = 'DD:EDFS'
     # Note the sequences need to be in radians since they are using observation objects directly
     RAs = np.radians([58.97, 63.6])
     decs = np.radians([-49.28, -47.60])
     sequence = []
-    exptime = 30
+
     for filtername, nvis in zip(filters, nviss):
         for ra, dec in zip(RAs, decs):
             for num in range(nvis):
                 obs = empty_observation()
                 obs['filter'] = filtername
-                obs['exptime'] = exptime
+                if filtername == 'u':
+                    obs['exptime'] = u_exptime
+                else:
+                    obs['exptime'] = exptime
                 obs['RA'] = ra
                 obs['dec'] = dec
                 obs['nexp'] = nexp
