@@ -178,7 +178,7 @@ def generate_dd_surveys(nside=None, nexp=2, detailers=None, reward_value=100,
     ha_limits = ([0., 1.5], [21.5, 24.])
     bfs = dd_bfs(RA, dec, survey_name, ha_limits, frac_total=frac_total, aggressive_frac=aggressive_frac)
     surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='urgizy',
-                                        nvis=nvis_master,
+                                        nvis=nvis_master, exptime=exptime, u_exptime=u_exptime,
                                         survey_name=survey_name, reward_value=reward_value,
                                         nside=nside, nexp=nexp, detailers=detailers))
 
@@ -189,7 +189,7 @@ def generate_dd_surveys(nside=None, nexp=2, detailers=None, reward_value=100,
     ha_limits = ([0., 1.5], [21.5, 24.])
     bfs = dd_bfs(RA, dec, survey_name, ha_limits, frac_total=frac_total, aggressive_frac=aggressive_frac)
 
-    surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='urgizy',
+    surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='urgizy', exptime=exptime, u_exptime=u_exptime,
                                         nvis=nvis_master, survey_name=survey_name, reward_value=reward_value,
                                         nside=nside, nexp=nexp, detailers=detailers))
 
@@ -200,7 +200,7 @@ def generate_dd_surveys(nside=None, nexp=2, detailers=None, reward_value=100,
     ha_limits = [[0.5, 3.0], [20., 22.5]]
     bfs = dd_bfs(RA, dec, survey_name, ha_limits, frac_total=frac_total, aggressive_frac=aggressive_frac)
     surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='urgizy',
-                                        nvis=nvis_master,
+                                        nvis=nvis_master, exptime=exptime, u_exptime=u_exptime,
                                         survey_name=survey_name, reward_value=reward_value, nside=nside,
                                         nexp=nexp, detailers=detailers))
 
@@ -211,7 +211,7 @@ def generate_dd_surveys(nside=None, nexp=2, detailers=None, reward_value=100,
     ha_limits = ([0., 2.5], [21.5, 24.])
     bfs = dd_bfs(RA, dec, survey_name, ha_limits, frac_total=frac_total, aggressive_frac=aggressive_frac)
     surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='urgizy',
-                                        nvis=nvis_master,
+                                        nvis=nvis_master, exptime=exptime, u_exptime=u_exptime,
                                         survey_name=survey_name, reward_value=reward_value, nside=nside,
                                         nexp=nexp, detailers=detailers))
 
