@@ -137,7 +137,8 @@ class Deep_drilling_survey(BaseSurvey):
         return result
 
 
-def dd_bfs(RA, dec, survey_name, ha_limits, frac_total=0.0185/2., aggressive_frac=0.011/2.):
+def dd_bfs(RA, dec, survey_name, ha_limits, frac_total=0.0185/2., aggressive_frac=0.011/2.,
+           delays=[0., 0.5, 1.5]):
     """
     Convienence function to generate all the feasibility basis functions
     """
@@ -154,7 +155,7 @@ def dd_bfs(RA, dec, survey_name, ha_limits, frac_total=0.0185/2., aggressive_fra
                                                              sun_alt_limit=sun_alt_limit, time_needed=time_needed,
                                                              RA=RA, survey_name=survey_name,
                                                              ha_limits=ha_limits))
-    bfs.append(basis_functions.Soft_delay_basis_function(fractions=fractions, delays=[0., 0.5, 1.5],
+    bfs.append(basis_functions.Soft_delay_basis_function(fractions=fractions, delays=delays,
                                                          survey_name=survey_name))
 
     return bfs
@@ -162,7 +163,7 @@ def dd_bfs(RA, dec, survey_name, ha_limits, frac_total=0.0185/2., aggressive_fra
 
 def generate_dd_surveys(nside=None, nexp=2, detailers=None, reward_value=100,
                         frac_total=0.0185/2., aggressive_frac=0.011/2., exptime=30, u_exptime=30,
-                        nvis_master=[8, 20, 10, 20, 26, 20]):
+                        nvis_master=[8, 20, 10, 20, 26, 20], delays=[0., 0.5, 1.5]):
     """Utility to return a list of standard deep drilling field surveys.
 
     XXX-Someone double check that I got the coordinates right!
@@ -176,7 +177,7 @@ def generate_dd_surveys(nside=None, nexp=2, detailers=None, reward_value=100,
     dec = -44.
     survey_name = 'DD:ELAISS1'
     ha_limits = ([0., 1.5], [21.5, 24.])
-    bfs = dd_bfs(RA, dec, survey_name, ha_limits, frac_total=frac_total, aggressive_frac=aggressive_frac)
+    bfs = dd_bfs(RA, dec, survey_name, ha_limits, frac_total=frac_total, aggressive_frac=aggressive_frac, delays=delays)
     surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='urgizy',
                                         nvis=nvis_master, exptime=exptime, u_exptime=u_exptime,
                                         survey_name=survey_name, reward_value=reward_value,
@@ -187,7 +188,7 @@ def generate_dd_surveys(nside=None, nexp=2, detailers=None, reward_value=100,
     RA = 35.708333
     dec = -4-45/60.
     ha_limits = ([0., 1.5], [21.5, 24.])
-    bfs = dd_bfs(RA, dec, survey_name, ha_limits, frac_total=frac_total, aggressive_frac=aggressive_frac)
+    bfs = dd_bfs(RA, dec, survey_name, ha_limits, frac_total=frac_total, aggressive_frac=aggressive_frac, delays=delays)
 
     surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='urgizy', exptime=exptime, u_exptime=u_exptime,
                                         nvis=nvis_master, survey_name=survey_name, reward_value=reward_value,
@@ -198,7 +199,7 @@ def generate_dd_surveys(nside=None, nexp=2, detailers=None, reward_value=100,
     dec = -28.-6/60.
     survey_name = 'DD:ECDFS'
     ha_limits = [[0.5, 3.0], [20., 22.5]]
-    bfs = dd_bfs(RA, dec, survey_name, ha_limits, frac_total=frac_total, aggressive_frac=aggressive_frac)
+    bfs = dd_bfs(RA, dec, survey_name, ha_limits, frac_total=frac_total, aggressive_frac=aggressive_frac, delays=delays)
     surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='urgizy',
                                         nvis=nvis_master, exptime=exptime, u_exptime=u_exptime,
                                         survey_name=survey_name, reward_value=reward_value, nside=nside,
@@ -209,7 +210,7 @@ def generate_dd_surveys(nside=None, nexp=2, detailers=None, reward_value=100,
     dec = 2.+10./60.+55/3600.
     survey_name = 'DD:COSMOS'
     ha_limits = ([0., 2.5], [21.5, 24.])
-    bfs = dd_bfs(RA, dec, survey_name, ha_limits, frac_total=frac_total, aggressive_frac=aggressive_frac)
+    bfs = dd_bfs(RA, dec, survey_name, ha_limits, frac_total=frac_total, aggressive_frac=aggressive_frac, delays=delays)
     surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='urgizy',
                                         nvis=nvis_master, exptime=exptime, u_exptime=u_exptime,
                                         survey_name=survey_name, reward_value=reward_value, nside=nside,
@@ -243,7 +244,7 @@ def generate_dd_surveys(nside=None, nexp=2, detailers=None, reward_value=100,
     ha_limits = ([0., 1.5], [22.5, 24.])
     # And back to degrees for the basis function
     bfs = dd_bfs(np.degrees(RAs[0]), np.degrees(decs[0]), survey_name, ha_limits,
-                 frac_total=frac_total, aggressive_frac=aggressive_frac)
+                 frac_total=frac_total, aggressive_frac=aggressive_frac, delays=delays)
     surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence=sequence,
                                         survey_name=survey_name, reward_value=reward_value, nside=nside,
                                         nexp=nexp, detailers=detailers))
