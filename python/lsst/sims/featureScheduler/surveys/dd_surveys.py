@@ -8,7 +8,7 @@ import logging
 import random
 
 
-__all__ = ['Deep_drilling_survey', 'generate_dd_surveys', 'dd_bfs', 'dd_u_bfs']
+__all__ = ['Deep_drilling_survey', 'generate_dd_surveys', 'dd_bfs']
 
 log = logging.getLogger(__name__)
 
@@ -34,18 +34,15 @@ class Deep_drilling_survey(BaseSurvey):
         The reward value to report if it is able to start (unitless).
     readtime : float (2.)
         Readout time for computing approximate time of observing the sequence. (seconds)
-    filter_match_shuffle : bool (True)
-        If True, switch up the order filters are executed in (first sequence will be currently
-        loaded filter if possible)
     flush_pad : float (30.)
         How long to hold observations in the queue after they were expected to be completed (minutes).
     """
 
     def __init__(self, basis_functions, RA, dec, sequence='rgizy',
                  nvis=[20, 10, 20, 26, 20],
-                 exptime=30., nexp=2, ignore_obs=None, survey_name='DD',
+                 exptime=30., u_exptime=30., nexp=2, ignore_obs=None, survey_name='DD',
                  reward_value=None, readtime=2., filter_change_time=120.,
-                 nside=None, filter_match_shuffle=True, flush_pad=30., seed=42, detailers=None):
+                 nside=None, flush_pad=30., seed=42, detailers=None):
         super(Deep_drilling_survey, self).__init__(nside=nside, basis_functions=basis_functions,
                                                    detailers=detailers, ignore_obs=ignore_obs)
         random.seed(a=seed)
@@ -63,26 +60,29 @@ class Deep_drilling_survey(BaseSurvey):
                 for j in range(num):
                     obs = empty_observation()
                     obs['filter'] = filtername
-                    obs['exptime'] = exptime
+                    if filtername == 'u':
+                        obs['exptime'] = u_exptime
+                    else:
+                        obs['exptime'] = exptime
                     obs['RA'] = self.ra
                     obs['dec'] = self.dec
                     obs['nexp'] = nexp
                     obs['note'] = survey_name
                     self.observations.append(obs)
-                    self.filter_sequence.append(filtername)
         else:
             self.observations = sequence
-            self.filter_sequence = [obs['filter'] for obs in sequence]
+
+        # Let's just make this an array for ease of use
+        self.observations = np.concatenate(self.observations)
+        order = np.argsort(self.observations['filter'])
+        self.observations = self.observations[order]
+
+        n_filter_change = np.size(np.unique(self.observations['filter']))
 
         # Make an estimate of how long a seqeunce will take. Assumes no major rotational or spatial
         # dithering slowing things down.
-        self.approx_time = np.sum([o['exptime']+readtime*o['nexp'] for o in self.observations])/3600./24. \
-                           + filter_change_time*len(sequence)/3600./24.  # to days
-        self.filter_match_shuffle = filter_match_shuffle
-        self.filter_indices = {}
-        self.filter_sequence = np.array(self.filter_sequence)
-        for filtername in np.unique(self.filter_sequence):
-            self.filter_indices[filtername] = np.where(self.filter_sequence == filtername)[0]
+        self.approx_time = np.sum(self.observations['exptime']+readtime*self.observations['nexp'])/3600./24. \
+                           + filter_change_time*n_filter_change/3600./24.  # to days
 
         if self.reward_value is None:
             self.extra_features['Ntot'] = features.N_obs_survey()
@@ -119,26 +119,26 @@ class Deep_drilling_survey(BaseSurvey):
         if self._check_feasibility(conditions):
             result = copy.deepcopy(self.observations)
 
-            # Toss any filters that are not currently loaded
-            result = [obs for obs in result if obs['filter'] in conditions.mounted_filters]
+            # Set the flush_by
+            result['flush_by_mjd'] = conditions.mjd + self.approx_time + self.flush_pad
 
-            if self.filter_match_shuffle:
-                filters_remaining = list(self.filter_indices.keys())
-                random.shuffle(filters_remaining)
-                # If we want to observe the currrent filter, put it first
-                if conditions.current_filter in filters_remaining:
-                    filters_remaining.insert(0, filters_remaining.pop(filters_remaining.index(conditions.current_filter)))
-                final_result = []
-                for filtername in filters_remaining:
-                    final_result.extend(result[np.min(self.filter_indices[filtername]):np.max(self.filter_indices[filtername])+1])
-                result = final_result
-            # Let's set the mjd to flush the queue by
-            for i, obs in enumerate(result):
-                result[i]['flush_by_mjd'] = conditions.mjd + self.approx_time + self.flush_pad
+            # remove filters that are not mounted
+            mask = np.isin(result['filter'], conditions.mounted_filters)
+            result = result[mask]
+            # Put current loaded filter first
+            ind1 = np.where(result['filter'] == conditions.current_filter)[0]
+            ind2 = np.where(result['filter'] != conditions.current_filter)[0]
+            result = result[ind1.tolist() + (ind2.tolist())]
+
+            # convert to list of array. Arglebargle, don't understand why I need a reshape there
+            final_result = [row.reshape(1,) for row in result]
+            result = final_result
+
         return result
 
 
-def dd_bfs(RA, dec, survey_name, ha_limits, frac_total=0.0185, aggressive_frac=0.011):
+def dd_bfs(RA, dec, survey_name, ha_limits, frac_total=0.0185/2., aggressive_frac=0.011/2.,
+           delays=[0., 0.5, 1.5]):
     """
     Convienence function to generate all the feasibility basis functions
     """
@@ -146,29 +146,6 @@ def dd_bfs(RA, dec, survey_name, ha_limits, frac_total=0.0185, aggressive_frac=0
     time_needed = 62.
     fractions = [0.00, aggressive_frac, frac_total]
     bfs = []
-    bfs.append(basis_functions.Filter_loaded_basis_function(filternames=['r', 'g', 'i', 'z', 'y']))
-    bfs.append(basis_functions.Not_twilight_basis_function(sun_alt_limit=sun_alt_limit))
-    bfs.append(basis_functions.Time_to_twilight_basis_function(time_needed=time_needed))
-    bfs.append(basis_functions.Hour_Angle_limit_basis_function(RA=RA, ha_limits=ha_limits))
-    bfs.append(basis_functions.Fraction_of_obs_basis_function(frac_total=frac_total, survey_name=survey_name))
-    bfs.append(basis_functions.Look_ahead_ddf_basis_function(frac_total, aggressive_frac,
-                                                             sun_alt_limit=sun_alt_limit, time_needed=time_needed,
-                                                             RA=RA, survey_name=survey_name,
-                                                             ha_limits=ha_limits))
-    bfs.append(basis_functions.Soft_delay_basis_function(fractions=fractions, delays=[0., 0.5, 1.5],
-                                                         survey_name=survey_name))
-
-    return bfs
-
-
-def dd_u_bfs(RA, dec, survey_name, ha_limits, frac_total=0.0019, aggressive_frac=0.0014):
-    """Convienence function to generate all the feasibility basis functions for u-band DDFs
-    """
-    bfs = []
-    sun_alt_limit = -18.
-    time_needed = 6.
-    fractions = [0.00, aggressive_frac, frac_total]
-    bfs.append(basis_functions.Filter_loaded_basis_function(filternames='u'))
     bfs.append(basis_functions.Not_twilight_basis_function(sun_alt_limit=sun_alt_limit))
     bfs.append(basis_functions.Time_to_twilight_basis_function(time_needed=time_needed))
     bfs.append(basis_functions.Hour_Angle_limit_basis_function(RA=RA, ha_limits=ha_limits))
@@ -178,13 +155,15 @@ def dd_u_bfs(RA, dec, survey_name, ha_limits, frac_total=0.0019, aggressive_frac
                                                              sun_alt_limit=sun_alt_limit, time_needed=time_needed,
                                                              RA=RA, survey_name=survey_name,
                                                              ha_limits=ha_limits))
-    bfs.append(basis_functions.Soft_delay_basis_function(fractions=fractions, delays=[0., 0.2, 0.5],
+    bfs.append(basis_functions.Soft_delay_basis_function(fractions=fractions, delays=delays,
                                                          survey_name=survey_name))
 
     return bfs
 
 
-def generate_dd_surveys(nside=None, nexp=2, detailers=None, reward_value=100):
+def generate_dd_surveys(nside=None, nexp=2, detailers=None, reward_value=100,
+                        frac_total=0.0185/2., aggressive_frac=0.011/2., exptime=30, u_exptime=30,
+                        nvis_master=[8, 20, 10, 20, 26, 20], delays=[0., 0.5, 1.5]):
     """Utility to return a list of standard deep drilling field surveys.
 
     XXX-Someone double check that I got the coordinates right!
@@ -197,84 +176,76 @@ def generate_dd_surveys(nside=None, nexp=2, detailers=None, reward_value=100):
     RA = 9.45
     dec = -44.
     survey_name = 'DD:ELAISS1'
-    ha_limits = ([0., 1.5], [22.5, 24.])
-    bfs = dd_bfs(RA, dec, survey_name, ha_limits)
-    surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='rgizy',
-                                        nvis=[20, 10, 20, 26, 20],
+    ha_limits = ([0., 1.5], [21.5, 24.])
+    bfs = dd_bfs(RA, dec, survey_name, ha_limits, frac_total=frac_total, aggressive_frac=aggressive_frac, delays=delays)
+    surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='urgizy',
+                                        nvis=nvis_master, exptime=exptime, u_exptime=u_exptime,
                                         survey_name=survey_name, reward_value=reward_value,
                                         nside=nside, nexp=nexp, detailers=detailers))
-
-    survey_name = 'DD:u,ELAISS1'
-    bfs = dd_u_bfs(RA, dec, survey_name, ha_limits)
-
-    surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='u',
-                                        nvis=[8], survey_name=survey_name, reward_value=reward_value, nside=nside,
-                                        nexp=nexp, detailers=detailers))
 
     # XMM-LSS
     survey_name = 'DD:XMM-LSS'
     RA = 35.708333
     dec = -4-45/60.
-    ha_limits = ([0., 1.5], [22.5, 24.])
-    bfs = dd_bfs(RA, dec, survey_name, ha_limits)
+    ha_limits = ([0., 1.5], [21.5, 24.])
+    bfs = dd_bfs(RA, dec, survey_name, ha_limits, frac_total=frac_total, aggressive_frac=aggressive_frac, delays=delays)
 
-    surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='rgizy',
-                                        nvis=[20, 10, 20, 26, 20], survey_name=survey_name, reward_value=reward_value,
+    surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='urgizy', exptime=exptime, u_exptime=u_exptime,
+                                        nvis=nvis_master, survey_name=survey_name, reward_value=reward_value,
                                         nside=nside, nexp=nexp, detailers=detailers))
-    survey_name = 'DD:u,XMM-LSS'
-    bfs = dd_u_bfs(RA, dec, survey_name, ha_limits)
-
-    surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='u',
-                                        nvis=[8], survey_name=survey_name, reward_value=reward_value, nside=nside,
-                                        nexp=nexp, detailers=detailers))
 
     # Extended Chandra Deep Field South
-    # XXX -- this one can pass too close to zenith
     RA = 53.125
     dec = -28.-6/60.
     survey_name = 'DD:ECDFS'
     ha_limits = [[0.5, 3.0], [20., 22.5]]
-    bfs = dd_bfs(RA, dec, survey_name, ha_limits)
-    surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='rgizy',
-                                        nvis=[20, 10, 20, 26, 20],
+    bfs = dd_bfs(RA, dec, survey_name, ha_limits, frac_total=frac_total, aggressive_frac=aggressive_frac, delays=delays)
+    surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='urgizy',
+                                        nvis=nvis_master, exptime=exptime, u_exptime=u_exptime,
                                         survey_name=survey_name, reward_value=reward_value, nside=nside,
                                         nexp=nexp, detailers=detailers))
 
-    survey_name = 'DD:u,ECDFS'
-    bfs = dd_u_bfs(RA, dec, survey_name, ha_limits)
-    surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='u',
-                                        nvis=[8], survey_name=survey_name, reward_value=reward_value, nside=nside,
-                                        nexp=nexp, detailers=detailers))
     # COSMOS
     RA = 150.1
     dec = 2.+10./60.+55/3600.
     survey_name = 'DD:COSMOS'
-    ha_limits = ([0., 1.5], [22.5, 24.])
-    bfs = dd_bfs(RA, dec, survey_name, ha_limits)
-    surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='rgizy',
-                                        nvis=[20, 10, 20, 26, 20],
-                                        survey_name=survey_name, reward_value=reward_value, nside=nside,
-                                        nexp=nexp, detailers=detailers))
-    survey_name = 'DD:u,COSMOS'
-    bfs = dd_u_bfs(RA, dec, survey_name, ha_limits)
-    surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='u',
-                                        nvis=[8], survey_name=survey_name, reward_value=reward_value, nside=nside,
-                                        nexp=nexp, detailers=detailers))
-
-    # Extra DD Field, just to get to 5. Still not closed on this one
-    survey_name = 'DD:290'
-    RA = 349.386443
-    dec = -63.321004
-    ha_limits = ([0., 1.5], [22.5, 24.])
-    bfs = dd_bfs(RA, dec, survey_name, ha_limits)
-    surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='rgizy',
-                                        nvis=[20, 10, 20, 26, 20],
+    ha_limits = ([0., 2.5], [21.5, 24.])
+    bfs = dd_bfs(RA, dec, survey_name, ha_limits, frac_total=frac_total, aggressive_frac=aggressive_frac, delays=delays)
+    surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='urgizy',
+                                        nvis=nvis_master, exptime=exptime, u_exptime=u_exptime,
                                         survey_name=survey_name, reward_value=reward_value, nside=nside,
                                         nexp=nexp, detailers=detailers))
 
-    survey_name = 'DD:u,290'
-    bfs = dd_u_bfs(RA, dec, survey_name, ha_limits)
-    surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence='u', nvis=[8],
+    # Euclid Fields
+    # I can use the sequence kwarg to do two positions per sequence
+    filters = 'urgizy'
+    nviss = nvis_master
+    survey_name = 'DD:EDFS'
+    # Note the sequences need to be in radians since they are using observation objects directly
+    RAs = np.radians([58.97, 63.6])
+    decs = np.radians([-49.28, -47.60])
+    sequence = []
+
+    for filtername, nvis in zip(filters, nviss):
+        for ra, dec in zip(RAs, decs):
+            for num in range(nvis):
+                obs = empty_observation()
+                obs['filter'] = filtername
+                if filtername == 'u':
+                    obs['exptime'] = u_exptime
+                else:
+                    obs['exptime'] = exptime
+                obs['RA'] = ra
+                obs['dec'] = dec
+                obs['nexp'] = nexp
+                obs['note'] = survey_name
+                sequence.append(obs)
+
+    ha_limits = ([0., 1.5], [22.5, 24.])
+    # And back to degrees for the basis function
+    bfs = dd_bfs(np.degrees(RAs[0]), np.degrees(decs[0]), survey_name, ha_limits,
+                 frac_total=frac_total, aggressive_frac=aggressive_frac, delays=delays)
+    surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence=sequence,
                                         survey_name=survey_name, reward_value=reward_value, nside=nside,
                                         nexp=nexp, detailers=detailers))
 

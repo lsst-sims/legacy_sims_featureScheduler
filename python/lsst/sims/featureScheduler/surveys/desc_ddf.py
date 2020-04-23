@@ -36,7 +36,7 @@ class DESC_ddf(BaseSurvey):
 
         # Define the sequences we would like to do
         if sequences is None:
-            self.sequences = [{'g': 2, 'r': 4, 'i': 8}, {'z': 25, 'y': 4}, None]
+            self.sequences = [{'u': 2, 'g': 2, 'r': 4, 'i': 8}, {'z': 25, 'y': 4}, None]
         else:
             self.sequences = sequences
 
@@ -172,11 +172,19 @@ def generate_desc_dd_surveys(nside=None, nexp=1, detailers=None):
     surveys.append(DESC_ddf(bfs, RA, dec, survey_name=survey_name, reward_value=100, nside=nside,
                             nexp=nexp, detailers=detailers, sequences=sequences))
 
-    # Extra DD Field, just to get to 5. Still not closed on this one
-    survey_name = 'DD:290'
-    RA = 349.386443
-    dec = -63.321004
-    ha_limits = ([0., 0.5], [23.5, 24.])
+    # Just do the two Euclid fields independently for now
+    survey_name = 'DD:EDFSa'
+    RA = 58.97
+    dec = -49.28
+    ha_limits = ([0., 1.5], [23., 24.])
+    bfs = desc_dd_bfs(RA, dec, survey_name, ha_limits)
+    surveys.append(DESC_ddf(bfs, RA, dec, survey_name=survey_name, reward_value=100, nside=nside,
+                            nexp=nexp, detailers=detailers))
+
+    survey_name = 'DD:EDFSb'
+    RA = 63.6
+    dec = -47.60
+    ha_limits = ([0., 1.5], [23., 24.])
     bfs = desc_dd_bfs(RA, dec, survey_name, ha_limits)
     surveys.append(DESC_ddf(bfs, RA, dec, survey_name=survey_name, reward_value=100, nside=nside,
                             nexp=nexp, detailers=detailers))

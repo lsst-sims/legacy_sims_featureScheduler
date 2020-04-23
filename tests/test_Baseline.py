@@ -108,7 +108,8 @@ class TestFeatures(unittest.TestCase):
         survey_length = 2.0 # days
 
         surveys = gen_greedy_surveys(nside)
-        surveys.append(Pairs_survey_scripted(None, ignore_obs='DD'))
+        # Depricating Pairs_survey_scripted
+        #surveys.append(Pairs_survey_scripted(None, ignore_obs='DD'))
 
         # Set up the DD
         dd_surveys = generate_dd_surveys(nside=nside)
@@ -120,10 +121,10 @@ class TestFeatures(unittest.TestCase):
                                                           survey_length=survey_length,
                                                           filename=None)
 
-        # Check that a second part of a pair was taken
-        assert('pair(scripted)' in observations['note'])
+        # Check that greedy observed some
+        assert('' in observations['note'])
         # Check that the a DD was observed
-        assert('DD:ECDFS' in observations['note'])
+        assert('DD:ELAISS1' in observations['note'])
         # Make sure a few different filters were observed
         assert(len(np.unique(observations['filter'])) > 3)
         # Make sure lots of observations executed
