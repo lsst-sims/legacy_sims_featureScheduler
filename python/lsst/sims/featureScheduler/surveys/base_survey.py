@@ -248,6 +248,10 @@ class BaseMarkovDF_survey(BaseSurvey):
         # One more RA rotation
         ra = (ra + lon2) % (2.*np.pi)
 
+        # Machine precision issues with np.sin
+        ra = np.round(ra, decimals=10)
+        dec = np.round(dec, decimals=10)
+
         self.fields['RA'] = ra
         self.fields['dec'] = dec
         # Rebuild the kdtree with the new positions
