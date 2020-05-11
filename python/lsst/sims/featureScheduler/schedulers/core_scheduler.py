@@ -166,7 +166,7 @@ class Core_scheduler(object):
                                               self.conditions.site.longitude_rad, mjd)
                 obs_pa = approx_altaz2pa(alt, az, self.conditions.site.latitude_rad)
                 rotTelPos_expected = (obs_pa - observation['rotSkyPos']) % (2.*np.pi)
-                if (rotTelPos_expected > self.rotator_limits[0]) & (rotTelPos_expected < self.rotator_limits[1]):
+                if (int_rounded(rotTelPos_expected) > int_rounded(self.rotator_limits[0])) & (int_rounded(rotTelPos_expected) < int_rounded(self.rotator_limits[1])):
                     diff = np.abs(self.rotator_limits - rotTelPos_expected)
                     limit_indx = np.min(np.where(diff == np.min(diff))[0])
                     observation['rotSkyPos'] = (obs_pa - self.rotator_limits[limit_indx]) % (2.*np.pi)

@@ -4,6 +4,7 @@ import numpy as np
 import healpy as hp
 from lsst.sims.featureScheduler import utils
 from lsst.sims.utils import m5_flat_sed
+from lsst.sims.featureScheduler.utils import int_rounded
 
 
 __all__ = ['BaseFeature', 'BaseSurveyFeature', 'N_obs_count', 'N_obs_survey',
@@ -340,14 +341,14 @@ class Coadded_depth(BaseSurveyFeature):
         if nside is None:
             nside = utils.set_default_nside()
         self.filtername = filtername
-        self.FWHMeff_limit = FWHMeff_limit
+        self.FWHMeff_limit = int_rounded(FWHMeff_limit)
         # Starting at limiting mag of zero should be fine.
         self.feature = np.zeros(hp.nside2npix(nside), dtype=float)
 
     def add_observation(self, observation, indx=None):
 
         if observation['filter'] == self.filtername:
-            if observation['FWHMeff'] <= self.FWHMeff_limit:
+            if int_rounded(observation['FWHMeff']) <= self.FWHMeff_limit:
                 m5 = m5_flat_sed(observation['filter'], observation['skybrightness'],
                                  observation['FWHMeff'], observation['exptime'],
                                  observation['airmass'])

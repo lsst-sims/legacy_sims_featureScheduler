@@ -87,7 +87,7 @@ def generate_all_sky(nside=None, elevation_limit=20, mask=hp.UNSEEN):
     # Calculate max altitude (when on meridian).
     lsst_site = Site('LSST')
     elev_max = np.pi / 2. - np.abs(dec - lsst_site.latitude_rad)
-    skymap = np.where(elev_max >= np.radians(elevation_limit), skymap, mask)
+    skymap = np.where(int_rounded(elev_max) >= int_rounded(np.radians(elevation_limit), skymap, mask))
 
     return {'map': skymap, 'ra': np.degrees(ra), 'dec': np.degrees(dec),
             'eclip_lat': eclip_lat, 'eclip_lon': eclip_lon,
@@ -292,7 +292,7 @@ def galactic_plane_healpixels(nside=None, center_width=10., end_width=4.,
     # If the length is greater than 0 then we can add additional cuts.
     if gp_length > 0:
         # First, remove anything outside the gal_long1/gal_long2 region.
-        sky = np.where((gal_lon - gal_long1) % 360 < gp_length, sky, 0)
+        sky = np.where(int_rounded((gal_lon - gal_long1) % 360) < int_rounded(gp_length), sky, 0)
         # Add the tapers.
         # These slope from the center (gp_center @ center_width)
         # to the edge (gp_center + gp_length/2 @ end_width).
@@ -300,9 +300,9 @@ def galactic_plane_healpixels(nside=None, center_width=10., end_width=4.,
         slope = (center_width - end_width) / half_width
         gp_center = (gal_long1 + half_width) % 360
         gp_dist = gal_lon - gp_center
-        gp_dist = np.abs(np.where(gp_dist > 180, (180 - gp_dist) % 180, gp_dist))
+        gp_dist = np.abs(np.where(int_rounded(gp_dist) > int_rounded(180), (180 - gp_dist) % 180, gp_dist))
         lat_limit = np.abs(center_width - slope * gp_dist)
-        sky = np.where(np.abs(gal_lat) < lat_limit, sky, 0)
+        sky = np.where(int_rounded(np.abs(gal_lat)) < int_rounded(lat_limit), sky, 0)
     return sky
 
 
@@ -324,11 +324,11 @@ def magellanic_clouds_healpixels(nside=None, lmc_radius=10, smc_radius=5):
     smc_radius = np.radians(smc_radius)
 
     dist_to_lmc = _angularSeparation(lmc_ra, lmc_dec, ra, dec)
-    lmc_pix = np.where(dist_to_lmc < lmc_radius)
+    lmc_pix = np.where(int_rounded(dist_to_lmc) < int_rounded(lmc_radius))
     result[lmc_pix] = 1
 
     dist_to_smc = _angularSeparation(smc_ra, smc_dec, ra, dec)
-    smc_pix = np.where(dist_to_smc < smc_radius)
+    smc_pix = np.where(int_rounded(dist_to_smc) < int_rounded(smc_radius))
     result[smc_pix] = 1
     return result
 

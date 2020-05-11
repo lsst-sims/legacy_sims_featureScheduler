@@ -1193,7 +1193,7 @@ class Good_seeing_basis_function(Base_basis_function):
         super(Good_seeing_basis_function, self).__init__(nside=nside)
 
         self.filtername = filtername
-        self.FWHMeff_limit = FWHMeff_limit
+        self.FWHMeff_limit = int_rounded(FWHMeff_limit)
         if footprint is None:
             fp = utils.standard_goals(nside=nside)[filtername]
         else:
@@ -1201,7 +1201,7 @@ class Good_seeing_basis_function(Base_basis_function):
         self.out_of_bounds = np.where(fp == 0)[0]
         self.result = fp*0
 
-        self.mag_diff = mag_diff
+        self.mag_diff = int_rounded(mag_diff)
         self.survey_features = {}
         self.survey_features['coadd_depth_all'] = features.Coadded_depth(filtername=filtername,
                                                                          nside=nside)
@@ -1215,10 +1215,10 @@ class Good_seeing_basis_function(Base_basis_function):
             return 0
         result = self.result.copy()
 
-        diff = self.survey_features['coadd_depth_all'].feature - self.survey_features['coadd_depth_good'].feature
+        diff = int_rounded(self.survey_features['coadd_depth_all'].feature - self.survey_features['coadd_depth_good'].feature)
         # Where are there things we want to observe?
         good_pix = np.where((diff > self.mag_diff) &
-                            (conditions.FWHMeff[self.filtername] <= self.FWHMeff_limit))
+                            (int_rounded(conditions.FWHMeff[self.filtername]) <= self.FWHMeff_limit))
         # Hm, should this scale by the mag differences? Probably.
         result[good_pix] = diff[good_pix]
         result[self.out_of_bounds] = 0

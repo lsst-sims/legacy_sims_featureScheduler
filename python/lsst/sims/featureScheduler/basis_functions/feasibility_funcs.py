@@ -2,6 +2,7 @@ import numpy as np
 from lsst.sims.featureScheduler import features
 import matplotlib.pylab as plt
 from lsst.sims.featureScheduler.basis_functions import Base_basis_function
+from lsst.sims.featureScheduler.utils import int_rounded
 
 
 __all__ = ['Filter_loaded_basis_function', 'Time_to_twilight_basis_function',
@@ -84,12 +85,12 @@ class End_of_evening_basis_function(Base_basis_function):
     """
     def __init__(self, time_remaining=30., alt_limit=18):
         super(End_of_evening_basis_function, self).__init__()
-        self.time_remaining = time_remaining/60./24.
+        self.time_remaining = int_rounded(time_remaining/60./24.)
         self.alt_limit = str(alt_limit)
 
     def check_feasibility(self, conditions):
         available_time = getattr(conditions, 'sun_n' + self.alt_limit + '_rising') - conditions.mjd
-        result = available_time < self.time_remaining
+        result = int_rounded(available_time) < self.time_remaining
         return result
 
 
@@ -297,23 +298,23 @@ class Look_ahead_ddf_basis_function(Base_basis_function):
         available_time = getattr(conditions, 'sun_' + self.sun_alt_limit + '_rising') - conditions.mjd
         # If it's more that self.time_jump to hour angle zero
         # See if there will be enough time to twilight in the future
-        if (target_HA > 12) & (target_HA < 24.-self.time_jump):
-            if available_time > (self.time_needed + self.time_jump):
+        if (int_rounded(target_HA) > int_rounded(12)) & (int_rounded(target_HA) < int_rounded(24.-self.time_jump)):
+            if int_rounded(available_time) > int_rounded(self.time_needed + self.time_jump):
                 result = False
                 # If we paused for better conditions, but the moon will rise, turn things back on.
-                if conditions.moonAlt < 0:
-                    if conditions.moonrise > conditions.mjd:
-                        if (conditions.moonrise - conditions.mjd) > self.time_jump:
+                if int_rounded(conditions.moonAlt) < int_rounded(0):
+                    if int_rounded(conditions.moonrise) > int_rounded(conditions.mjd):
+                        if int_rounded(conditions.moonrise - conditions.mjd) > int_rounded(self.time_jump):
                             result = True
         # If the moon is up and will set soon, pause
-        if conditions.moonAlt > 0:
+        if int_rounded(conditions.moonAlt) > int_rounded(0):
             time_after_moonset = getattr(conditions, 'sun_' + self.sun_alt_limit + '_rising') - conditions.moonset
-            if conditions.moonset > self.time_jump:
-                if time_after_moonset > self.time_needed:
+            if int_rounded(conditions.moonset) > int_rounded(self.time_jump):
+                if int_rounded(time_after_moonset) > int_rounded(self.time_needed):
                     result = False
 
         # If the survey has fallen far behind, be agressive and observe anytime it's up.
-        if ratio < self.aggressive_fraction:
+        if int_rounded(ratio) < int_rounded(self.aggressive_fraction):
             result = True
         return result
 
