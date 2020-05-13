@@ -245,13 +245,13 @@ class Mask_azimuth_basis_function(Base_basis_function):
     """
     def __init__(self, nside=None, out_of_bounds_val=np.nan, az_min=0., az_max=180.):
         super(Mask_azimuth_basis_function, self).__init__(nside=nside)
-        self.az_min = np.radians(az_min)
-        self.az_max = np.radians(az_max)
+        self.az_min = int_rounded(np.radians(az_min))
+        self.az_max = int_rounded(np.radians(az_max))
         self.out_of_bounds_val = out_of_bounds_val
         self.result = np.ones(hp.nside2npix(self.nside))
 
     def _calc_value(self, conditions, indx=None):
-        to_mask = np.where((conditions.az > self.az_min) & (conditions.az < self.az_max))[0]
+        to_mask = np.where((int_rounded(conditions.az) > self.az_min) & (int_rounded(conditions.az) < self.az_max))[0]
         result = self.result.copy()
         result[to_mask] = self.out_of_bounds_val
 
