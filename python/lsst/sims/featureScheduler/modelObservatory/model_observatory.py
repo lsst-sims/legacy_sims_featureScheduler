@@ -11,7 +11,7 @@ from lsst.sims.cloudModel import CloudData
 from lsst.sims.featureScheduler.features import Conditions
 from lsst.sims.featureScheduler.utils import set_default_nside, approx_altaz2pa
 from lsst.ts.observatory.model import ObservatoryModel, Target
-from astropy.coordinates import EarthLocation
+from astropy.coordinates import EarthLocation, get_moon, get_sun
 from astropy.time import Time
 from lsst.sims.almanac import Almanac
 import warnings
@@ -267,6 +267,53 @@ class ExtendedObservatoryModel(ObservatoryModel):
 
         return targetstate
 
+# Swiped from astroplan:  https://github.com/astropy/astroplan/blob/master/astroplan/moon.py
+def moon_phase_angle(time, ephemeris=None):
+    """
+    Calculate lunar orbital phase in radians.
+    Parameters
+    ----------
+    time : `~astropy.time.Time`
+        Time of observation
+    ephemeris : str, optional
+        Ephemeris to use.  If not given, use the one set with
+        `~astropy.coordinates.solar_system_ephemeris` (which is
+        set to 'builtin' by default).
+    Returns
+    -------
+    i : float
+        Phase angle of the moon [radians]
+    """
+    # TODO: cache these sun/moon SkyCoord objects
+
+    sun = get_sun(time)
+    moon = get_moon(time, ephemeris=ephemeris)
+    elongation = sun.separation(moon)
+    return np.arctan2(sun.distance*np.sin(elongation),
+                      moon.distance - sun.distance*np.cos(elongation))
+
+
+def moon_illumination(time, ephemeris=None):
+    """
+    Calculate fraction of the moon illuminated.
+    Parameters
+    ----------
+    time : `~astropy.time.Time`
+        Time of observation
+    ephemeris : str, optional
+        Ephemeris to use.  If not given, use the one set with
+        `~astropy.coordinates.solar_system_ephemeris` (which is
+        set to 'builtin' by default).
+    Returns
+    -------
+    k : float
+        Fraction of moon illuminated
+    """
+    i = moon_phase_angle(time, ephemeris=ephemeris)
+    k = (1 + np.cos(i))/2.0
+    return k.value
+
+
 
 class Model_observatory(object):
     """A class to generate a realistic telemetry stream for the scheduler
@@ -274,7 +321,7 @@ class Model_observatory(object):
 
     def __init__(self, nside=None, mjd_start=59853.5, seed=42, quickTest=True,
                  alt_min=5., lax_dome=True, cloud_limit=0.3, sim_ToO=None,
-                 seeing_db=None):
+                 seeing_db=None, nudge_dt=False):
         """
         Parameters
         ----------
@@ -292,6 +339,8 @@ class Model_observatory(object):
             If one would like to inject simulated ToOs into the telemetry stream.
         seeing_db : filename of the seeing data database (None)
             If one would like to use an alternate seeing database
+        nudge_dt : bool (False)
+            Should the scheduled downtimes be shifted to be centered on the closest full moon?
         """
 
         if nside is None:
@@ -329,8 +378,19 @@ class Model_observatory(object):
         down_starts = []
         down_ends = []
         for dt in sched_downtimes:
-            down_starts.append(dt['start'].mjd)
-            down_ends.append(dt['end'].mjd)
+            if nudge_dt:
+                dt_mid = np.round((dt['end'].mjd-dt['start'].mjd)/2.) + dt['start'].mjd
+                mjds = np.arange(dt['start'].mjd-20., dt['end'].mjd+20.+1, 1.)
+                times = Time(mjds, format='mjd')
+                moon_illums = moon_illumination(times)
+                full = np.where(moon_illums > 0.93)[0]
+                time_shifts = mjds[full] - dt_mid
+                best_shift = time_shifts[np.min(np.where(np.abs(time_shifts) == np.min(np.abs(time_shifts)))[0])]
+                down_starts.append(dt['start'].mjd + best_shift)
+                down_ends.append(dt['end'].mjd + best_shift)
+            else:
+                down_starts.append(dt['start'].mjd)
+                down_ends.append(dt['end'].mjd)
         for dt in unsched_downtimes:
             down_starts.append(dt['start'].mjd)
             down_ends.append(dt['end'].mjd)
