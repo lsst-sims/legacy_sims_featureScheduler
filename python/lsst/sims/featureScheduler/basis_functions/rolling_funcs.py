@@ -104,7 +104,8 @@ class Footprint_rolling_basis_function(Base_basis_function):
         self.footprints = footprints
 
         self.all_footprints_sum = all_footprints_sum
-        self.all_rolling_sum = all_rolling_sum
+        # XXX
+        # self.all_rolling_sum = all_rolling_sum
 
         self.survey_features = {}
         # Set a season for -1 (for before rolling or after max_season)
@@ -150,7 +151,7 @@ class Footprint_rolling_basis_function(Base_basis_function):
         # Now for the rolling sections
         for season in np.unique(seasons[self.rolling_footprint_indx]):
             season_indx = np.where(seasons[self.rolling_footprint_indx] == season)[0]
-            desired = self.footprints[season][self.rolling_footprint_indx][season_indx] / self.all_rolling_sum * np.sum(self.survey_features['N_obs_all_%i' % season].feature[self.rolling_footprint_indx])
+            desired = self.footprints[season][self.rolling_footprint_indx][season_indx] / self.all_footprints_sum * np.sum(self.survey_features['N_obs_all_%i' % season].feature[self.rolling_footprint_indx])
             result[self.rolling_footprint_indx[season_indx]] = desired - self.survey_features['N_obs_%i' % season].feature[self.rolling_footprint_indx][season_indx]
 
         result[self.out_of_bounds_area] = self.out_of_bounds_val
