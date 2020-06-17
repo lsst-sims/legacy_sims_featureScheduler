@@ -5,9 +5,56 @@ import healpy as hp
 import matplotlib.pylab as plt
 import warnings
 from lsst.sims.featureScheduler.basis_functions import Base_basis_function
+from lsst.sims.utils import _hpid2RaDec
 
 
 __all__ = ["Target_map_modulo_basis_function", "Footprint_basis_function", "Footprint_rolling_basis_function"]
+
+
+
+class Footprint_coverage(object):
+    """Need a feature that takes the current conditions rather than observations
+
+    Parameters
+    ----------
+    window_size : float (7)
+        The window around the current opposition RA to consider in-season (hours).
+    """
+    def __init__(self, nside=32, window_size=7.):
+        self.nside = nside
+        self.window_size = window_size/12.*np.pi
+        # Start with value of one everywhere
+        self.feature = np.ones(hp.nside2npix(self.nside))
+        self.hpids = np.arange(hp.nside2npix(nside))
+        self.ra, self.dec = _hpid2RaDec(nside, self.hpids)
+        self.current_night = 0
+        self.sun_RA_init = None
+
+    def _az_to_oppo(self, sunRA):
+        """Compute the map of azimuthal distance to opposition.
+        """
+        oppo_RA = (sunRA+np.pi) % (2.*np.pi)
+        diff = np.abs(self.ra - oppo_RA)
+        az_to_oppo = diff
+        az_to_oppo[np.where(diff > np.pi)] = 2.*np.pi-diff[np.where(diff > np.pi)]
+        return az_to_oppo
+
+    def update_conditions(self, conditions, indx=None):
+        if indx is None:
+            indx = self.indx
+        if self.sun_RA_init is None:
+            self.sun_RA_init = conditions.sunRA + 0
+            if conditions.night > 1:
+                # Need to scale it back
+                self.sun_RA_init = (self.sun_RA_init - conditions.night/365.25*2*np.pi) % (2.*np.pi)
+        if conditions.night != self.current_night:
+            nights_to_run = np.arange(self.current_night+1, conditions.night+1)
+            sun_RAs = (self.sun_RA_init + nights_to_run/365.25*2*np.pi) % (2.*np.pi)
+            for sun_RA in sun_RAs:
+                az_to_oppo = self._az_to_oppo(sun_RA)
+                in_window = np.where(np.abs(az_to_oppo[indx]) <= self.window_size)[0]
+                self.feature[indx[in_window]] += 1
+            self.current_night = conditions.night + 0
 
 
 class Footprint_basis_function(Base_basis_function):
@@ -28,7 +75,7 @@ class Footprint_basis_function(Base_basis_function):
 
     """
     def __init__(self, filtername='r', nside=None, footprint=None, all_footprints_sum=None,
-                 out_of_bounds_val=-10.):
+                 out_of_bounds_val=-10., window_size=6.):
 
         super(Footprint_basis_function, self).__init__(nside=nside, filtername=filtername)
         self.footprint = footprint
@@ -46,14 +93,23 @@ class Footprint_basis_function(Base_basis_function):
         self.survey_features['N_obs_all'] = features.N_observations(nside=nside, filtername=None)
         self.survey_features['N_obs'] = features.N_observations(nside=nside, filtername=filtername)
 
+        # Track how many nights parts of the sky have been observable
+        self.coverage_tracker = Footprint_coverage(nside=nside, window_size=window_size)
+
         # should probably actually loop over all the target maps?
         self.out_of_bounds_area = np.where(footprint <= 0)[0]
         self.out_of_bounds_val = out_of_bounds_val
 
     def _calc_value(self, conditions, indx=None):
 
+        # Update the coverage of the sky so far
+        self.coverage_tracker.update_conditions(conditions)
+
+        norm_coverage = self.coverage_tracker.feature/np.max(self.coverage_tracker.feature)
+        norm_footprint = self.footprint * norm_coverage
+
         # Compute how many observations we should have on the sky
-        desired = self.footprint / self.all_footprints_sum * np.sum(self.survey_features['N_obs_all'].feature)
+        desired = norm_footprint / self.all_footprints_sum * np.sum(self.survey_features['N_obs_all'].feature)
         result = desired - self.survey_features['N_obs'].feature
         result[self.out_of_bounds_area] = self.out_of_bounds_val
         return result
@@ -139,9 +195,8 @@ class Footprint_rolling_basis_function(Base_basis_function):
         result = self.result.copy()
 
         # Compute what season it is at each pixel
-        seasons = utils.season_calc(conditions.night, offset=self.day_offset,
-                                    modulo=self.season_modulo, max_season=self.max_season,
-                                    season_length=self.season_length)
+        seasons = conditions.season(modulo=self.season_modulo,
+                                    max_season=self.max_season, season_length=self.season_length)
 
         # Compute the constant parts of the footprint like before
         desired = self.footprints[-1] / self.all_footprints_sum * np.sum(self.survey_features['N_obs_all_-1'].feature)

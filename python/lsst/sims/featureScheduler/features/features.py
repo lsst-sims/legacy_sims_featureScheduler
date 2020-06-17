@@ -481,3 +481,5 @@ class Rotator_angle(BaseSurveyFeature):
         if observation['filter'][0] == self.filtername:
             # I think this is how to broadcast things properly.
             self.feature[indx, :] += np.histogram(observation.rotSkyPos, bins=self.bins)[0]
+
+

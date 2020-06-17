@@ -1,7 +1,7 @@
 import numpy as np
 from lsst.sims.utils import _approx_RaDec2AltAz, Site, _hpid2RaDec, m5_flat_sed
 import healpy as hp
-from lsst.sims.featureScheduler.utils import set_default_nside, match_hp_resolution, approx_altaz2pa
+from lsst.sims.featureScheduler.utils import set_default_nside, match_hp_resolution, approx_altaz2pa, season_calc
 
 __all__ = ['Conditions']
 
@@ -16,7 +16,7 @@ class Conditions(object):
     Unless otherwise noted, all values are assumed to be valid at the time
     given by self.mjd
     """
-    def __init__(self, nside=None, site='LSST', exptime=30.):
+    def __init__(self, nside=None, site='LSST', exptime=30., mjd_start=59853.5, season_offset=None):
         """
         Parameters
         ----------
@@ -27,8 +27,12 @@ class Conditions(object):
             observatory paramteres like latitude and longitude.
         expTime : float (30)
             The exposure time to assume when computing the 5-sigma limiting depth
+        mjd_start : float (59853.5)
+            The starting MJD of the survey.
+        season_offset : np.array
+            A HEALpix array that specifies the day offset when computing the season for each HEALpix.
 
-        Atributes (Set on init)
+        Attributes (Set on init)
         -----------
         nside : int
             Healpix resolution. All maps are set to this reslution.
@@ -40,7 +44,7 @@ class Conditions(object):
         dec : np.array
             A healpix array with the Dec of each healpixel center (radians). Automatically generated.
 
-        Atributes (to be set by user/telemetry stream)
+        Attributes (to be set by user/telemetry stream)
         -------------------------------------------
         mjd : float
             Modified Julian Date (days).
@@ -151,7 +155,9 @@ class Conditions(object):
         self.nside = nside
         self.site = Site(site)
         self.exptime = exptime
+        self.mjd_start = mjd_start
         hpids = np.arange(hp.nside2npix(nside))
+        self.season_offset = season_offset
         # Generate an empty map so we can copy when we need a new map
         self.zeros_map = np.zeros(hp.nside2npix(nside), dtype=float)
         self.nan_map = np.zeros(hp.nside2npix(nside), dtype=float)
@@ -222,6 +228,8 @@ class Conditions(object):
         self.rotTelPos = None
 
         self.targets_of_opportunity = None
+
+        self._season = None
 
     @property
     def lmst(self):
@@ -311,6 +319,7 @@ class Conditions(object):
         self._HA = None
         self._lmst = None
         self._az_to_sun = None
+        self._season = None
 
     @property
     def skybrightness(self):
@@ -361,3 +370,22 @@ class Conditions(object):
         if self._az_to_sun is None:
             self.calc_az_to_sun()
         return self._az_to_sun
+
+    @property
+    def season(self, modulo=None, max_season=None, season_length=365.25, floor=True):
+        if self.season_offset is not None:
+            kwargs_match = (modulo == self.season_modulo) & (max_season == self.season_max_season) & (season_length == self.season_length) & (floor == self.season_floor)
+            if ~kwargs_match:
+                self.season_modulo = modulo
+                self.season_max_season = max_season
+                self.season_length = season_length
+                self.season_floor = floor
+            if (self._season is None) | (~kwargs_match):
+                self._season = season_calc(self.night, offset=self.season_offset,
+                                           modulo=modulo, max_season=max_season,
+                                           season_length=season_length, floor=floor)
+        else:
+            self._season = None
+
+        return self._season
+    

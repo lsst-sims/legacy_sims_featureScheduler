@@ -9,7 +9,7 @@ import lsst.sims.downtimeModel as downtimeModel
 from lsst.sims.seeingModel import SeeingData, SeeingModel
 from lsst.sims.cloudModel import CloudData
 from lsst.sims.featureScheduler.features import Conditions
-from lsst.sims.featureScheduler.utils import set_default_nside, approx_altaz2pa
+from lsst.sims.featureScheduler.utils import set_default_nside, approx_altaz2pa, create_season_offset
 from lsst.ts.observatory.model import ObservatoryModel, Target
 from astropy.coordinates import EarthLocation
 from astropy.time import Time
@@ -305,9 +305,6 @@ class Model_observatory(object):
 
         self.mjd_start = mjd_start
 
-        # Conditions object to update and return on request
-        self.conditions = Conditions(nside=self.nside)
-
         self.sim_ToO = sim_ToO
 
         # Create an astropy location
@@ -380,6 +377,13 @@ class Model_observatory(object):
         while not good_mjd:
             good_mjd, to_set_mjd = self.check_mjd(to_set_mjd)
         self.mjd = to_set_mjd
+
+        sun_moon_info = self.almanac.get_sun_moon_positions(self.mjd)
+        season_offset = create_season_offset(self.nside, sun_moon_info['sun_RA'])
+
+        # Conditions object to update and return on request
+        self.conditions = Conditions(nside=self.nside, mjd_start=mjd_start, season_offset=season_offset)
+
 
         self.obsID_counter = 0
 
