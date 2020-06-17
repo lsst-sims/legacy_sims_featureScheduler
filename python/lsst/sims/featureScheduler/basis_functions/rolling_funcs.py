@@ -41,7 +41,7 @@ class Footprint_coverage(object):
 
     def update_conditions(self, conditions, indx=None):
         if indx is None:
-            indx = self.indx
+            indx = self.hpids
         if self.sun_RA_init is None:
             self.sun_RA_init = conditions.sunRA + 0
             if conditions.night > 1:
