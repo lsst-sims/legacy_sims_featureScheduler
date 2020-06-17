@@ -231,6 +231,11 @@ class Conditions(object):
 
         self._season = None
 
+        self.season_modulo = None
+        self.season_max_season = None
+        self.season_length = 365.25
+        self.season_floor = True
+
     @property
     def lmst(self):
         return self._lmst
@@ -371,7 +376,7 @@ class Conditions(object):
             self.calc_az_to_sun()
         return self._az_to_sun
 
-    @property
+    # XXX, there's probably an elegant decorator that could do this caching automatically
     def season(self, modulo=None, max_season=None, season_length=365.25, floor=True):
         if self.season_offset is not None:
             kwargs_match = (modulo == self.season_modulo) & (max_season == self.season_max_season) & (season_length == self.season_length) & (floor == self.season_floor)
@@ -388,4 +393,3 @@ class Conditions(object):
             self._season = None
 
         return self._season
-    
