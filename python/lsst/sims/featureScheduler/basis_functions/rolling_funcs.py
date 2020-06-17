@@ -216,7 +216,7 @@ class Footprint_rolling_basis_function(Base_basis_function):
         for season in np.unique(seasons[self.rolling_footprint_indx]):
             if season >= 0:
                 self.coverage_trackers[season].update_conditions(conditions)
-                norm_coverage = self.coverage_tracker[season].feature/np.max(self.coverage_trackers[season].feature)
+                norm_coverage = self.coverage_trackers[season].feature/np.max(self.coverage_trackers[season].feature)
                 norm_footprint = self.footprints[season] * norm_coverage
 
                 season_indx = np.where(seasons[self.rolling_footprint_indx] == season)[0]
