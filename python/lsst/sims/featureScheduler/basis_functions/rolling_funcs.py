@@ -220,8 +220,9 @@ class Footprint_rolling_basis_function(Base_basis_function):
                 norm_footprint = self.footprints[season] * norm_coverage
 
                 season_indx = np.where(seasons[self.rolling_footprint_indx] == season)[0]
-                desired = norm_footprint[season][self.rolling_footprint_indx][season_indx] / self.all_rolling_sum * np.sum(self.survey_features['N_obs_all_%i' % season].feature[self.rolling_footprint_indx])
+                desired = norm_footprint[self.rolling_footprint_indx[season_indx]] / self.all_rolling_sum * np.sum(self.survey_features['N_obs_all_%i' % season].feature[self.rolling_footprint_indx])
                 result[self.rolling_footprint_indx[season_indx]] = desired - self.survey_features['N_obs_%i' % season].feature[self.rolling_footprint_indx][season_indx]
+                import pdb ; pdb.set_trace()
 
         result[self.out_of_bounds_area] = self.out_of_bounds_val
         return result
