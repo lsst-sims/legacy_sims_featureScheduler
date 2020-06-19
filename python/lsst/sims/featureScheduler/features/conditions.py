@@ -16,7 +16,8 @@ class Conditions(object):
     Unless otherwise noted, all values are assumed to be valid at the time
     given by self.mjd
     """
-    def __init__(self, nside=None, site='LSST', exptime=30., mjd_start=59853.5, season_offset=None):
+    def __init__(self, nside=None, site='LSST', exptime=30., mjd_start=59853.5, season_offset=None,
+                 sun_RA_start=None):
         """
         Parameters
         ----------
@@ -31,6 +32,7 @@ class Conditions(object):
             The starting MJD of the survey.
         season_offset : np.array
             A HEALpix array that specifies the day offset when computing the season for each HEALpix.
+        sun_RA_start : float (None)
 
         Attributes (Set on init)
         -----------
@@ -158,6 +160,7 @@ class Conditions(object):
         self.mjd_start = mjd_start
         hpids = np.arange(hp.nside2npix(nside))
         self.season_offset = season_offset
+        self.sun_RA_start = sun_RA_start
         # Generate an empty map so we can copy when we need a new map
         self.zeros_map = np.zeros(hp.nside2npix(nside), dtype=float)
         self.nan_map = np.zeros(hp.nside2npix(nside), dtype=float)

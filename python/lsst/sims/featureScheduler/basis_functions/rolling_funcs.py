@@ -11,6 +11,15 @@ from lsst.sims.utils import _hpid2RaDec
 __all__ = ["Target_map_modulo_basis_function", "Footprint_basis_function", "Footprint_rolling_basis_function"]
 
 
+def step_line(t_in, rise, period, phase=0):
+    t = t_in+phase
+    n_periods = np.floor(t/(period))
+    result = n_periods*rise
+    tphased = t % period
+    step_area = np.where(tphased > period/2.)[0]
+    result[step_area] += (tphased[step_area] - period/2)*rise/(0.5*period)
+    return result
+
 
 class Footprint_coverage(object):
     """Need a feature that takes the current conditions rather than observations
@@ -93,9 +102,6 @@ class Footprint_basis_function(Base_basis_function):
         self.survey_features['N_obs_all'] = features.N_observations(nside=nside, filtername=None)
         self.survey_features['N_obs'] = features.N_observations(nside=nside, filtername=filtername)
 
-        # Track how many nights parts of the sky have been observable
-        self.coverage_tracker = Footprint_coverage(nside=nside, window_size=window_size)
-
         # should probably actually loop over all the target maps?
         self.out_of_bounds_area = np.where(footprint <= 0)[0]
         self.out_of_bounds_val = out_of_bounds_val
@@ -103,9 +109,14 @@ class Footprint_basis_function(Base_basis_function):
     def _calc_value(self, conditions, indx=None):
 
         # Update the coverage of the sky so far
-        self.coverage_tracker.update_conditions(conditions)
+        # If RA to sun is zero, we are at phase np.pi/2.
+        coverage_map_phase = (conditions.ra - conditions.sun_RA_start+np.pi/2.) % (2.*np.pi)
+        t_elapsed = conditions.mjd - conditions.mjd_start
+        zero = step_line(0., 1., 365.25, phase=coverage_map_phase*365.25/2/np.pi)
+        norm_coverage = step_line(t_elapsed, 1., 365.25, phase=coverage_map_phase*365.25/2/np.pi)
+        norm_coverage -= zero
 
-        norm_coverage = self.coverage_tracker.feature/np.max(self.coverage_tracker.feature)
+        norm_coverage = norm_coverage/np.max(norm_coverage)
         norm_footprint = self.footprint * norm_coverage
 
         # Compute how many observations we should have on the sky

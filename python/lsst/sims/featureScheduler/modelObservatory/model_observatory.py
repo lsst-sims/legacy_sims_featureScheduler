@@ -380,9 +380,10 @@ class Model_observatory(object):
 
         sun_moon_info = self.almanac.get_sun_moon_positions(self.mjd)
         season_offset = create_season_offset(self.nside, sun_moon_info['sun_RA'])
-
+        self.sun_RA_start = sun_moon_info['sun_RA'] + 0
         # Conditions object to update and return on request
-        self.conditions = Conditions(nside=self.nside, mjd_start=mjd_start, season_offset=season_offset)
+        self.conditions = Conditions(nside=self.nside, mjd_start=mjd_start,
+                                     season_offset=season_offset, sun_RA_start=self.sun_RA_start)
 
 
         self.obsID_counter = 0
