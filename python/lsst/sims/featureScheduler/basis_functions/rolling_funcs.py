@@ -111,8 +111,8 @@ class Footprint_basis_function(Base_basis_function):
         # Update the coverage of the sky so far
         # If RA to sun is zero, we are at phase np.pi/2.
         coverage_map_phase = (conditions.ra - conditions.sun_RA_start+np.pi/2.) % (2.*np.pi)
-        t_elapsed = conditions.mjd - conditions.mjd_start
         zero = step_line(0., 1., 365.25, phase=coverage_map_phase*365.25/2/np.pi)
+        t_elapsed = conditions.mjd - conditions.mjd_start
         norm_coverage = step_line(t_elapsed, 1., 365.25, phase=coverage_map_phase*365.25/2/np.pi)
         norm_coverage -= zero
 
@@ -170,6 +170,8 @@ class Footprint_rolling_basis_function(Base_basis_function):
         self.day_offset = day_offset
         self.footprints = footprints
 
+        self.max_day_offset = np.max(self.day_offset)
+
         self.all_footprints_sum = all_footprints_sum
         self.all_rolling_sum = all_rolling_sum
 
@@ -195,10 +197,6 @@ class Footprint_rolling_basis_function(Base_basis_function):
                                                                                       nside=self.nside,
                                                                                       max_season=max_season,
                                                                                       season_length=season_length)
-        # Track how many nights parts of the sky have been observable
-        self.coverage_trackers = []
-        for fp in footprints:
-            self.coverage_trackers.append(Footprint_coverage(nside=nside, window_size=window_size))
 
         # Now I need to track the observations taken in each season.
         self.out_of_bounds_area = np.where(footprint <= 0)[0]
@@ -214,9 +212,14 @@ class Footprint_rolling_basis_function(Base_basis_function):
                                     max_season=self.max_season, season_length=self.season_length)
 
         # Update the coverage of the sky so far
-        self.coverage_trackers[-1].update_conditions(conditions)
+        # If RA to sun is zero, we are at phase np.pi/2.
+        coverage_map_phase = (conditions.ra - conditions.sun_RA_start+np.pi/2.) % (2.*np.pi)
+        zero = step_line(0., 1., 365.25, phase=coverage_map_phase*365.25/2/np.pi)
+        t_elapsed = conditions.mjd - conditions.mjd_start
+        norm_coverage_raw = step_line(t_elapsed, 1., 365.25, phase=coverage_map_phase*365.25/2/np.pi)
+        norm_coverage_raw -= zero
 
-        norm_coverage = self.coverage_trackers[-1].feature/np.max(self.coverage_trackers[-1].feature)
+        norm_coverage = norm_coverage_raw/np.max(norm_coverage_raw)
         norm_footprint = self.footprints[-1] * norm_coverage
 
         # Compute the constant parts of the footprint like before
@@ -224,14 +227,21 @@ class Footprint_rolling_basis_function(Base_basis_function):
         result[self.constant_footprint_indx] = desired[self.constant_footprint_indx] - self.survey_features['N_obs_-1'].feature[self.constant_footprint_indx]
 
         # Now for the rolling sections
-        for season in np.unique(seasons[self.rolling_footprint_indx]):
-            if season >= 0:
-                self.coverage_trackers[season].update_conditions(conditions)
-            norm_coverage = self.coverage_trackers[season].feature/np.max(self.coverage_trackers[season].feature)
-            norm_footprint = self.footprints[season] * norm_coverage
+        norm_coverage = 0
+        ns = np.floor((t_elapsed+self.max_day_offset)/365.25)
+        if np.max(ns) > -1:
+            ns_on = ns/self.season_modulo
+            ns_off = ns - ns_on
+            norm_coverage = norm_coverage_raw - ns_off
+            norm_coverage = norm_coverage/np.max(norm_coverage)
 
+        for season in np.unique(seasons[self.rolling_footprint_indx]):
+            if season == -1:
+                nf = norm_footprint
+            else:
+                nf = self.footprints[season] * norm_coverage
             season_indx = np.where(seasons[self.rolling_footprint_indx] == season)[0]
-            desired = norm_footprint[self.rolling_footprint_indx[season_indx]] / self.all_rolling_sum * np.sum(self.survey_features['N_obs_all_%i' % season].feature[self.rolling_footprint_indx])
+            desired = nf[self.rolling_footprint_indx[season_indx]] / self.all_rolling_sum * np.sum(self.survey_features['N_obs_all_%i' % season].feature[self.rolling_footprint_indx])
             result[self.rolling_footprint_indx[season_indx]] = desired - self.survey_features['N_obs_%i' % season].feature[self.rolling_footprint_indx][season_indx]
 
         result[self.out_of_bounds_area] = self.out_of_bounds_val
