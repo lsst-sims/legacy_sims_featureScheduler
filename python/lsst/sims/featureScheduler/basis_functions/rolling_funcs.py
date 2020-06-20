@@ -21,6 +21,30 @@ def step_line(t_in, rise, period, phase=0):
     return result
 
 
+class Footprints(object):
+    """An object to compute the desired survey footprint at a given time
+    """
+    def __init__(self, footprints_dict, mjd_start,
+                 sun_RA_start=0, slopes=None, nside=32):
+        ra, dec = xxx
+        # Set the phase of each healpixel
+
+        # 
+        self.current_footprints = None
+
+    def _update_mjd(self, mjd):
+        if mjd != self.mjd_current:
+            self.mjd_current = mjd
+
+            # # update what each footprint should be
+            self.current_footprints = xxx
+
+    def __call__(self, mjd):
+        self._update_mjd(mjd)
+        return self.current_footprints
+
+
+
 class Footprint_coverage(object):
     """Need a feature that takes the current conditions rather than observations
 
