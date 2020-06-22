@@ -8,86 +8,9 @@ from lsst.sims.featureScheduler.basis_functions import Base_basis_function
 from lsst.sims.utils import _hpid2RaDec
 
 
+
 __all__ = ["Target_map_modulo_basis_function", "Footprint_basis_function", "Footprint_rolling_basis_function"]
 
-
-def step_line(t_in, rise, period, phase=0):
-    t = t_in+phase
-    n_periods = np.floor(t/(period))
-    result = n_periods*rise
-    tphased = t % period
-    step_area = np.where(tphased > period/2.)[0]
-    result[step_area] += (tphased[step_area] - period/2)*rise/(0.5*period)
-    return result
-
-
-class Footprints(object):
-    """An object to compute the desired survey footprint at a given time
-    """
-    def __init__(self, footprints_dict, mjd_start,
-                 sun_RA_start=0, slopes=None, nside=32):
-        ra, dec = xxx
-        # Set the phase of each healpixel
-
-        # 
-        self.current_footprints = None
-
-    def _update_mjd(self, mjd):
-        if mjd != self.mjd_current:
-            self.mjd_current = mjd
-
-            # # update what each footprint should be
-            self.current_footprints = xxx
-
-    def __call__(self, mjd):
-        self._update_mjd(mjd)
-        return self.current_footprints
-
-
-
-class Footprint_coverage(object):
-    """Need a feature that takes the current conditions rather than observations
-
-    Parameters
-    ----------
-    window_size : float (7)
-        The window around the current opposition RA to consider in-season (hours).
-    """
-    def __init__(self, nside=32, window_size=7.):
-        self.nside = nside
-        self.window_size = window_size/12.*np.pi
-        # Start with value of one everywhere
-        self.feature = np.ones(hp.nside2npix(self.nside))
-        self.hpids = np.arange(hp.nside2npix(nside))
-        self.ra, self.dec = _hpid2RaDec(nside, self.hpids)
-        self.current_night = 0
-        self.sun_RA_init = None
-
-    def _az_to_oppo(self, sunRA):
-        """Compute the map of azimuthal distance to opposition.
-        """
-        oppo_RA = (sunRA+np.pi) % (2.*np.pi)
-        diff = np.abs(self.ra - oppo_RA)
-        az_to_oppo = diff
-        az_to_oppo[np.where(diff > np.pi)] = 2.*np.pi-diff[np.where(diff > np.pi)]
-        return az_to_oppo
-
-    def update_conditions(self, conditions, indx=None):
-        if indx is None:
-            indx = self.hpids
-        if self.sun_RA_init is None:
-            self.sun_RA_init = conditions.sunRA + 0
-            if conditions.night > 1:
-                # Need to scale it back
-                self.sun_RA_init = (self.sun_RA_init - conditions.night/365.25*2*np.pi) % (2.*np.pi)
-        if conditions.night != self.current_night:
-            nights_to_run = np.arange(self.current_night+1, conditions.night+1)
-            sun_RAs = (self.sun_RA_init + nights_to_run/365.25*2*np.pi) % (2.*np.pi)
-            for sun_RA in sun_RAs:
-                az_to_oppo = self._az_to_oppo(sun_RA)
-                in_window = np.where(np.abs(az_to_oppo[indx]) <= self.window_size)[0]
-                self.feature[indx[in_window]] += 1
-            self.current_night = conditions.night + 0
 
 
 class Footprint_basis_function(Base_basis_function):
@@ -97,8 +20,8 @@ class Footprint_basis_function(Base_basis_function):
     ----------
     filtername : str ('r')
         The filter for this footprint
-    footprint : HEALpix np.array
-        The desired footprint. Assumed normalized.
+    footprint : lsst.sims.featureScheduler.utils.Footprint object
+        The desired footprint.
     all_footprints_sum : float (None)
         If using multiple filters, the sum of all the footprints. Needed to make sure basis functions are
         normalized properly across all fitlers.
@@ -107,19 +30,11 @@ class Footprint_basis_function(Base_basis_function):
         another good value to use)
 
     """
-    def __init__(self, filtername='r', nside=None, footprint=None, all_footprints_sum=None,
+    def __init__(self, filtername='r', nside=None, footprint=None,
                  out_of_bounds_val=-10., window_size=6.):
 
         super(Footprint_basis_function, self).__init__(nside=nside, filtername=filtername)
         self.footprint = footprint
-
-        if all_footprints_sum is None:
-            # Assume the footprints are similar in weight
-            self.all_footprints_sum = np.sum(footprint)*6
-        else:
-            self.all_footprints_sum = all_footprints_sum
-
-        self.footprint_sum = np.sum(footprint)
 
         self.survey_features = {}
         # All the observations in all filters
@@ -127,24 +42,16 @@ class Footprint_basis_function(Base_basis_function):
         self.survey_features['N_obs'] = features.N_observations(nside=nside, filtername=filtername)
 
         # should probably actually loop over all the target maps?
-        self.out_of_bounds_area = np.where(footprint <= 0)[0]
+        self.out_of_bounds_area = np.where(footprint.footprints[self.filtername] <= 0)[0]
         self.out_of_bounds_val = out_of_bounds_val
 
     def _calc_value(self, conditions, indx=None):
 
-        # Update the coverage of the sky so far
-        # If RA to sun is zero, we are at phase np.pi/2.
-        coverage_map_phase = (conditions.ra - conditions.sun_RA_start+np.pi/2.) % (2.*np.pi)
-        zero = step_line(0., 1., 365.25, phase=coverage_map_phase*365.25/2/np.pi)
-        t_elapsed = conditions.mjd - conditions.mjd_start
-        norm_coverage = step_line(t_elapsed, 1., 365.25, phase=coverage_map_phase*365.25/2/np.pi)
-        norm_coverage -= zero
-
-        norm_coverage = norm_coverage/np.max(norm_coverage)
-        norm_footprint = self.footprint * norm_coverage
+        # Find out what the footprint object thinks we should have been observed
+        desired_footprint_normed = self.footprint(conditions.mjd)[self.filtername]
 
         # Compute how many observations we should have on the sky
-        desired = norm_footprint / self.all_footprints_sum * np.sum(self.survey_features['N_obs_all'].feature)
+        desired = desired_footprint_normed * np.sum(self.survey_features['N_obs_all'].feature)
         result = desired - self.survey_features['N_obs'].feature
         result[self.out_of_bounds_area] = self.out_of_bounds_val
         return result
@@ -238,9 +145,9 @@ class Footprint_rolling_basis_function(Base_basis_function):
         # Update the coverage of the sky so far
         # If RA to sun is zero, we are at phase np.pi/2.
         coverage_map_phase = (conditions.ra - conditions.sun_RA_start+np.pi/2.) % (2.*np.pi)
-        zero = step_line(0., 1., 365.25, phase=coverage_map_phase*365.25/2/np.pi)
+        zero = utils.step_line(0., 1., 365.25, phase=coverage_map_phase*365.25/2/np.pi)
         t_elapsed = conditions.mjd - conditions.mjd_start
-        norm_coverage_raw = step_line(t_elapsed, 1., 365.25, phase=coverage_map_phase*365.25/2/np.pi)
+        norm_coverage_raw = utils.step_line(t_elapsed, 1., 365.25, phase=coverage_map_phase*365.25/2/np.pi)
         norm_coverage_raw -= zero
 
         norm_coverage = norm_coverage_raw/np.max(norm_coverage_raw)

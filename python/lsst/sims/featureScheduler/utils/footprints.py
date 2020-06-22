@@ -24,7 +24,103 @@ __all__ = ['ra_dec_hp_map', 'generate_all_sky', 'get_dustmap',
            'galactic_plane_healpixels', #'low_lat_plane_healpixels', 'bulge_healpixels',
            'magellanic_clouds_healpixels',
            'generate_goal_map', 'standard_goals',
-           'calc_norm_factor', 'filter_count_ratios']
+           'calc_norm_factor', 'filter_count_ratios', 'step_line', 'Footprints', 'Footprint']
+
+
+
+
+
+def step_line(t_in, rise, period, phase=0):
+    t = t_in+phase
+    n_periods = np.floor(t/(period))
+    result = n_periods*rise
+    tphased = t % period
+    step_area = np.where(tphased > period/2.)[0]
+    result[step_area] += (tphased[step_area] - period/2)*rise/(0.5*period)
+    return result
+
+
+class Footprint(object):
+    """An object to compute the desired survey footprint at a given time
+
+    Parameters
+    ----------
+    mjd_start : float
+        The MJD the survey starts on
+    sun_RA_start : float
+        The RA of the sun at the start of the survey (radians)
+
+    """
+    def __init__(self, mjd_start, sun_RA_start=0, nside=32,
+                 filters='ugrizy', period=365.25):
+        self.period = period
+        self.mjd_start = mjd_start
+        self.sun_RA_start = sun_RA_start
+        npix = hp.nside2npix(nside)
+        self.ra, self.dec = _hpid2RaDec(nside, np.arange(npix))
+        # Set the phase of each healpixel. If RA to sun is zero, we are at phase np.pi/2.
+        self.phase = (-self.ra + self.sun_RA_start + np.pi/2) % (2.*np.pi)
+        self.phase = self.phase * (self.period/2./np.pi)
+        # Empty footprints to start
+        self.footprints = np.zeros(npix, dtype=list(zip(filters, [float]*len(filters))))
+        self.current_footprints = np.zeros(npix, dtype=list(zip(filters, [float]*len(filters))))
+        self.zero = step_line(0., 1., self.period, phase=self.phase)
+        self.mjd_current = None
+
+    def _update_mjd(self, mjd, norm=True):
+        if mjd != self.mjd_current:
+            self.mjd_current = mjd
+            t_elapsed = mjd - self.mjd_start
+
+            norm_coverage = step_line(t_elapsed, 1., self.period, phase=self.phase)
+            norm_coverage -= self.zero
+            max_coverage = np.max(norm_coverage)
+            if max_coverage != 0:
+                norm_coverage = norm_coverage/max_coverage
+            # Bad loop, should be able to broadcast better
+            c_sum = 0
+            for key in self.current_footprints.dtype.names:
+                self.current_footprints[key] = self.footprints[key] * norm_coverage
+                c_sum += np.sum(self.current_footprints[key])
+            if norm:
+                if c_sum != 0:
+                    for key in self.current_footprints.dtype.names:
+                        self.current_footprints[key] = self.current_footprints[key]/c_sum
+
+    def __call__(self, mjd):
+        """
+        Returns
+        -------
+        a numpy array with the normalized number of observations that should be at each HEALpix.
+        Multiply by the number of HEALpix observations (all filters), to convert to the number of observations
+        desired.
+        """
+        self._update_mjd(mjd)
+        return self.current_footprints
+
+
+class Footprints(object):
+    def __init__(self, footprint_list):
+        self.footprint_list = footprint_list
+        self.mjd_current = None
+
+    def _update_mjd(self, mjd, norm=True):
+        if mjd != self.mjd_current:
+            self.mjd_current = mjd
+            self.current_footprints = 0.
+            for fp in self.footprint_list:
+                fp._update_mjd(mjd, norm=False)
+                self.current_footprints += fp.current_footprints
+            c_sum = 0
+            for key in self.current_footprints.dtype.names:
+                c_sum += self.current_footprints[key]
+            if c_sum != 0:
+                for key in self.current_footprints.dtype.names:
+                    self.current_footprints[key] = self.current_footprints[key]/c_sum
+
+    def __call__(self, mjd):
+        self._update_mjd(mjd)
+        return self.current_footprints
 
 
 def ra_dec_hp_map(nside=None):
