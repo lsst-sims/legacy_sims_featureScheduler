@@ -30,13 +30,28 @@ __all__ = ['ra_dec_hp_map', 'generate_all_sky', 'get_dustmap',
 
 
 
-def step_line(t_in, rise, period, phase=0):
-    t = t_in+phase
+#def step_line(t_in, rise, period, phase=0):
+#    """Function that goes linear rise, plateu, linear rise, plateu, etc.
+#    """
+#    t = t_in+phase
+#    n_periods = np.floor(t/(period))
+#    result = n_periods*rise
+##    tphased = t % period
+ #   step_area = np.where(tphased > period/2.)[0]
+ #   result[step_area] += (tphased[step_area] - period/2)*rise/(0.5*period)
+ #   return result
+
+
+def step_line(t_in, rise, period, phase=0, t_start=0, t_end=np.inf):
+    t = t_in+phase - t_start
+    t[np.where(t_in >= t_end)] = t_end - t_start
     n_periods = np.floor(t/(period))
     result = n_periods*rise
     tphased = t % period
     step_area = np.where(tphased > period/2.)[0]
     result[step_area] += (tphased[step_area] - period/2)*rise/(0.5*period)
+    result[np.where(t < 0)] = 0
+
     return result
 
 
@@ -52,19 +67,24 @@ class Footprint(object):
 
     """
     def __init__(self, mjd_start, sun_RA_start=0, nside=32,
-                 filters='ugrizy', period=365.25):
+                 filters='ugrizy', period=365.25, step_size=1.):
         self.period = period
+        self.nside = nside
+        self.step_size = step_size
         self.mjd_start = mjd_start
         self.sun_RA_start = sun_RA_start
-        npix = hp.nside2npix(nside)
-        self.ra, self.dec = _hpid2RaDec(nside, np.arange(npix))
+        self.npix = hp.nside2npix(nside)
+        self.filters = filters
+        self.ra, self.dec = _hpid2RaDec(self.nside, np.arange(self.npix))
         # Set the phase of each healpixel. If RA to sun is zero, we are at phase np.pi/2.
         self.phase = (-self.ra + self.sun_RA_start + np.pi/2) % (2.*np.pi)
         self.phase = self.phase * (self.period/2./np.pi)
         # Empty footprints to start
-        self.footprints = np.zeros(npix, dtype=list(zip(filters, [float]*len(filters))))
-        self.current_footprints = np.zeros(npix, dtype=list(zip(filters, [float]*len(filters))))
-        self.zero = step_line(0., 1., self.period, phase=self.phase)
+        self.out_dtype = list(zip(filters, [float]*len(filters)))
+        self.footprints = np.zeros((len(filters), self.npix), dtype=float)
+        self.estimate = np.zeros((len(filters), self.npix), dtype=float)
+        self.current_footprints = np.zeros((len(filters), self.npix), dtype=float)
+        self.zero = step_line(0., self.step_size, self.period, phase=self.phase)
         self.mjd_current = None
 
     def _update_mjd(self, mjd, norm=True):
@@ -72,20 +92,33 @@ class Footprint(object):
             self.mjd_current = mjd
             t_elapsed = mjd - self.mjd_start
 
-            norm_coverage = step_line(t_elapsed, 1., self.period, phase=self.phase)
+            norm_coverage = step_line(t_elapsed, self.step_size, self.period, phase=self.phase)
             norm_coverage -= self.zero
             max_coverage = np.max(norm_coverage)
             if max_coverage != 0:
                 norm_coverage = norm_coverage/max_coverage
-            # Bad loop, should be able to broadcast better
-            c_sum = 0
-            for key in self.current_footprints.dtype.names:
-                self.current_footprints[key] = self.footprints[key] * norm_coverage
-                c_sum += np.sum(self.current_footprints[key])
+            self.current_footprints = self.footprints * norm_coverage
+            c_sum = np.sum(self.current_footprints)
             if norm:
                 if c_sum != 0:
-                    for key in self.current_footprints.dtype.names:
-                        self.current_footprints[key] = self.current_footprints[key]/c_sum
+                    self.current_footprints = self.current_footprints/c_sum
+
+    def arr2struc(self, inarr):
+        """take an array and convert it to labled struc array
+        """
+        out = np.zeros(self.npix, dtype=self.out_dtype)
+        for i, key in enumerate(out.dtype.names):
+            out[key] = inarr[i, :]
+        return out
+
+    def estimate_counts(self, mjd, nvisits=2.2e6, fov_area=9.6):
+        """Estimate the counts we'll get after some time and visits
+        """
+        pix_area = hp.nside2pixarea(self.nside, degrees=True)
+        pix_per_visit = fov_area/pix_area
+        self._update_mjd(mjd, norm=True)
+        self.estimate = self.current_footprints * pix_per_visit * nvisits
+        return self.arr2struc(self.estimate)
 
     def __call__(self, mjd):
         """
@@ -96,10 +129,12 @@ class Footprint(object):
         desired.
         """
         self._update_mjd(mjd)
-        return self.current_footprints
+        return self.arr2struc(self.current_footprints)
 
 
 class Footprints(object):
+    """An object to combine multiple Footprint objects.
+    """
     def __init__(self, footprint_list):
         self.footprint_list = footprint_list
         self.mjd_current = None
