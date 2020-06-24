@@ -42,7 +42,7 @@ class Footprint_basis_function(Base_basis_function):
         self.survey_features['N_obs'] = features.N_observations(nside=nside, filtername=filtername)
 
         # should probably actually loop over all the target maps?
-        self.out_of_bounds_area = np.where(footprint.footprints[self.filtername] <= 0)[0]
+        self.out_of_bounds_area = np.where(footprint.get_footprint(self.filtername) <= 0)[0]
         self.out_of_bounds_val = out_of_bounds_val
 
     def _calc_value(self, conditions, indx=None):

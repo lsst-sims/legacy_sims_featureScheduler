@@ -67,7 +67,7 @@ class Footprint(object):
 
     """
     def __init__(self, mjd_start, sun_RA_start=0, nside=32,
-                 filters='ugrizy', period=365.25, step_size=1.):
+                 filters={'u': 0, 'g': 1, 'r': 2, 'i': 3, 'z': 4, 'y': 5}, period=365.25, step_size=1.):
         self.period = period
         self.nside = nside
         self.step_size = step_size
@@ -86,6 +86,12 @@ class Footprint(object):
         self.current_footprints = np.zeros((len(filters), self.npix), dtype=float)
         self.zero = step_line(0., self.step_size, self.period, phase=self.phase)
         self.mjd_current = None
+
+    def set_footprint(self, filtername, values):
+        self.footprints[self.filters[filtername], :] = values
+
+    def get_footprint(self, filtername):
+        return self.footprints[self.filters[filtername], :]
 
     def _update_mjd(self, mjd, norm=True):
         if mjd != self.mjd_current:
