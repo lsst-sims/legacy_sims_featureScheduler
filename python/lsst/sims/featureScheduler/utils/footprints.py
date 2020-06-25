@@ -24,22 +24,10 @@ __all__ = ['ra_dec_hp_map', 'generate_all_sky', 'get_dustmap',
            'galactic_plane_healpixels', #'low_lat_plane_healpixels', 'bulge_healpixels',
            'magellanic_clouds_healpixels',
            'generate_goal_map', 'standard_goals',
-           'calc_norm_factor', 'filter_count_ratios', 'step_line', 'Footprints', 'Footprint']
+           'calc_norm_factor', 'filter_count_ratios', 'step_line', 'Footprints', 'Footprint',
+           'step_slopes']
 
 
-
-
-
-#def step_line(t_in, rise, period, phase=0):
-#    """Function that goes linear rise, plateu, linear rise, plateu, etc.
-#    """
-#    t = t_in+phase
-#    n_periods = np.floor(t/(period))
-#    result = n_periods*rise
-##    tphased = t % period
- #   step_area = np.where(tphased > period/2.)[0]
- #   result[step_area] += (tphased[step_area] - period/2)*rise/(0.5*period)
- #   return result
 
 
 def step_line(t_in, rise, period, phase=0, t_start=0, t_end=np.inf):
@@ -50,6 +38,24 @@ def step_line(t_in, rise, period, phase=0, t_start=0, t_end=np.inf):
     tphased = t % period
     step_area = np.where(tphased > period/2.)[0]
     result[step_area] += (tphased[step_area] - period/2)*rise/(0.5*period)
+    result[np.where(t < 0)] = 0
+
+    return result
+
+
+def step_slopes(t_in, steps, period, phase=0, t_start=0):
+    """
+    Let's make a function that behaves as we would want rolling cadence to advance
+    """
+    steps = np.array(steps)
+    t = t_in+phase - t_start
+    season = np.floor(t/(period))
+    season = season.astype(int)
+    plateus = np.cumsum(steps)
+    result = plateus[season]
+    tphased = t % period
+    step_area = np.where(tphased > period/2.)[0]
+    result[step_area] += (tphased[step_area] - period/2)*steps[season+1][step_area]/(0.5*period)
     result[np.where(t < 0)] = 0
 
     return result
@@ -67,7 +73,8 @@ class Footprint(object):
 
     """
     def __init__(self, mjd_start, sun_RA_start=0, nside=32,
-                 filters={'u': 0, 'g': 1, 'r': 2, 'i': 3, 'z': 4, 'y': 5}, period=365.25, step_size=1.):
+                 filters={'u': 0, 'g': 1, 'r': 2, 'i': 3, 'z': 4, 'y': 5},
+                 period=365.25, step_size=1., step_func=step_line):
         self.period = period
         self.nside = nside
         self.step_size = step_size
@@ -75,6 +82,7 @@ class Footprint(object):
         self.sun_RA_start = sun_RA_start
         self.npix = hp.nside2npix(nside)
         self.filters = filters
+        self.step_func = step_func
         self.ra, self.dec = _hpid2RaDec(self.nside, np.arange(self.npix))
         # Set the phase of each healpixel. If RA to sun is zero, we are at phase np.pi/2.
         self.phase = (-self.ra + self.sun_RA_start + np.pi/2) % (2.*np.pi)
@@ -84,7 +92,7 @@ class Footprint(object):
         self.footprints = np.zeros((len(filters), self.npix), dtype=float)
         self.estimate = np.zeros((len(filters), self.npix), dtype=float)
         self.current_footprints = np.zeros((len(filters), self.npix), dtype=float)
-        self.zero = step_line(0., self.step_size, self.period, phase=self.phase)
+        self.zero = self.step_func(0., self.step_size, self.period, phase=self.phase)
         self.mjd_current = None
 
     def set_footprint(self, filtername, values):
@@ -98,7 +106,7 @@ class Footprint(object):
             self.mjd_current = mjd
             t_elapsed = mjd - self.mjd_start
 
-            norm_coverage = step_line(t_elapsed, self.step_size, self.period, phase=self.phase)
+            norm_coverage = self.step_func(t_elapsed, self.step_size, self.period, phase=self.phase)
             norm_coverage -= self.zero
             max_coverage = np.max(norm_coverage)
             if max_coverage != 0:
@@ -112,10 +120,12 @@ class Footprint(object):
     def arr2struc(self, inarr):
         """take an array and convert it to labled struc array
         """
-        out = np.zeros(self.npix, dtype=self.out_dtype)
-        for i, key in enumerate(out.dtype.names):
-            out[key] = inarr[i, :]
-        return out
+        result = np.empty(self.npix, dtype=self.out_dtype)
+        for key in self.filters:
+            result[key] = inarr[self.filters[key]]
+        # Argle bargel, why doesn't this view work?
+        # struc = inarr.view(dtype=self.out_dtype).squeeze()
+        return result
 
     def estimate_counts(self, mjd, nvisits=2.2e6, fov_area=9.6):
         """Estimate the counts we'll get after some time and visits
@@ -126,7 +136,7 @@ class Footprint(object):
         self.estimate = self.current_footprints * pix_per_visit * nvisits
         return self.arr2struc(self.estimate)
 
-    def __call__(self, mjd):
+    def __call__(self, mjd, array=False):
         """
         Returns
         -------
@@ -135,15 +145,31 @@ class Footprint(object):
         desired.
         """
         self._update_mjd(mjd)
+        #if array:
+        #    return self.current_footprints
+        #else:
         return self.arr2struc(self.current_footprints)
 
 
-class Footprints(object):
+class Footprints(Footprint):
     """An object to combine multiple Footprint objects.
     """
     def __init__(self, footprint_list):
         self.footprint_list = footprint_list
         self.mjd_current = None
+        self.current_footprints = 0
+        # Should probably run a check that all the footprints are compatible (same nside, etc)
+        self.npix = footprint_list[0].npix
+        self.out_dtype = footprint_list[0].out_dtype
+        self.filters = footprint_list[0].filters
+        self.nside = footprint_list[0].nside
+
+        self.footprints = np.zeros((len(self.filters), self.npix), dtype=float)
+        for Fp in self.footprint_list:
+            self.footprints += Fp.footprints
+
+    def set_footprint(self, filtername, values):
+        pass
 
     def _update_mjd(self, mjd, norm=True):
         if mjd != self.mjd_current:
@@ -152,16 +178,10 @@ class Footprints(object):
             for fp in self.footprint_list:
                 fp._update_mjd(mjd, norm=False)
                 self.current_footprints += fp.current_footprints
-            c_sum = 0
-            for key in self.current_footprints.dtype.names:
-                c_sum += self.current_footprints[key]
-            if c_sum != 0:
-                for key in self.current_footprints.dtype.names:
-                    self.current_footprints[key] = self.current_footprints[key]/c_sum
-
-    def __call__(self, mjd):
-        self._update_mjd(mjd)
-        return self.current_footprints
+            c_sum = np.sum(self.current_footprints)
+            if norm:
+                if c_sum != 0:
+                    self.current_footprints = self.current_footprints/c_sum
 
 
 def ra_dec_hp_map(nside=None):
