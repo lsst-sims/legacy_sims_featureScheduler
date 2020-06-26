@@ -24,41 +24,65 @@ __all__ = ['ra_dec_hp_map', 'generate_all_sky', 'get_dustmap',
            'galactic_plane_healpixels', #'low_lat_plane_healpixels', 'bulge_healpixels',
            'magellanic_clouds_healpixels',
            'generate_goal_map', 'standard_goals',
-           'calc_norm_factor', 'filter_count_ratios', 'step_line', 'Footprints', 'Footprint',
-           'step_slopes']
+           'calc_norm_factor', 'filter_count_ratios', 'Step_line', 'Footprints', 'Footprint',
+           'Step_slopes']
 
 
-
-
-def step_line(t_in, rise, period, phase=0, t_start=0, t_end=np.inf):
-    t = t_in+phase - t_start
-    t[np.where(t_in >= t_end)] = t_end - t_start
-    n_periods = np.floor(t/(period))
-    result = n_periods*rise
-    tphased = t % period
-    step_area = np.where(tphased > period/2.)[0]
-    result[step_area] += (tphased[step_area] - period/2)*rise/(0.5*period)
-    result[np.where(t < 0)] = 0
-
-    return result
-
-
-def step_slopes(t_in, steps, period, phase=0, t_start=0):
+class Base_pixel_evolution(object):
+    """Helper class that can be used to describe the time evolution of a HEALpix in a footprint
     """
-    Let's make a function that behaves as we would want rolling cadence to advance
-    """
-    steps = np.array(steps)
-    t = t_in+phase - t_start
-    season = np.floor(t/(period))
-    season = season.astype(int)
-    plateus = np.cumsum(steps)
-    result = plateus[season]
-    tphased = t % period
-    step_area = np.where(tphased > period/2.)[0]
-    result[step_area] += (tphased[step_area] - period/2)*steps[season+1][step_area]/(0.5*period)
-    result[np.where(t < 0)] = 0
 
-    return result
+    def __init__(self, period=365.25, rise=1., t_start=0.):
+        self.period = period
+        self.rise = rise
+        self.t_start = t_start
+
+    def __call__(self, mjd_in, phase):
+        pass
+
+
+class Step_line(Base_pixel_evolution):
+    """
+    Parameters
+    ----------
+    period : float (365.25)
+        The period to use
+    rise : float (1.)
+        How much the curve should rise every period
+    """
+    def __call__(self, mjd_in, phase):
+        t = mjd_in+phase - self.t_start
+        n_periods = np.floor(t/(self.period))
+        result = n_periods*self.rise
+        tphased = t % self.period
+        step_area = np.where(tphased > self.period/2.)[0]
+        result[step_area] += (tphased[step_area] - self.period/2)*self.rise/(0.5*self.period)
+        result[np.where(t < 0)] = 0
+        return result
+
+
+class Step_slopes(Base_pixel_evolution):
+    """
+    Parameters
+    ----------
+    period : float (365.25)
+        The period to use
+    rise : np.array-like
+        How much the curve should rise each period.
+    """
+    def __call__(self, mjd_in, phase):
+        steps = np.array(self.rise)
+        t = mjd_in+phase - self.t_start
+        season = np.floor(t/(self.period))
+        season = season.astype(int)
+        plateus = np.cumsum(steps)
+        result = plateus[season]
+        tphased = t % self.period
+        step_area = np.where(tphased > self.period/2.)[0]
+        result[step_area] += (tphased[step_area] - self.period/2)*steps[season+1][step_area]/(0.5*self.period)
+        result[np.where(t < 0)] = 0
+
+        return result
 
 
 class Footprint(object):
@@ -74,15 +98,16 @@ class Footprint(object):
     """
     def __init__(self, mjd_start, sun_RA_start=0, nside=32,
                  filters={'u': 0, 'g': 1, 'r': 2, 'i': 3, 'z': 4, 'y': 5},
-                 period=365.25, step_size=1., step_func=step_line):
+                 period=365.25, step_func=None):
         self.period = period
         self.nside = nside
-        self.step_size = step_size
+        if step_func is None:
+            step_func = Step_line()
+        self.step_func = step_func
         self.mjd_start = mjd_start
         self.sun_RA_start = sun_RA_start
         self.npix = hp.nside2npix(nside)
         self.filters = filters
-        self.step_func = step_func
         self.ra, self.dec = _hpid2RaDec(self.nside, np.arange(self.npix))
         # Set the phase of each healpixel. If RA to sun is zero, we are at phase np.pi/2.
         self.phase = (-self.ra + self.sun_RA_start + np.pi/2) % (2.*np.pi)
@@ -92,7 +117,7 @@ class Footprint(object):
         self.footprints = np.zeros((len(filters), self.npix), dtype=float)
         self.estimate = np.zeros((len(filters), self.npix), dtype=float)
         self.current_footprints = np.zeros((len(filters), self.npix), dtype=float)
-        self.zero = self.step_func(0., self.step_size, self.period, phase=self.phase)
+        self.zero = self.step_func(0., self.phase)
         self.mjd_current = None
 
     def set_footprint(self, filtername, values):
@@ -106,7 +131,7 @@ class Footprint(object):
             self.mjd_current = mjd
             t_elapsed = mjd - self.mjd_start
 
-            norm_coverage = self.step_func(t_elapsed, self.step_size, self.period, phase=self.phase)
+            norm_coverage = self.step_func(t_elapsed, self.phase)
             norm_coverage -= self.zero
             max_coverage = np.max(norm_coverage)
             if max_coverage != 0:
