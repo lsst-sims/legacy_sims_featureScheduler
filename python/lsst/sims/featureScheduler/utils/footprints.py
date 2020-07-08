@@ -24,7 +24,189 @@ __all__ = ['ra_dec_hp_map', 'generate_all_sky', 'get_dustmap',
            'galactic_plane_healpixels', #'low_lat_plane_healpixels', 'bulge_healpixels',
            'magellanic_clouds_healpixels',
            'generate_goal_map', 'standard_goals',
-           'calc_norm_factor', 'filter_count_ratios']
+           'calc_norm_factor', 'filter_count_ratios', 'Step_line', 'Footprints', 'Footprint',
+           'Step_slopes']
+
+
+class Base_pixel_evolution(object):
+    """Helper class that can be used to describe the time evolution of a HEALpix in a footprint
+    """
+
+    def __init__(self, period=365.25, rise=1., t_start=0.):
+        self.period = period
+        self.rise = rise
+        self.t_start = t_start
+
+    def __call__(self, mjd_in, phase):
+        pass
+
+
+class Step_line(Base_pixel_evolution):
+    """
+    Parameters
+    ----------
+    period : float (365.25)
+        The period to use
+    rise : float (1.)
+        How much the curve should rise every period
+    """
+    def __call__(self, mjd_in, phase):
+        t = mjd_in+phase - self.t_start
+        n_periods = np.floor(t/(self.period))
+        result = n_periods*self.rise
+        tphased = t % self.period
+        step_area = np.where(tphased > self.period/2.)[0]
+        result[step_area] += (tphased[step_area] - self.period/2)*self.rise/(0.5*self.period)
+        result[np.where(t < 0)] = 0
+        return result
+
+
+class Step_slopes(Base_pixel_evolution):
+    """
+    Parameters
+    ----------
+    period : float (365.25)
+        The period to use
+    rise : np.array-like
+        How much the curve should rise each period.
+    """
+    def __call__(self, mjd_in, phase):
+        steps = np.array(self.rise)
+        t = mjd_in+phase - self.t_start
+        season = np.floor(t/(self.period))
+        season = season.astype(int)
+        plateus = np.cumsum(steps)
+        result = plateus[season]
+        tphased = t % self.period
+        step_area = np.where(tphased > self.period/2.)[0]
+        result[step_area] += (tphased[step_area] - self.period/2)*steps[season+1][step_area]/(0.5*self.period)
+        result[np.where(t < 0)] = 0
+
+        return result
+
+
+class Footprint(object):
+    """An object to compute the desired survey footprint at a given time
+
+    Parameters
+    ----------
+    mjd_start : float
+        The MJD the survey starts on
+    sun_RA_start : float
+        The RA of the sun at the start of the survey (radians)
+
+    """
+    def __init__(self, mjd_start, sun_RA_start=0, nside=32,
+                 filters={'u': 0, 'g': 1, 'r': 2, 'i': 3, 'z': 4, 'y': 5},
+                 period=365.25, step_func=None):
+        self.period = period
+        self.nside = nside
+        if step_func is None:
+            step_func = Step_line()
+        self.step_func = step_func
+        self.mjd_start = mjd_start
+        self.sun_RA_start = sun_RA_start
+        self.npix = hp.nside2npix(nside)
+        self.filters = filters
+        self.ra, self.dec = _hpid2RaDec(self.nside, np.arange(self.npix))
+        # Set the phase of each healpixel. If RA to sun is zero, we are at phase np.pi/2.
+        self.phase = (-self.ra + self.sun_RA_start + np.pi/2) % (2.*np.pi)
+        self.phase = self.phase * (self.period/2./np.pi)
+        # Empty footprints to start
+        self.out_dtype = list(zip(filters, [float]*len(filters)))
+        self.footprints = np.zeros((len(filters), self.npix), dtype=float)
+        self.estimate = np.zeros((len(filters), self.npix), dtype=float)
+        self.current_footprints = np.zeros((len(filters), self.npix), dtype=float)
+        self.zero = self.step_func(0., self.phase)
+        self.mjd_current = None
+
+    def set_footprint(self, filtername, values):
+        self.footprints[self.filters[filtername], :] = values
+
+    def get_footprint(self, filtername):
+        return self.footprints[self.filters[filtername], :]
+
+    def _update_mjd(self, mjd, norm=True):
+        if mjd != self.mjd_current:
+            self.mjd_current = mjd
+            t_elapsed = mjd - self.mjd_start
+
+            norm_coverage = self.step_func(t_elapsed, self.phase)
+            norm_coverage -= self.zero
+            max_coverage = np.max(norm_coverage)
+            if max_coverage != 0:
+                norm_coverage = norm_coverage/max_coverage
+            self.current_footprints = self.footprints * norm_coverage
+            c_sum = np.sum(self.current_footprints)
+            if norm:
+                if c_sum != 0:
+                    self.current_footprints = self.current_footprints/c_sum
+
+    def arr2struc(self, inarr):
+        """take an array and convert it to labled struc array
+        """
+        result = np.empty(self.npix, dtype=self.out_dtype)
+        for key in self.filters:
+            result[key] = inarr[self.filters[key]]
+        # Argle bargel, why doesn't this view work?
+        # struc = inarr.view(dtype=self.out_dtype).squeeze()
+        return result
+
+    def estimate_counts(self, mjd, nvisits=2.2e6, fov_area=9.6):
+        """Estimate the counts we'll get after some time and visits
+        """
+        pix_area = hp.nside2pixarea(self.nside, degrees=True)
+        pix_per_visit = fov_area/pix_area
+        self._update_mjd(mjd, norm=True)
+        self.estimate = self.current_footprints * pix_per_visit * nvisits
+        return self.arr2struc(self.estimate)
+
+    def __call__(self, mjd, array=False):
+        """
+        Returns
+        -------
+        a numpy array with the normalized number of observations that should be at each HEALpix.
+        Multiply by the number of HEALpix observations (all filters), to convert to the number of observations
+        desired.
+        """
+        self._update_mjd(mjd)
+        #if array:
+        #    return self.current_footprints
+        #else:
+        return self.arr2struc(self.current_footprints)
+
+
+class Footprints(Footprint):
+    """An object to combine multiple Footprint objects.
+    """
+    def __init__(self, footprint_list):
+        self.footprint_list = footprint_list
+        self.mjd_current = None
+        self.current_footprints = 0
+        # Should probably run a check that all the footprints are compatible (same nside, etc)
+        self.npix = footprint_list[0].npix
+        self.out_dtype = footprint_list[0].out_dtype
+        self.filters = footprint_list[0].filters
+        self.nside = footprint_list[0].nside
+
+        self.footprints = np.zeros((len(self.filters), self.npix), dtype=float)
+        for Fp in self.footprint_list:
+            self.footprints += Fp.footprints
+
+    def set_footprint(self, filtername, values):
+        pass
+
+    def _update_mjd(self, mjd, norm=True):
+        if mjd != self.mjd_current:
+            self.mjd_current = mjd
+            self.current_footprints = 0.
+            for fp in self.footprint_list:
+                fp._update_mjd(mjd, norm=False)
+                self.current_footprints += fp.current_footprints
+            c_sum = np.sum(self.current_footprints)
+            if norm:
+                if c_sum != 0:
+                    self.current_footprints = self.current_footprints/c_sum
 
 
 def ra_dec_hp_map(nside=None):

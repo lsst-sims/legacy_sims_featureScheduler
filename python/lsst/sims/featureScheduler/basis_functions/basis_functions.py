@@ -7,6 +7,8 @@ from lsst.sims.skybrightness_pre import M5percentiles
 import matplotlib.pylab as plt
 import warnings
 from lsst.sims.utils import _hpid2RaDec
+from astropy.coordinates import SkyCoord
+from astropy import units as u
 
 
 __all__ = ['Base_basis_function', 'Constant_basis_function', 'Target_map_basis_function',
@@ -19,7 +21,8 @@ __all__ = ['Base_basis_function', 'Constant_basis_function', 'Target_map_basis_f
            'Template_generate_basis_function',
            'Footprint_nvis_basis_function', 'Third_observation_basis_function', 'Season_coverage_basis_function',
            'N_obs_per_year_basis_function', 'Cadence_in_season_basis_function', 'Near_sun_twilight_basis_function',
-           'N_obs_high_am_basis_function', 'Good_seeing_basis_function', 'Observed_twice_basis_function']
+           'N_obs_high_am_basis_function', 'Good_seeing_basis_function', 'Observed_twice_basis_function',
+           'Ecliptic_basis_function']
 
 
 class Base_basis_function(object):
@@ -250,6 +253,24 @@ class N_obs_high_am_basis_function(Base_basis_function):
         self.value = result
 
         return result
+
+
+class Ecliptic_basis_function(Base_basis_function):
+    """Mark the area around the ecliptic
+    """
+
+    def __init__(self, nside=None, distance_to_eclip=25.):
+        super(Ecliptic_basis_function, self).__init__(nside=nside)
+        self.distance_to_eclip = np.radians(distance_to_eclip)
+        ra, dec = _hpid2RaDec(nside, np.arange(hp.nside2npix(self.nside)))
+        self.result = np.zeros(ra.size)
+        coord = SkyCoord(ra=ra*u.rad, dec=dec*u.rad)
+        eclip_lat = coord.barycentrictrueecliptic.lat.radian
+        good = np.where(np.abs(eclip_lat) < self.distance_to_eclip)
+        self.result[good] += 1
+
+    def __call__(self, conditions, indx=None):
+        return self.result
 
 
 class N_obs_per_year_basis_function(Base_basis_function):
@@ -1211,13 +1232,13 @@ class Good_seeing_basis_function(Base_basis_function):
 
     def _calc_value(self, conditions, **kwargs):
         # Seeing is "bad"
-        if conditions.FWHMeff[self.filtername].min() > self.FWHMeff_limit:
+        if int_rounded(conditions.FWHMeff[self.filtername].min()) > self.FWHMeff_limit:
             return 0
         result = self.result.copy()
 
-        diff = int_rounded(self.survey_features['coadd_depth_all'].feature - self.survey_features['coadd_depth_good'].feature)
+        diff = self.survey_features['coadd_depth_all'].feature - self.survey_features['coadd_depth_good'].feature
         # Where are there things we want to observe?
-        good_pix = np.where((diff > self.mag_diff) &
+        good_pix = np.where((int_rounded(diff) > self.mag_diff) &
                             (int_rounded(conditions.FWHMeff[self.filtername]) <= self.FWHMeff_limit))
         # Hm, should this scale by the mag differences? Probably.
         result[good_pix] = diff[good_pix]

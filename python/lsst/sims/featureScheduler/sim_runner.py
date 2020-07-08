@@ -37,7 +37,7 @@ def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, su
         filter_scheduler = simple_filter_sched()
 
     if mjd_start is None:
-        mjd = observatory.mjd
+        mjd = observatory.mjd + 0
         mjd_start = mjd + 0
     else:
         mjd = mjd_start + 0
@@ -79,7 +79,7 @@ def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, su
                 # ugh, "swap_filter" means "unmount filter"
                 observatory.observatory.swap_filter(filtername)
 
-        mjd = observatory.mjd
+        mjd = observatory.mjd + 0
         if verbose:
             if (mjd-mjd_track) > step:
                 progress = float(mjd-mjd_start)/mjd_run*100
