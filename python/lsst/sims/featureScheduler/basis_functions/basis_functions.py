@@ -12,6 +12,7 @@ from astropy import units as u
 
 
 __all__ = ['Base_basis_function', 'Constant_basis_function', 'Target_map_basis_function',
+           'Avoid_long_gaps_basis_function',
            'Avoid_Fast_Revists', 'Visit_repeat_basis_function', 'M5_diff_basis_function',
            'Strict_filter_basis_function', 'Goal_Strict_filter_basis_function',
            'Filter_change_basis_function', 'Slewtime_basis_function',
@@ -111,6 +112,31 @@ class Constant_basis_function(Base_basis_function):
     """
     def __call__(self, conditions, **kwargs):
         return 1
+
+
+class Avoid_long_gaps_basis_function(Base_basis_function):
+    """
+    Boost the reward on parts of the survey that haven't been observed for a while
+    """
+
+    def __init__(self, filtername=None, nside=None, footprint=None, min_gap=4., max_gap=40.):
+        super(Avoid_long_gaps_basis_function, self).__init__(nside=nside, filtername=filtername)
+        self.min_gap = min_gap
+        self.max_gap = max_gap
+        self.filtername = filtername
+        self.footprint = footprint
+
+        self.survey_features = {}
+        self.survey_features['last_observed'] = features.Last_observed(nside=nside, filtername=filtername)
+        self.result = np.zeros(hp.nside2npix(self.nside))
+
+    def _calc_value(self, conditions, indx=None):
+        result = self.result.copy()
+
+        gap = conditions.mjd - self.survey_features['Last_observed']
+        in_range = np.where((gap > self.min_gap) & (gap < self.max_gap) & (self.footprint > 0))
+        result[in_range] = 1
+        return result
 
 
 class Target_map_basis_function(Base_basis_function):
