@@ -119,13 +119,14 @@ class Avoid_long_gaps_basis_function(Base_basis_function):
     Boost the reward on parts of the survey that haven't been observed for a while
     """
 
-    def __init__(self, filtername=None, nside=None, footprint=None, min_gap=4., max_gap=40.):
+    def __init__(self, filtername=None, nside=None, footprint=None, min_gap=4., max_gap=40.,
+                 ha_limit=3.5):
         super(Avoid_long_gaps_basis_function, self).__init__(nside=nside, filtername=filtername)
         self.min_gap = min_gap
         self.max_gap = max_gap
         self.filtername = filtername
         self.footprint = footprint
-
+        self.ha_limit = 2.*np.pi*ha_limit/24.  # To radians
         self.survey_features = {}
         self.survey_features['last_observed'] = features.Last_observed(nside=nside, filtername=filtername)
         self.result = np.zeros(hp.nside2npix(self.nside))
@@ -133,9 +134,14 @@ class Avoid_long_gaps_basis_function(Base_basis_function):
     def _calc_value(self, conditions, indx=None):
         result = self.result.copy()
 
-        gap = conditions.mjd - self.survey_features['Last_observed']
+        gap = conditions.mjd - self.survey_features['last_observed'].feature
         in_range = np.where((gap > self.min_gap) & (gap < self.max_gap) & (self.footprint > 0))
         result[in_range] = 1
+
+        # mask out areas beyond the hour angle limit.
+        out_ha = np.where((conditions.HA > self.ha_limit) & (conditions.HA < (2.*np.pi - self.ha_limit)))[0]
+        result[out_ha] = 0
+
         return result
 
 
