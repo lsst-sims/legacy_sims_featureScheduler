@@ -2,7 +2,7 @@ import numpy as np
 from lsst.sims.featureScheduler.utils import (empty_observation, set_default_nside)
 import lsst.sims.featureScheduler.features as features
 from lsst.sims.featureScheduler.surveys import BaseSurvey
-from lsst.sims.utils import _approx_RaDec2AltAz, _raDec2Hpid
+from lsst.sims.utils import _approx_RaDec2AltAz, _raDec2Hpid, _angularSeparation
 import logging
 
 log = logging.getLogger(__name__)
@@ -15,12 +15,14 @@ class Scripted_survey(BaseSurvey):
     Take a set of scheduled observations and serve them up.
     """
     def __init__(self, basis_functions, reward=1e6, ignore_obs='dummy',
-                 nside=None, min_alt=30., max_alt=85.):
+                 nside=None, min_alt=30., max_alt=85., dist_tol=1.):
         """
         min_alt : float (30.)
             The minimum altitude to attempt to chace a pair to (degrees). Default of 30 = airmass of 2.
         max_alt : float(85.)
             The maximum altitude to attempt to chase a pair to (degrees).
+        dist_tol : float (1.)
+            The distance an observation must be to match something in the script queue (degrees)
 
         """
         if nside is None:
@@ -28,6 +30,7 @@ class Scripted_survey(BaseSurvey):
 
         self.extra_features = {}
 
+        self.dist_tol = np.radians(dist_tol)
         self.min_alt = np.radians(min_alt)
         self.max_alt = np.radians(max_alt)
         self.nside = nside
@@ -37,29 +40,38 @@ class Scripted_survey(BaseSurvey):
                                               ignore_obs=ignore_obs, nside=nside)
 
     def add_observation(self, observation, indx=None, **kwargs):
-        """Check if this matches a scripted observation
+        """Check if observation matches a scripted observation
         """
         # From base class
-        if self.ignore_obs not in observation['note']:
+        checks = [io not in str(observation['note']) for io in self.ignore_obs]
+        if all(checks):
             for feature in self.extra_features:
                 self.extra_features[feature].add_observation(observation, **kwargs)
+            for bf in self.basis_functions:
+                bf.add_observation(observation, **kwargs)
+            for detailer in self.detailers:
+                detailer.add_observation(observation, **kwargs)
             self.reward_checked = False
-
+            # Now see if there's a match
             dt = self.obs_wanted['mjd'] - observation['mjd']
             # was it taken in the right time window, and hasn't already been marked as observed.
-            time_matches = np.where((np.abs(dt) < self.mjd_tol) & (~self.obs_log))[0]
+            time_matches = np.where((np.abs(dt) < self.mjd_tol) & (~self.obs_log) &
+                                    (observation['note'] == self.obs_wanted['note']))[0]
             for match in time_matches:
-                # Might need to change this to an angular distance calc and add another tolerance?
-                if (self.obs_wanted[match]['RA'] == observation['RA']) & \
-                   (self.obs_wanted[match]['dec'] == observation['dec']) & \
+                distances = _angularSeparation(self.obs_wanted[match]['RA'],
+                                               self.obs_wanted[match]['dec'],
+                                               observation['RA'], observation['dec'])
+                if (distances < self.dist_tol) & \
                    (self.obs_wanted[match]['filter'] == observation['filter']):
+                    # Log it as observed.
                     self.obs_log[match] = True
+                    self.scheduled_obs[match] = np.nan
                     break
 
     def calc_reward_function(self, conditions):
         """If there is an observation ready to go, execute it, otherwise, -inf
         """
-        observation = self._check_list()
+        observation = self._check_list(conditions)
         if observation is None:
             self.reward = -np.inf
         else:
@@ -74,17 +86,14 @@ class Scripted_survey(BaseSurvey):
             observation[key] = obs_row[key]
         return observation
 
-    def _check_alts(self, indices):
-        """Check the altitudes of potential matches.
-        """
-        # This is kind of a kludgy low-resolution way to convert ra,dec to alt,az, but should be really fast.
-        # XXX--should I stick the healpixel value on when I set the script? Might be faster.
-        # XXX not sure this really needs to be it's own method
-        hp_ids = _raDec2Hpid(self.nside, self.obs_wanted[indices]['RA'], self.obs_wanted[indices]['dec'])
-        alts = self.extra_features['altaz'].feature['alt'][hp_ids]
-        in_range = np.where((alts < self.max_alt) & (alts > self.min_alt))
-        indices = indices[in_range]
-        return indices
+    def _check_alts(self, observation, conditions):
+        # Just do a fast ra,dec to alt,az conversion. Can use LMST from a feature.
+        alt, az = _approx_RaDec2AltAz(observation['RA'], observation['dec'],
+                                      conditions.site.latitude_rad, None,
+                                      conditions.mjd,
+                                      lmst=conditions.lmst)
+        in_range = np.where((alt < self.max_alt) & (alt > self.min_alt))[0]
+        return in_range
 
     def _check_list(self, conditions):
         """Check to see if the current mjd is good
@@ -93,7 +102,7 @@ class Scripted_survey(BaseSurvey):
         # Check for matches with the right requested MJD
         matches = np.where((np.abs(dt) < self.mjd_tol) & (~self.obs_log))[0]
         # Trim down to ones that are in the altitude limits
-        matches = self._check_alts(matches)
+        matches = matches[self._check_alts(self.obs_wanted[matches], conditions)]
         if matches.size > 0:
             observation = self._slice2obs(self.obs_wanted[matches[0]])
         else:
@@ -116,9 +125,12 @@ class Scripted_survey(BaseSurvey):
         self.obs_wanted = obs_wanted
         # Set something to record when things have been observed
         self.obs_log = np.zeros(obs_wanted.size, dtype=bool)
+        self.scheduled_obs = self.obs_wanted['mjd']
 
     def add_to_script(self, observation, mjd_tol=15.):
         """
+        Add an observation to the script
+
         Parameters
         ----------
         observation : observation object
@@ -133,7 +145,7 @@ class Scripted_survey(BaseSurvey):
         # XXX-note, there's currently nothing that flushes this, so adding
         # observations can pile up nonstop. Should prob flush nightly or something
 
-    def generate_observations(self, conditions):
+    def generate_observations_rough(self, conditions):
         observation = self._check_list(conditions)
         return [observation]
 

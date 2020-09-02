@@ -105,6 +105,8 @@ class Blob_survey(Greedy_survey):
         from lingering past when they should be executed. (minutes)
     twilight_scale : bool (True)
         Scale the block size to fill up to twilight. Set to False if running in twilight
+    check_scheduled : bool (True)
+        Check if there are scheduled observations and scale blob size to match
     min_area : float (None)
         If set, demand the reward function have an area of so many square degrees before executing
     """
@@ -118,7 +120,7 @@ class Blob_survey(Greedy_survey):
                  smoothing_kernel=None, nside=None,
                  dither=True, seed=42, ignore_obs=None,
                  survey_note='blob', detailers=None, camera='LSST',
-                 twilight_scale=True, min_area=None):
+                 twilight_scale=True, check_scheduled=True, min_area=None):
 
         if nside is None:
             nside = set_default_nside()
@@ -137,6 +139,7 @@ class Blob_survey(Greedy_survey):
         self.hpids = np.arange(hp.nside2npix(self.nside))
         self.twilight_scale = twilight_scale
         self.min_area = min_area
+        self.check_scheduled = check_scheduled
         # If we are taking pairs in same filter, no need to add filter change time.
         if filtername1 == filtername2:
             filter_change_approx = 0
@@ -199,6 +202,14 @@ class Blob_survey(Greedy_survey):
             n_ideal_blocks = available_time / self.ideal_pair_time
         else:
             n_ideal_blocks = 4
+
+        if self.check_scheduled:
+            if len(conditions.scheduled_observations) > 0:
+                available_time = np.min(conditions.scheduled_observations) - conditions.mjd
+                available_time *= 24.*60.  # to minutes
+                n_blocks = available_time / self.ideal_pair_time
+                if n_blocks < n_ideal_blocks:
+                    n_ideal_blocks = n_blocks
 
         if n_ideal_blocks >= 3:
             self.nvisit_block = int(np.floor(self.ideal_pair_time*60. / (self.slew_approx + self.exptime +

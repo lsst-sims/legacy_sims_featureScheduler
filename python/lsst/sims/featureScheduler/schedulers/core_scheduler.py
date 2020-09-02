@@ -114,9 +114,24 @@ class Core_scheduler(object):
         # put the local queue in the conditions
         self.conditions.queue = self.queue
 
-        # XXX---TODO:  Could potentially put more complicated info from all
-        # the surveys in the conditions object here. e.g., when a DDF plans to next request
-        # observations.
+        # Check if any surveys have upcomming scheduled observations. Note that we are accumulating
+        # all of the possible scheduled observations, so it's up to the user to make sure things don't
+        # collide. The ideal implementation would be to have all the scheduled observations in a
+        # single survey objects, presumably at the highest tier of priority.
+
+        all_scheduled = []
+        for sl in self.survey_lists:
+            for sur in sl:
+                scheduled = sur.get_scheduled_obs()
+                if scheduled is not None:
+                    all_scheduled.append(scheduled)
+        if len(all_scheduled) == 0:
+            self.conditions.scheduled_observations = []
+        else:
+            all_scheduled = np.sort(np.concatenate(all_scheduled))
+            # In case the surveys have not been removing executed observations
+            all_scheduled = all_scheduled[np.where(all_scheduled >= self.conditions.mjd)]
+            self.conditions.scheduled_observations = all_scheduled
 
     def _check_queue_mjd_only(self, mjd):
         """

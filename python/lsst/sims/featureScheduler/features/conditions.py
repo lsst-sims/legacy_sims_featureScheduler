@@ -46,7 +46,7 @@ class Conditions(object):
         dec : np.array
             A healpix array with the Dec of each healpixel center (radians). Automatically generated.
 
-        Attributes (to be set by user/telemetry stream)
+        Attributes (to be set by user/telemetry stream/scheduler)
         -------------------------------------------
         mjd : float
             Modified Julian Date (days).
@@ -124,6 +124,8 @@ class Conditions(object):
             targetoO objects.
         planet_positions : dict
             Dictionary of planet name and coordinate e.g., 'venus_RA', 'mars_dec'
+        scheduled_observations : np.array
+            A list of MJD times when there are scheduled observations. Defaults to empty array.
 
         Attributes (calculated on demand and cached)
         ------------------------------------------
@@ -186,6 +188,9 @@ class Conditions(object):
         self._FWHMeff = {}
         self._M5Depth = None
         self._airmass = None
+
+        # Upcomming scheduled observations
+        self.scheduled_observations = np.array([], dtype=float)
 
         # Attribute to hold the current observing queue
         self.queue = None
