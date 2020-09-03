@@ -15,7 +15,7 @@ class Scripted_survey(BaseSurvey):
     Take a set of scheduled observations and serve them up.
     """
     def __init__(self, basis_functions, reward=1e6, ignore_obs='dummy',
-                 nside=None, min_alt=30., max_alt=85., dist_tol=1.):
+                 nside=None, min_alt=30., max_alt=85., dist_tol=1., HA_limit=6):
         """
         min_alt : float (30.)
             The minimum altitude to attempt to chace a pair to (degrees). Default of 30 = airmass of 2.
@@ -23,6 +23,8 @@ class Scripted_survey(BaseSurvey):
             The maximum altitude to attempt to chase a pair to (degrees).
         dist_tol : float (1.)
             The distance an observation must be to match something in the script queue (degrees)
+        HA_limit : float (6)
+            Hour angle limit to put on the observations (hours)
 
         """
         if nside is None:
@@ -36,12 +38,15 @@ class Scripted_survey(BaseSurvey):
         self.nside = nside
         self.reward_val = reward
         self.reward = -reward
+        self.min_HA = HA_limit
+        self.max_HA = 24. - HA_limit
         super(Scripted_survey, self).__init__(basis_functions=basis_functions,
                                               ignore_obs=ignore_obs, nside=nside)
 
     def add_observation(self, observation, indx=None, **kwargs):
         """Check if observation matches a scripted observation
         """
+
         # From base class
         checks = [io not in str(observation['note']) for io in self.ignore_obs]
         if all(checks):
@@ -52,6 +57,7 @@ class Scripted_survey(BaseSurvey):
             for detailer in self.detailers:
                 detailer.add_observation(observation, **kwargs)
             self.reward_checked = False
+
             # Now see if there's a match
             dt = self.obs_wanted['mjd'] - observation['mjd']
             # was it taken in the right time window, and hasn't already been marked as observed.
@@ -65,7 +71,10 @@ class Scripted_survey(BaseSurvey):
                    (self.obs_wanted[match]['filter'] == observation['filter']):
                     # Log it as observed.
                     self.obs_log[match] = True
-                    self.scheduled_obs[match] = np.nan
+
+                    # Cut down the list of observations we are broadcasting as needing to be scheduled
+                    still_sched = np.where((self.obs_wanted['mjd'] >= observation['mjd']) & (self.obs_log == False))[0]
+                    self.scheduled_obs = self.obs_wanted['mjd'][still_sched]
                     break
 
     def calc_reward_function(self, conditions):
@@ -86,13 +95,18 @@ class Scripted_survey(BaseSurvey):
             observation[key] = obs_row[key]
         return observation
 
-    def _check_alts(self, observation, conditions):
+    def _check_alts_HA(self, observation, conditions):
+        """
+        """
         # Just do a fast ra,dec to alt,az conversion. Can use LMST from a feature.
         alt, az = _approx_RaDec2AltAz(observation['RA'], observation['dec'],
                                       conditions.site.latitude_rad, None,
                                       conditions.mjd,
                                       lmst=conditions.lmst)
-        in_range = np.where((alt < self.max_alt) & (alt > self.min_alt))[0]
+        HA = conditions.lmst - observation['RA']*12./np.pi
+        HA[np.where(HA > 24)] -= 24
+        HA[np.where(HA < 0)] += 24
+        in_range = np.where((alt < self.max_alt) & (alt > self.min_alt) & ((HA > self.max_HA) | (HA < self.min_HA)))[0]
         return in_range
 
     def _check_list(self, conditions):
@@ -102,7 +116,7 @@ class Scripted_survey(BaseSurvey):
         # Check for matches with the right requested MJD
         matches = np.where((np.abs(dt) < self.mjd_tol) & (~self.obs_log))[0]
         # Trim down to ones that are in the altitude limits
-        matches = matches[self._check_alts(self.obs_wanted[matches], conditions)]
+        matches = matches[self._check_alts_HA(self.obs_wanted[matches], conditions)]
         if matches.size > 0:
             observation = self._slice2obs(self.obs_wanted[matches[0]])
         else:
