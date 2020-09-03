@@ -144,7 +144,7 @@ class Conditions(object):
             the 5-sigma limiting depth healpix maps, keyed by filtername (mags). Will be recalculated
             if the skybrightness, seeing, or airmass are updated.
         HA : np.array
-            Healpix map of the hour angle of each healpixel (radians).
+            Healpix map of the hour angle of each healpixel (radians). Runs from 0 to 2pi.
         az_to_sun : np.array
             Healpix map of the azimuthal distance to the sun for each healpixel (radians)
 

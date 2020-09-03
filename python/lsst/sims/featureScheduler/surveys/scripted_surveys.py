@@ -15,7 +15,7 @@ class Scripted_survey(BaseSurvey):
     Take a set of scheduled observations and serve them up.
     """
     def __init__(self, basis_functions, reward=1e6, ignore_obs='dummy',
-                 nside=None, min_alt=30., max_alt=85., dist_tol=1., HA_limit=6):
+                 nside=None, min_alt=30., max_alt=85., dist_tol=1., HA_limit=6, mjd_tol=15.):
         """
         min_alt : float (30.)
             The minimum altitude to attempt to chace a pair to (degrees). Default of 30 = airmass of 2.
@@ -31,7 +31,7 @@ class Scripted_survey(BaseSurvey):
             nside = set_default_nside()
 
         self.extra_features = {}
-
+        self.mjd_tol = mjd_tol / 60. / 24.  # To days
         self.dist_tol = np.radians(dist_tol)
         self.min_alt = np.radians(min_alt)
         self.max_alt = np.radians(max_alt)
@@ -73,7 +73,7 @@ class Scripted_survey(BaseSurvey):
                     self.obs_log[match] = True
 
                     # Cut down the list of observations we are broadcasting as needing to be scheduled
-                    still_sched = np.where((self.obs_wanted['mjd'] >= observation['mjd']) & (self.obs_log == False))[0]
+                    still_sched = np.where((self.obs_wanted['mjd'] >= (observation['mjd'] + self.mjd_tol)) & (self.obs_log == False))[0]
                     self.scheduled_obs = self.obs_wanted['mjd'][still_sched]
                     break
 
@@ -123,7 +123,7 @@ class Scripted_survey(BaseSurvey):
             observation = None
         return observation
 
-    def set_script(self, obs_wanted, mjd_tol=15.):
+    def set_script(self, obs_wanted, mjd_tol=None):
         """
         Parameters
         ----------
@@ -135,7 +135,8 @@ class Scripted_survey(BaseSurvey):
         mjd_tol : float (15.)
             The tolerance to consider an observation as still good to observe (min)
         """
-        self.mjd_tol = mjd_tol/60./24.  # to days
+        if mjd_tol is not None:
+            self.mjd_tol = mjd_tol/60./24.  # to days
         self.obs_wanted = obs_wanted
         # Set something to record when things have been observed
         self.obs_log = np.zeros(obs_wanted.size, dtype=bool)
