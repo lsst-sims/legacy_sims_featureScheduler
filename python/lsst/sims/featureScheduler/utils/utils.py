@@ -366,6 +366,25 @@ def empty_observation():
     return result
 
 
+def scheduled_observation():
+    """Make an array for pre-scheduling observations
+
+    mjd_tol : float
+        The tolerance on how early an observation can execute (days).
+
+    """
+
+    # Standard things from the usual observations
+    names = ['ID', 'RA', 'dec', 'mjd', 'flush_by_mjd', 'exptime', 'filter', 'rotSkyPos', 'nexp',
+             'note']
+    types = [int, float, float, float, float, float, 'U1', float, float, 'U40']
+    names += ['mjd_tol', 'dist_tol', 'alt_min', 'alt_max', 'HA_max', 'HA_min', 'observed']
+    types += [float, float, float, float, float, float, bool]
+    result = np.zeros(1, dtype=list(zip(names, types)))
+    return result
+
+
+
 def obs_to_fbsobs(obs):
     """
     converts an Observation from the Driver (which is a normal python class)

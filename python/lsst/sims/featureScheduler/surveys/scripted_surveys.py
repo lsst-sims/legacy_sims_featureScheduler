@@ -15,31 +15,16 @@ class Scripted_survey(BaseSurvey):
     Take a set of scheduled observations and serve them up.
     """
     def __init__(self, basis_functions, reward=1e6, ignore_obs='dummy',
-                 nside=None, min_alt=30., max_alt=85., dist_tol=1., HA_limit=6, mjd_tol=15.):
+                 nside=None):
         """
-        min_alt : float (30.)
-            The minimum altitude to attempt to chace a pair to (degrees). Default of 30 = airmass of 2.
-        max_alt : float(85.)
-            The maximum altitude to attempt to chase a pair to (degrees).
-        dist_tol : float (1.)
-            The distance an observation must be to match something in the script queue (degrees)
-        HA_limit : float (6)
-            Hour angle limit to put on the observations (hours)
-
         """
         if nside is None:
             nside = set_default_nside()
 
         self.extra_features = {}
-        self.mjd_tol = mjd_tol / 60. / 24.  # To days
-        self.dist_tol = np.radians(dist_tol)
-        self.min_alt = np.radians(min_alt)
-        self.max_alt = np.radians(max_alt)
         self.nside = nside
         self.reward_val = reward
-        self.reward = -reward
-        self.min_HA = HA_limit
-        self.max_HA = 24. - HA_limit
+        self.reward = -np.inf
         super(Scripted_survey, self).__init__(basis_functions=basis_functions,
                                               ignore_obs=ignore_obs, nside=nside)
 
@@ -58,23 +43,20 @@ class Scripted_survey(BaseSurvey):
                 detailer.add_observation(observation, **kwargs)
             self.reward_checked = False
 
-            # Now see if there's a match
-            dt = self.obs_wanted['mjd'] - observation['mjd']
             # was it taken in the right time window, and hasn't already been marked as observed.
-            time_matches = np.where((np.abs(dt) < self.mjd_tol) & (~self.obs_log) &
+            time_matches = np.where((observation['mjd'] > self.mjd_start) &
+                                    (observation['mjd'] < self.obs_wanted['flush_by_mjd']) &
+                                    (~self.obs_wanted['observed']) &
                                     (observation['note'] == self.obs_wanted['note']))[0]
             for match in time_matches:
                 distances = _angularSeparation(self.obs_wanted[match]['RA'],
                                                self.obs_wanted[match]['dec'],
                                                observation['RA'], observation['dec'])
-                if (distances < self.dist_tol) & \
+                if (distances < self.obs_wanted[match]['dist_tol']) & \
                    (self.obs_wanted[match]['filter'] == observation['filter']):
                     # Log it as observed.
-                    self.obs_log[match] = True
-
-                    # Cut down the list of observations we are broadcasting as needing to be scheduled
-                    still_sched = np.where((self.obs_wanted['mjd'] >= (observation['mjd'] + self.mjd_tol)) & (self.obs_log == False))[0]
-                    self.scheduled_obs = self.obs_wanted['mjd'][still_sched]
+                    self.obs_wanted['observed'][match] = True
+                    self.scheduled_obs = self.obs_wanted['mjd'][~self.obs_wanted['observed']]
                     break
 
     def calc_reward_function(self, conditions):
@@ -91,12 +73,13 @@ class Scripted_survey(BaseSurvey):
         """take a slice and return a full observation object
         """
         observation = empty_observation()
-        for key in ['RA', 'dec', 'filter', 'exptime', 'nexp', 'note', 'field_id']:
+        for key in ['RA', 'dec', 'filter', 'exptime', 'nexp',
+                    'note', 'rotSkyPos', 'flush_by_mjd']:
             observation[key] = obs_row[key]
         return observation
 
     def _check_alts_HA(self, observation, conditions):
-        """
+        """Given scheduled observations, check which ones can be done in current conditions.
         """
         # Just do a fast ra,dec to alt,az conversion. Can use LMST from a feature.
         alt, az = _approx_RaDec2AltAz(observation['RA'], observation['dec'],
@@ -106,59 +89,52 @@ class Scripted_survey(BaseSurvey):
         HA = conditions.lmst - observation['RA']*12./np.pi
         HA[np.where(HA > 24)] -= 24
         HA[np.where(HA < 0)] += 24
-        in_range = np.where((alt < self.max_alt) & (alt > self.min_alt) & ((HA > self.max_HA) | (HA < self.min_HA)))[0]
+        in_range = np.where((alt < observation['alt_max']) & (alt > observation['alt_min']) &
+                            ((HA > observation['HA_max']) | (HA < observation['HA_min'])))[0]
         return in_range
 
     def _check_list(self, conditions):
         """Check to see if the current mjd is good
         """
-        dt = self.obs_wanted['mjd'] - conditions.mjd
-        # Check for matches with the right requested MJD
-        matches = np.where((np.abs(dt) < self.mjd_tol) & (~self.obs_log))[0]
-        # Trim down to ones that are in the altitude limits
-        matches = matches[self._check_alts_HA(self.obs_wanted[matches], conditions)]
-        if matches.size > 0:
+
+        # Scheduled observations that are in the right time window and have not been executed
+        in_time_window = np.where((self.mjd_start < conditions.mjd) &
+                                  (self.obs_wanted['flush_by_mjd'] > conditions.mjd) &
+                                  (~self.obs_wanted['observed']))[0]
+
+        if np.size(in_time_window) > 0:
+            pass_checks = self._check_alts_HA(self.obs_wanted[in_time_window], conditions)
+            matches = in_time_window[pass_checks]
+        else:
+            matches = []
+
+        if np.size(matches) > 0:
+            # XXX--could make this a list and just send out all the things that currently match
+            # rather than one at a time
             observation = self._slice2obs(self.obs_wanted[matches[0]])
         else:
             observation = None
         return observation
 
-    def set_script(self, obs_wanted, mjd_tol=None):
+    def set_script(self, obs_wanted):
         """
         Parameters
         ----------
         obs_wanted : np.array
             The observations that should be executed. Needs to have columns with dtype names:
-            XXX
+            Should be from lsst.sim.featureScheduler.utils.scheduled_observation
         mjds : np.array
             The MJDs for the observaitons, should be same length as obs_list
         mjd_tol : float (15.)
             The tolerance to consider an observation as still good to observe (min)
         """
-        if mjd_tol is not None:
-            self.mjd_tol = mjd_tol/60./24.  # to days
+
         self.obs_wanted = obs_wanted
-        # Set something to record when things have been observed
-        self.obs_log = np.zeros(obs_wanted.size, dtype=bool)
+
+        self.obs_wanted.sort(order='mjd')
+        self.mjd_start = self.obs_wanted['mjd'] - self.obs_wanted['mjd_tol']
+        # Here is the atribute that gets returned to broadcast scheduled observations
         self.scheduled_obs = self.obs_wanted['mjd']
-
-    def add_to_script(self, observation, mjd_tol=15.):
-        """
-        Add an observation to the script
-
-        Parameters
-        ----------
-        observation : observation object
-            The observation one would like to add to the scripted surveys
-        mjd_tol : float (15.)
-            The time tolerance on the observation (minutes)
-        """
-        self.mjd_tol = mjd_tol/60./24.  # to days
-        self.obs_wanted = np.concatenate((self.obs_wanted, observation))
-        self.obs_log = np.concatenate((self.obs_log, np.zeros(1, dtype=bool)))
-        # XXX--could do a sort on mjd here if I thought that was a good idea.
-        # XXX-note, there's currently nothing that flushes this, so adding
-        # observations can pile up nonstop. Should prob flush nightly or something
 
     def generate_observations_rough(self, conditions):
         observation = self._check_list(conditions)
