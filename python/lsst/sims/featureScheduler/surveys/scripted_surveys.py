@@ -80,8 +80,13 @@ class Scripted_survey(BaseSurvey):
 
     def _check_alts_HA(self, observation, conditions):
         """Given scheduled observations, check which ones can be done in current conditions.
+
+        Parameters
+        ----------
+        observation : np.array
+            An array of scheduled observations. Probably generated with lsst.sims.featureScheduler.utils.scheduled_observation
         """
-        # Just do a fast ra,dec to alt,az conversion. Can use LMST from a feature.
+        # Just do a fast ra,dec to alt,az conversion.
         alt, az = _approx_RaDec2AltAz(observation['RA'], observation['dec'],
                                       conditions.site.latitude_rad, None,
                                       conditions.mjd,
@@ -133,7 +138,8 @@ class Scripted_survey(BaseSurvey):
 
         self.obs_wanted.sort(order='mjd')
         self.mjd_start = self.obs_wanted['mjd'] - self.obs_wanted['mjd_tol']
-        # Here is the atribute that gets returned to broadcast scheduled observations
+        # Here is the atribute that core scheduler checks to broadcast scheduled observations
+        # in the conditions object.
         self.scheduled_obs = self.obs_wanted['mjd']
 
     def generate_observations_rough(self, conditions):
