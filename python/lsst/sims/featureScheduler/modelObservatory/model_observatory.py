@@ -689,7 +689,14 @@ class Model_observatory(object):
 
         # Check if the mjd after slewtime and visitime is fine:
         observation_worked, new_mjd = self.check_mjd(self.mjd + (slewtime + visittime)/24./3600.)
-        if observation_worked:
+
+        # See if the observatory ended up in a failed state (e.g., slewed out of bounds)
+        if self.observatory.current_state.fail_state:
+            result = None
+            new_night = False
+            # Let's move the time forward as a modest penalty.
+            self.mjd = self.mjd + slewtime
+        elif observation_worked:
             observation['visittime'] = visittime
             observation['slewtime'] = slewtime
             observation['slewdist'] = _angularSeparation(start_ra, start_dec,
