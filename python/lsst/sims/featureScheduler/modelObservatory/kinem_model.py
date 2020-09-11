@@ -1,22 +1,96 @@
 import numpy as np
-from astropy.coordinates import SkyCoord, EarthLocation
-from astropy import coordinates as coordinates
+from astropy.coordinates import EarthLocation
 from astropy.time import Time
 from astropy import units as u
-from lsst.sims.utils import Site
+from lsst.sims.utils import Site, calcLmstLast
+import healpy as hp
+import matplotlib.pylab as plt
 
 
+def parallactic_angle(ha_rad, lat_rad, dec_rad):
+    """Return the parallactic angle
+    """
+    return np.arctan2(np.sin(ha_rad), np.cos(dec_rad)*np.tan(lat_rad)-np.sin(dec_rad)*np.cos(ha_rad))
 
-class radec2altaz(object):
+
+def _approx_RaDec2AltAz(ra, dec, lat, lon, mjd, lmst=None, return_pa=True):
+    """
+    Convert Ra,Dec to Altitude and Azimuth.
+
+    Coordinate transformation is killing performance. Just use simple equations to speed it up
+    and ignore aberration, precession, nutation, nutrition, etc.
+
+    Parameters
+    ----------
+    ra : array_like
+        RA, in radians.
+    dec : array_like
+        Dec, in radians. Must be same length as `ra`.
+    lat : float
+        Latitude of the observatory in radians.
+    lon : float
+        Longitude of the observatory in radians.
+    mjd : float
+        Modified Julian Date.
+    lmst : float (None)
+        The local mean sidereal time (computed if not given). (hours)
+
+    Returns
+    -------
+    alt : numpy.array
+        Altitude, same length as `ra` and `dec`. Radians.
+    az : numpy.array
+        Azimuth, same length as `ra` and `dec`. Radians.
+    """
+    if lmst is None:
+        lmst, last = calcLmstLast(mjd, lon)
+    lmst = lmst/12.*np.pi  # convert to rad
+    ha = lmst-ra
+    sindec = np.sin(dec)
+    sinlat = np.sin(lat)
+    coslat = np.cos(lat)
+    sinalt = sindec*sinlat+np.cos(dec)*coslat*np.cos(ha)
+    sinalt = np.clip(sinalt, -1, 1)
+    alt = np.arcsin(sinalt)
+    cosaz = (sindec-np.sin(alt)*sinlat)/(np.cos(alt)*coslat)
+    cosaz = np.clip(cosaz, -1, 1)
+    az = np.arccos(cosaz)
+    if np.size(ha) < 2:
+        if np.sin(ha) > 0:
+            az = 2.*np.pi-az
+    else:
+        signflip = np.where(np.sin(ha) > 0)
+        az[signflip] = 2.*np.pi-az[signflip]
+    if return_pa:
+        pa = parallactic_angle(ha, lat, dec)
+        return alt, az, pa
+    return alt, az
+
+
+class radec2altazpa(object):
+    """Class to make it easy to swap in different alt/az conversion if wanted
+    """
     def __init__(self, location):
         self.location = location
+    def __call__(self, ra, dec, mjd):
+        alt, az, pa = _approx_RaDec2AltAz(ra, dec, self.location.lat.rad, self.location.lon.rad, mjd)
+        return alt, az, pa
 
-    def __call__(self, ra, dec, mjd, coords=None):
-        aa_frame = coordinates.AltAz(obstime=Time(mjd, format='mjd'), location=self.location)
-        if coords is None:
-            coords = SkyCoord(ra*u.rad, dec*u.rad)
-        aa_coords = coords.transform_to(aa_frame)
-        return aa_coords.alt.rad, aa_coords.az.rad
+
+def _getRotSkyPos(paRad, rotTelRad):
+    """
+    Paramteres
+    ----------
+    paRad : float or array
+        The parallactic angle
+    """
+    return (rotTelRad - paRad) % (2. * np.pi)
+
+
+def _getRotTelPos(paRad, rotSkyRad):
+    """
+    """
+    return (rotSkyRad + paRad) % (2. * np.pi)
 
 
 TwoPi = 2.*np.pi
@@ -38,6 +112,11 @@ class Kinem_model(object):
         The location of the telescope. If None, defaults to lsst.sims.utils.Site info
     park_alt : float (86.5)
         The altitude the telescope gets parked at (degrees)
+    park_filter : str ('r')
+        The filter that gets loaded when the telescope is parked
+
+    Note there are additional parameters in the methods setup_camera, setup_dome, setup_telescope,
+    and setup_optics. Just breaking it up a bit to make it more readable.
     """
     def __init__(self, location=None, park_alt=86.5, park_filter='r'):
         self.park_alt_rad = np.radians(park_alt)
@@ -47,7 +126,7 @@ class Kinem_model(object):
             self.location = EarthLocation(lat=self.site.latitude, lon=self.site.longitude,
                                           height=self.site.height)
         # Our RA,Dec to Alt,Az converter
-        self.radec2altaz = radec2altaz(self.location)
+        self.radec2altaz = radec2altazpa(self.location)
 
         self.setup_camera()
         self.setup_dome()
@@ -143,7 +222,7 @@ class Kinem_model(object):
         self.current_filter = self.park_filter
         self.parked = True
         self.current_coords = None
-        self.rotSkyPos = 0.
+        self.rotSkyPos = None
         self.cumulative_azimuth_rad = 0
         self.cumulative_camera_rad = 0
         # Need to keep tabs on these because we could track a bit
@@ -181,11 +260,13 @@ class Kinem_model(object):
         return slewTime
 
     def slew_times(self, ra_rad, dec_rad, mjd, rotSkyPos=None, rotTelPos=None, filtername='r',
-                   lax_dome=True):
-        """Calculates ``slew'' time to a series of alt/az/filter positions.
+                   lax_dome=True, alt_rad=None, az_rad=None, starting_alt_rad=None, starting_az_rad=None,
+                   starting_pa_rad=None, update=False, include_readtime=True):
+        """Calculates ``slew'' time to a series of alt/az/filter positions from the current
+        position stored in self.current_coords and self.rotSkyPos.
         Assumptions (currently):
-            assumes rotator is not moved (no rotator included)
             assumes  we never max out cable wrap-around!
+            Assumes we have been tracking on ra,dec,rotSkyPos position.
 
         Calculates the ``slew'' time necessary to get from current state
         to alt2/az2/filter2. The time returned is actually the time between
@@ -210,11 +291,15 @@ class Kinem_model(object):
         np.ndarray
             The number of seconds between the two specified exposures.
         """
-        alt_rad, az_rad = self.radec2altaz(ra_rad, dec_rad, mjd)
-        current_alt_rad, current_az_rad = self.radec2altaz(0, 0, mjd, coords=self.current_coords)
+        # alt,az not provided, calculate from RA,Dec
+        if alt_rad is None:
+            alt_rad, az_rad, pa = self.radec2altaz(ra_rad, dec_rad, mjd)
+        if starting_alt_rad is None:
+            starting_alt_rad, starting_az_rad, starting_pa = self.radec2altaz(self.current_coords[0],
+                                                                              self.current_coords[1], mjd)
 
-        deltaAlt = np.abs(alt_rad - current_alt_rad)
-        deltaAz = np.abs(az_rad - current_az_rad)
+        deltaAlt = np.abs(alt_rad - starting_alt_rad)
+        deltaAz = np.abs(az_rad - starting_az_rad)
         deltaAz = np.minimum(deltaAz, np.abs(deltaAz - 2 * np.pi))
 
         # Calculate how long the telescope will take to slew to this position.
@@ -231,7 +316,8 @@ class Kinem_model(object):
         settleAndOL = np.where(totTelTime > 0)
         totTelTime[settleAndOL] += np.maximum(0, self.mount_settletime - olTime[settleAndOL])
         # And readout puts a floor on tel time
-        totTelTime = np.maximum(self.readtime, totTelTime)
+        if include_readtime:
+            totTelTime = np.maximum(self.readtime, totTelTime)
 
         # now compute dome slew time
         if lax_dome:
@@ -297,32 +383,48 @@ class Kinem_model(object):
         outsideLimits = np.where((alt_rad > self.telalt_maxpos_rad) |
                                  (alt_rad < self.telalt_minpos_rad))
         slewTime[outsideLimits] = np.nan
+
+        # If we want to include the camera rotation time
+        if (rotSkyPos is not None) | (rotTelPos is not None):
+            if rotTelPos is None:
+                rotTelPos = _getRotTelPos(pa, rotSkyPos)
+            if rotSkyPos is None:
+                rotSkyPos = _getRotSkyPos(pa, rotTelPos)
+            deltaRotation = smallest_signed_angle(self.last_rot_tel_pos_rad - rotTelPos)
+            new_cummulative_rot = self.last_rot_tel_pos_rad+deltaRotation
+            # If the new rotation angle would move us out of the limits, return nan
+            if (new_cummulative_rot < self.telrot_minpos_rad) | (new_cummulative_rot > self.telrot_maxpos_rad):
+                return np.nan
+            current_rotTelPos = _getRotTelPos(pa, self.rotSkyPos)
+            deltaRotation = np.abs(smallest_signed_angle(current_rotTelPos - rotTelPos))
+            rotator_time = self._uamSlewTime(deltaRotation, self.telrot_maxspeed_rad, self.telrot_accel_rad)
+            slewTime = np.maximum(slewTime, rotator_time)
+
+        if update:
+            self.current_coords = [ra_rad, dec_rad]
+            self.rotSkyPos = rotSkyPos
+            self.park = False
+            # Track the cumulative azimuth and camera rotation
+            self.last_rot_tel_pos_rad = rotTelPos
+            self.last_az_rad = az_rad
+            self.cumulative_azimuth_rad += smallest_signed_angle(self.cumulative_azimuth_rad, az_rad)
+            self.cumulative_camera_rad += deltaRotation
+
         return slewTime
 
-    def single_slew_time(self, ra_target_rad, dec_target_rad, rotSkyPos, mjd, rotTelPos=None,
-                         include_read=True, update=True):
-        """Compute the slewtime between current position and a new pointing.
+    def visit_time(self, observation):
+        # How long does it take to make an observation. Assume final read can be done during next slew.
+        visit_time = observation['exptime'] + \
+            observation['nexp'] * self.shuttertime + \
+            max(observation['nexp'] - 1, 0) * self.readtime
+        return visit_time
+
+    def observe(self, observation, mjd):
+        """observe a target, and return the slewtime and visit time for the action
+
+        If slew is not allowed, returns np.nan and does not update state.
         """
-
-        # Compute the time it takes the dome and telescope to slew to new position
-        dome_tel_time = self.slew_times(mjd, ra_target_rad, dec_target_rad)
-
-        # Compute the rotation time as well
-        if rotTelPos is None:
-            # Compute the taget rotTelPos needed from rotSkyPos
-            pass
-
-        # How long does it take to move the rotator
-        rotator_time = self._uamSlewTime(deltaRotation, self.telrot_maxspeed_rad, self.telrot_accel_rad)
-
-        slewtime = np.maximum(dome_tel_time, rotator_time)
-
-        # Update the current state of the telescope
-        if update:
-            self.current_coords = SkyCoord(ra_target_rad*u.rad, dec_target_rad*u.rad)
-            self.park = False
-            self.rotSkyPos = rotSkyPos
-            # Track the cumulative azimuth and camera rotation
-
-        return slewtime
-
+        slewtime = self.slew_times(observation['RA'], observation['dec'],
+                                   mjd, rotSkyPos=observation['rotSkyPos'], update=True)
+        visit_time = self.visit_time(observation)
+        return slewtime, visit_time
