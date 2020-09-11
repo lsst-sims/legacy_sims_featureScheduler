@@ -118,8 +118,9 @@ class Kinem_model(object):
     Note there are additional parameters in the methods setup_camera, setup_dome, setup_telescope,
     and setup_optics. Just breaking it up a bit to make it more readable.
     """
-    def __init__(self, location=None, park_alt=86.5, park_filter='r'):
+    def __init__(self, location=None, park_alt=86.5, park_az=0., park_filter='r'):
         self.park_alt_rad = np.radians(park_alt)
+        self.park_az_rad = np.radians(park_az)
         self.park_filter = park_filter
         if location is None:
             self.site = Site('LSST')
@@ -166,6 +167,7 @@ class Kinem_model(object):
         self.telrot_maxspeed_rad = np.radians(maxspeed)
         self.telrot_accel_rad = np.radians(accel)
         self.telrot_decel_rad = np.radians(decel)
+        self.mounted_filters = ['u', 'g', 'r', 'i', 'y']
 
     def setup_dome(self, altitude_maxspeed=1.75, altitude_accel=0.875, altitude_decel=0.875,
                    altitude_freerange=0., azimuth_maxspeed=1.5, azimuth_accel=0.75,
@@ -267,6 +269,7 @@ class Kinem_model(object):
         Assumptions (currently):
             assumes  we never max out cable wrap-around!
             Assumes we have been tracking on ra,dec,rotSkyPos position.
+            Ignores the motion of the sky while we are slewing.
 
         Calculates the ``slew'' time necessary to get from current state
         to alt2/az2/filter2. The time returned is actually the time between
@@ -291,12 +294,20 @@ class Kinem_model(object):
         np.ndarray
             The number of seconds between the two specified exposures.
         """
+
+        if filtername not in self.mounted_filters:
+            return np.nan
+
         # alt,az not provided, calculate from RA,Dec
         if alt_rad is None:
             alt_rad, az_rad, pa = self.radec2altaz(ra_rad, dec_rad, mjd)
         if starting_alt_rad is None:
-            starting_alt_rad, starting_az_rad, starting_pa = self.radec2altaz(self.current_coords[0],
-                                                                              self.current_coords[1], mjd)
+            if self.parked:
+                starting_alt_rad = self.park_alt_rad
+                starting_az_rad = self.park_az_rad
+            else:
+                starting_alt_rad, starting_az_rad, starting_pa = self.radec2altaz(self.current_coords[0],
+                                                                                  self.current_coords[1], mjd)
 
         deltaAlt = np.abs(alt_rad - starting_alt_rad)
         deltaAz = np.abs(az_rad - starting_az_rad)
@@ -390,25 +401,31 @@ class Kinem_model(object):
                 rotTelPos = _getRotTelPos(pa, rotSkyPos)
             if rotSkyPos is None:
                 rotSkyPos = _getRotSkyPos(pa, rotTelPos)
-            deltaRotation = smallest_signed_angle(self.last_rot_tel_pos_rad - rotTelPos)
+            deltaRotation = smallest_signed_angle(self.last_rot_tel_pos_rad, rotTelPos)
             new_cummulative_rot = self.last_rot_tel_pos_rad+deltaRotation
             # If the new rotation angle would move us out of the limits, return nan
             if (new_cummulative_rot < self.telrot_minpos_rad) | (new_cummulative_rot > self.telrot_maxpos_rad):
                 return np.nan
-            current_rotTelPos = _getRotTelPos(pa, self.rotSkyPos)
-            deltaRotation = np.abs(smallest_signed_angle(current_rotTelPos - rotTelPos))
+            if self.rotSkyPos is None:
+                current_rotTelPos = self.last_rot_tel_pos_rad
+            else:
+                current_rotTelPos = _getRotTelPos(pa, self.rotSkyPos)
+            deltaRotation = np.abs(smallest_signed_angle(current_rotTelPos, rotTelPos))
             rotator_time = self._uamSlewTime(deltaRotation, self.telrot_maxspeed_rad, self.telrot_accel_rad)
             slewTime = np.maximum(slewTime, rotator_time)
 
         if update:
             self.current_coords = [ra_rad, dec_rad]
             self.rotSkyPos = rotSkyPos
-            self.park = False
+            self.parked = False
             # Track the cumulative azimuth and camera rotation
             self.last_rot_tel_pos_rad = rotTelPos
             self.last_az_rad = az_rad
+            self.last_alt_rad = alt_rad
+            self.last_pa = pa
             self.cumulative_azimuth_rad += smallest_signed_angle(self.cumulative_azimuth_rad, az_rad)
             self.cumulative_camera_rad += deltaRotation
+            self.current_filter = filtername
 
         return slewTime
 
