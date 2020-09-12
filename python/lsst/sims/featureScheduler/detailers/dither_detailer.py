@@ -114,7 +114,7 @@ class Camera_rot_detailer(Base_detailer):
         else:
             offsets = np.random.random(n_offsets) * self.range + self.min_rot
 
-        offsets = offsets % (2.*np.pi)
+        offsets = offsets #% (2.*np.pi)
 
         return offsets
 
@@ -127,6 +127,7 @@ class Camera_rot_detailer(Base_detailer):
             alt, az = _approx_RaDec2AltAz(obs['RA'], obs['dec'], conditions.site.latitude_rad,
                                           conditions.site.longitude_rad, conditions.mjd)
             obs_pa = approx_altaz2pa(alt, az, conditions.site.latitude_rad)
-            obs['rotSkyPos'] = (obs_pa + offsets[i]) % (2.*np.pi)
+            #obs['rotSkyPos'] = (obs_pa + offsets[i]) % (2.*np.pi)
+            obs['rotTelPos'] = offsets[i]
 
         return observation_list

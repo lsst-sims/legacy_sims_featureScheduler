@@ -5,11 +5,15 @@ import healpy as hp
 import matplotlib.pylab as plt
 
 __all__ = ["Kinem_model"]
+TwoPi = 2.*np.pi
+
 
 def parallactic_angle(ha_rad, lat_rad, dec_rad):
     """Return the parallactic angle
     """
-    return np.arctan2(np.sin(ha_rad), np.cos(dec_rad)*np.tan(lat_rad)-np.sin(dec_rad)*np.cos(ha_rad))
+    # XXX--double check I did this right.
+    result = np.arctan2(np.sin(ha_rad), np.cos(dec_rad)*np.tan(lat_rad)-np.sin(dec_rad)*np.cos(ha_rad))
+    return result
 
 
 # Snagged from lsst.sims.utils for now to add in parallactic angle. Might want to update back there
@@ -84,16 +88,16 @@ def _getRotSkyPos(paRad, rotTelRad):
     paRad : float or array
         The parallactic angle
     """
-    return (rotTelRad - paRad) % (2. * np.pi)
+    return (rotTelRad - paRad) % TwoPi
 
 
 def _getRotTelPos(paRad, rotSkyRad):
+    """Make it run from -180 to 180
     """
-    """
-    return (rotSkyRad + paRad) % (2. * np.pi)
+    result = (rotSkyRad + paRad) % TwoPi
+    return result
 
 
-TwoPi = 2.*np.pi
 def smallest_signed_angle(a1, a2):
     """Assume angles between 0 and 2 pi
     via https://stackoverflow.com/questions/1878907/the-smallest-difference-between-2-angles"""
@@ -276,6 +280,7 @@ class Kinem_model(object):
             assumes  we never max out cable wrap-around!
             Assumes we have been tracking on ra,dec,rotSkyPos position.
             Ignores the motion of the sky while we are slewing.
+            No checks for if we have tracked beyond limits.
 
         Calculates the ``slew'' time necessary to get from current state
         to alt2/az2/filter2. The time returned is actually the time between
@@ -300,9 +305,12 @@ class Kinem_model(object):
         np.ndarray
             The number of seconds between the two specified exposures.
         """
-
         if filtername not in self.mounted_filters:
             return np.nan
+
+        # Don't trust folks to do pa calculation correctly
+        if (rotTelPos is not None) & (rotSkyPos is not None):
+            rotSkyPos = None
 
         # alt,az not provided, calculate from RA,Dec
         if alt_rad is None:
@@ -398,7 +406,7 @@ class Kinem_model(object):
 
         # Mask min/max altitude limits so slewtime = np.nan
         outsideLimits = np.where((alt_rad > self.telalt_maxpos_rad) |
-                                 (alt_rad < self.telalt_minpos_rad))
+                                 (alt_rad < self.telalt_minpos_rad))[0]
         slewTime[outsideLimits] = np.nan
 
         # If we want to include the camera rotation time
@@ -409,17 +417,22 @@ class Kinem_model(object):
                 rotSkyPos = _getRotSkyPos(pa, rotTelPos)
             deltaRotation = smallest_signed_angle(self.last_rot_tel_pos_rad, rotTelPos)
             # If the new rotation angle would move us out of the limits, return nan
-            if (rotTelPos < self.telrot_minpos_rad) | (rotTelPos > self.telrot_maxpos_rad):
-                import pdb ; pdb.set_trace()
+            rotTelPos_ranged = rotTelPos+0
+            over = np.where(rotTelPos > np.pi)[0]
+            rotTelPos_ranged[over] -= TwoPi
+            if (rotTelPos_ranged < self.telrot_minpos_rad) | (rotTelPos_ranged > self.telrot_maxpos_rad):
                 return np.nan
+            # This implies we were parked
             if self.rotSkyPos is None:
                 current_rotTelPos = self.last_rot_tel_pos_rad
             else:
+                # We have been tracking, so rotTelPos has changed
                 current_rotTelPos = _getRotTelPos(pa, self.rotSkyPos)
             deltaRotation = np.abs(smallest_signed_angle(current_rotTelPos, rotTelPos))
             rotator_time = self._uamSlewTime(deltaRotation, self.telrot_maxspeed_rad, self.telrot_accel_rad)
             slewTime = np.maximum(slewTime, rotator_time)
 
+        # Update the internal attributes to note that we are now pointing at the requested RA,Dec,rotSkyPos
         if update:
             self.current_coords = [ra_rad, dec_rad]
             self.rotSkyPos = rotSkyPos
@@ -432,6 +445,7 @@ class Kinem_model(object):
             self.cumulative_azimuth_rad += smallest_signed_angle(self.cumulative_azimuth_rad, az_rad)
             self.cumulative_camera_rad += deltaRotation
             self.current_filter = filtername
+            self.last_mjd = mjd
 
         return slewTime
 
@@ -448,6 +462,8 @@ class Kinem_model(object):
         If slew is not allowed, returns np.nan and does not update state.
         """
         slewtime = self.slew_times(observation['RA'], observation['dec'],
-                                   mjd, rotSkyPos=observation['rotSkyPos'], update=True)
+                                   mjd, rotSkyPos=observation['rotSkyPos'],
+                                   rotTelPos=observation['rotTelPos'],
+                                   filtername=observation['filter'], update=True)
         visit_time = self.visit_time(observation)
         return slewtime, visit_time

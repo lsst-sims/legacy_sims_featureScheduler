@@ -249,8 +249,8 @@ class Model_observatory(object):
 
         self.conditions.telRA = self.observatory.current_coords[0]
         self.conditions.telDec = self.observatory.current_coords[1]
-        # self.conditions.telAlt = self.observatory.current_state.alt_rad
-        # self.conditions.telAz = self.observatory.current_state.az_rad
+        self.conditions.telAlt = self.observatory.last_alt_rad
+        self.conditions.telAz = self.observatory.last_az_rad
 
         self.conditions.rotTelPos = self.observatory.last_rot_tel_pos_rad
 
@@ -424,12 +424,11 @@ class Model_observatory(object):
         if np.isnan(observation['rotSkyPos']):
             observation = self._update_rotSkyPos(observation)
 
-        #start_ra = self.observatory.current_coords[0]
-        #start_dec = self.observatory.current_coords[1]
         start_alt = self.observatory.last_alt_rad
         start_az = self.observatory.last_az_rad
         slewtime, visittime = self.observatory.observe(observation, self.mjd)
 
+        # inf slewtime means the observation failed
         if ~np.all(np.isfinite(slewtime)):
             result = None
             new_night = False
@@ -438,7 +437,6 @@ class Model_observatory(object):
         # Check if the mjd after slewtime and visitime is fine:
         observation_worked, new_mjd = self.check_mjd(self.mjd + (slewtime + visittime)/24./3600.)
 
-        # inf slewtime means the observation failed
         if observation_worked:
             observation['visittime'] = visittime
             observation['slewtime'] = slewtime
