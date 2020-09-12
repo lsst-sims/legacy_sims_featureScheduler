@@ -1,11 +1,10 @@
 import numpy as np
 from astropy.coordinates import EarthLocation
-from astropy.time import Time
-from astropy import units as u
 from lsst.sims.utils import Site, calcLmstLast
 import healpy as hp
 import matplotlib.pylab as plt
 
+__all__ = ["Kinem_model"]
 
 def parallactic_angle(ha_rad, lat_rad, dec_rad):
     """Return the parallactic angle
@@ -13,6 +12,7 @@ def parallactic_angle(ha_rad, lat_rad, dec_rad):
     return np.arctan2(np.sin(ha_rad), np.cos(dec_rad)*np.tan(lat_rad)-np.sin(dec_rad)*np.cos(ha_rad))
 
 
+# Snagged from lsst.sims.utils for now to add in parallactic angle. Might want to update back there
 def _approx_RaDec2AltAz(ra, dec, lat, lon, mjd, lmst=None, return_pa=True):
     """
     Convert Ra,Dec to Altitude and Azimuth.
@@ -137,6 +137,11 @@ class Kinem_model(object):
         # Park the telescope
         self.park()
 
+    def mount_filters(self, filter_list):
+        """Change which filters are mounted
+        """
+        self.mounted_filters = filter_list
+
     def setup_camera(self, readtime=2., shuttertime=1., filter_changetime=120., fov=3.5,
                      rotator_min=-90, rotator_max=90, maxspeed=3.5, accel=1.0, decel=1.0):
         """
@@ -223,14 +228,15 @@ class Kinem_model(object):
         # I'm going to ignore that the old model had the dome altitude at 90.
         self.current_filter = self.park_filter
         self.parked = True
-        self.current_coords = None
+        self.current_coords = [None, None]
         self.rotSkyPos = None
         self.cumulative_azimuth_rad = 0
         self.cumulative_camera_rad = 0
         # Need to keep tabs on these because we could track a bit
         # So, when we want to compute the cumulative, use these values, not the
         # angles computed from converting self.current_coords to alt,az.
-        self.last_az_rad = 0
+        self.last_az_rad = self.park_az_rad
+        self.last_alt_rad = self.park_alt_rad
         self.last_rot_tel_pos_rad = 0
 
     def _uamSlewTime(self, distance, vmax, accel):
@@ -402,9 +408,9 @@ class Kinem_model(object):
             if rotSkyPos is None:
                 rotSkyPos = _getRotSkyPos(pa, rotTelPos)
             deltaRotation = smallest_signed_angle(self.last_rot_tel_pos_rad, rotTelPos)
-            new_cummulative_rot = self.last_rot_tel_pos_rad+deltaRotation
             # If the new rotation angle would move us out of the limits, return nan
-            if (new_cummulative_rot < self.telrot_minpos_rad) | (new_cummulative_rot > self.telrot_maxpos_rad):
+            if (rotTelPos < self.telrot_minpos_rad) | (rotTelPos > self.telrot_maxpos_rad):
+                import pdb ; pdb.set_trace()
                 return np.nan
             if self.rotSkyPos is None:
                 current_rotTelPos = self.last_rot_tel_pos_rad
@@ -422,7 +428,7 @@ class Kinem_model(object):
             self.last_rot_tel_pos_rad = rotTelPos
             self.last_az_rad = az_rad
             self.last_alt_rad = alt_rad
-            self.last_pa = pa
+            self.last_pa_rad = pa
             self.cumulative_azimuth_rad += smallest_signed_angle(self.cumulative_azimuth_rad, az_rad)
             self.cumulative_camera_rad += deltaRotation
             self.current_filter = filtername

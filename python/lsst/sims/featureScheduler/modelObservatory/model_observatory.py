@@ -15,7 +15,7 @@ from lsst.sims.almanac import Almanac
 import warnings
 import matplotlib.pylab as plt
 from importlib import import_module
-#from lsst.sims.featureScheduler.modelObservatory import Kinem_model
+from lsst.sims.featureScheduler.modelObservatory import Kinem_model
 
 __all__ = ['Model_observatory']
 
@@ -225,7 +225,7 @@ class Model_observatory(object):
         # Compute the slewtimes
         slewtimes = np.empty(alts.size, dtype=float)
         slewtimes.fill(np.nan)
-        slewtimes[good] = self.observatory.slew_times(0., 0., alt_rad=alts[good], az_rad=azs[good],
+        slewtimes[good] = self.observatory.slew_times(0., 0., self.mjd, alt_rad=alts[good], az_rad=azs[good],
                                                       filtername=self.observatory.current_filter,
                                                       lax_dome=self.lax_dome, update=False)
         self.conditions.slewtime = slewtimes
@@ -371,6 +371,7 @@ class Model_observatory(object):
         # Maybe set this to a while loop to make sure we don't land on another cloudy time?
         # or just make this an entire recursive call?
         clouds = self.cloud_data(Time(mjd, format='mjd'))
+            
         if clouds > self.cloud_limit:
             passed = False
             while clouds > self.cloud_limit:
@@ -423,25 +424,27 @@ class Model_observatory(object):
         if np.isnan(observation['rotSkyPos']):
             observation = self._update_rotSkyPos(observation)
 
-        start_ra = self.observatory.current_coords[0]
-        start_dec = self.observatory.current_coords[1]
-        slewtime, visittime = self.observatory.observe(observation)
+        #start_ra = self.observatory.current_coords[0]
+        #start_dec = self.observatory.current_coords[1]
+        start_alt = self.observatory.last_alt_rad
+        start_az = self.observatory.last_az_rad
+        slewtime, visittime = self.observatory.observe(observation, self.mjd)
+
+        if ~np.all(np.isfinite(slewtime)):
+            result = None
+            new_night = False
+            raise ValueError("Slew failed")
 
         # Check if the mjd after slewtime and visitime is fine:
         observation_worked, new_mjd = self.check_mjd(self.mjd + (slewtime + visittime)/24./3600.)
 
-        # See if the observatory ended up in a failed state (e.g., slewed out of bounds)
-        if self.observatory.current_state.fail_state:
-            result = None
-            new_night = False
-            # Let's move the time forward as a modest penalty.
-            self.mjd = self.mjd + slewtime
-        elif observation_worked:
+        # inf slewtime means the observation failed
+        if observation_worked:
             observation['visittime'] = visittime
             observation['slewtime'] = slewtime
-            observation['slewdist'] = _angularSeparation(start_ra, start_dec,
-                                                         self.observatory.current_coords[0],
-                                                         self.observatory.current_coords[1])
+            observation['slewdist'] = _angularSeparation(start_az, start_alt,
+                                                         self.observatory.last_az_rad,
+                                                         self.observatory.last_alt_rad)
             self.mjd = self.mjd + slewtime/24./3600.
             # Reach into the observatory model to pull out the relevant data it has calculated
             # Note, this might be after the observation has been completed.
