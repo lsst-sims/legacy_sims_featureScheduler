@@ -92,10 +92,12 @@ def _getRotTelPos(paRad, rotSkyRad):
 
 
 def smallest_signed_angle(a1, a2):
-    """Assume angles between 0 and 2 pi
+    """
     via https://stackoverflow.com/questions/1878907/the-smallest-difference-between-2-angles"""
-    a = (a1 - a2) % TwoPi
-    b = (a2 - a1) % TwoPi
+    x = a1 % TwoPi
+    y = a2 % TwoPi
+    a = (x - y) % TwoPi
+    b = (y - x) % TwoPi
     return -a if a < b else b
 
 
@@ -225,10 +227,10 @@ class Kinem_model(object):
         # I'm going to ignore that the old model had the dome altitude at 90.
         self.current_filter = self.park_filter
         self.parked = True
+        # XXX--change to current_RA_rad, current_rotSkyPos.
         self.current_coords = [None, None]
         self.rotSkyPos = None
         self.cumulative_azimuth_rad = 0
-        self.cumulative_camera_rad = 0
         # Need to keep tabs on these because we could track a bit
         # So, when we want to compute the cumulative, use these values, not the
         # angles computed from converting self.current_coords to alt,az.
@@ -430,13 +432,12 @@ class Kinem_model(object):
             self.current_coords = [ra_rad, dec_rad]
             self.rotSkyPos = rotSkyPos
             self.parked = False
-            # Track the cumulative azimuth and camera rotation
             self.last_rot_tel_pos_rad = rotTelPos
             self.last_az_rad = az_rad
             self.last_alt_rad = alt_rad
             self.last_pa_rad = pa
+            # Track the cumulative azimuth
             self.cumulative_azimuth_rad += smallest_signed_angle(self.cumulative_azimuth_rad, az_rad)
-            self.cumulative_camera_rad += deltaRotation
             self.current_filter = filtername
             self.last_mjd = mjd
 
