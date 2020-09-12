@@ -3,17 +3,10 @@ from astropy.coordinates import EarthLocation
 from lsst.sims.utils import Site, calcLmstLast
 import healpy as hp
 import matplotlib.pylab as plt
+from lsst.sims.featureScheduler.utils import approx_altaz2pa
 
 __all__ = ["Kinem_model"]
 TwoPi = 2.*np.pi
-
-
-def parallactic_angle(ha_rad, lat_rad, dec_rad):
-    """Return the parallactic angle
-    """
-    # XXX--double check I did this right.
-    result = np.arctan2(np.sin(ha_rad), np.cos(dec_rad)*np.tan(lat_rad)-np.sin(dec_rad)*np.cos(ha_rad))
-    return result
 
 
 # Snagged from lsst.sims.utils for now to add in parallactic angle. Might want to update back there
@@ -66,7 +59,7 @@ def _approx_RaDec2AltAz(ra, dec, lat, lon, mjd, lmst=None, return_pa=True):
         signflip = np.where(np.sin(ha) > 0)
         az[signflip] = 2.*np.pi-az[signflip]
     if return_pa:
-        pa = parallactic_angle(ha, lat, dec)
+        pa = approx_altaz2pa(alt, az, lat)
         return alt, az, pa
     return alt, az
 

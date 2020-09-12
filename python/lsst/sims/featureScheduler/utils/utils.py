@@ -6,12 +6,9 @@ import numpy as np
 import healpy as hp
 import pandas as pd
 import matplotlib.path as mplPath
-import logging
 from lsst.sims.utils import _hpid2RaDec, xyz_angular_radius, _buildTree, _xyz_from_ra_dec
 from lsst.sims.featureScheduler import version
 from lsst.sims.survey.fields import FieldsDatabase
-
-log = logging.getLogger(__name__)
 
 
 class int_rounded(object):
