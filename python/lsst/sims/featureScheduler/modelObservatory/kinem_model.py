@@ -458,17 +458,23 @@ class Kinem_model(object):
             rotTelPos_ranged[over] -= TwoPi
             if (rotTelPos_ranged < self.telrot_minpos_rad) | (rotTelPos_ranged > self.telrot_maxpos_rad):
                 return np.nan
-            # If there is no current rotSkyPos, we were parked
-            if self.current_rotSkyPos_rad is None:
-                current_rotTelPos = self.last_rot_tel_pos_rad
+            # If there was no kwarg for starting rotator position
+            if starting_rotTelPos_rad is None:
+                # If there is no current rotSkyPos, we were parked
+                if self.current_rotSkyPos_rad is None:
+                    current_rotTelPos = self.last_rot_tel_pos_rad
+                else:
+                    # We have been tracking, so rotTelPos needs to be updated
+                    current_rotTelPos = _getRotTelPos(pa, self.current_rotSkyPos_rad)
             else:
-                # We have been tracking, so rotTelPos has changed
-                current_rotTelPos = _getRotTelPos(pa, self.current_rotSkyPos_rad)
+                # kwarg overrides if it was supplied
+                current_rotTelPos = starting_rotTelPos_rad
             deltaRotation = np.abs(smallest_signed_angle(current_rotTelPos, rotTelPos))
             rotator_time = self._uamSlewTime(deltaRotation, self.telrot_maxspeed_rad, self.telrot_accel_rad)
             slewTime = np.maximum(slewTime, rotator_time)
 
-        # Update the internal attributes to note that we are now pointing at the requested RA,Dec,rotSkyPos
+        # Update the internal attributes to note that we are now pointing and tracking
+        # at the requested RA,Dec,rotSkyPos
         if update_tracking:
             self.current_RA_rad = ra_rad
             self.current_dec_rad = dec_rad
