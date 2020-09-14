@@ -99,7 +99,11 @@ def smallest_signed_angle(a1, a2):
     y = a2 % TwoPi
     a = (x - y) % TwoPi
     b = (y - x) % TwoPi
-    return -a if a < b else b
+    result = b+0
+    alb = np.where(a < b)[0]
+    result[alb] = -1.*a[alb]
+    #return -a if a < b else b
+    return result
 
 
 class Kinem_model(object):
@@ -290,8 +294,9 @@ class Kinem_model(object):
         Assumptions (currently):
             assumes  we never max out cable wrap-around!--For now--XXX to update
             Assumes we have been tracking on ra,dec,rotSkyPos position.
-            Ignores the motion of the sky while we are slewing.
-            No checks for if we have tracked beyond limits.
+            Ignores the motion of the sky while we are slewing (this approx should probably average out over time).
+            No checks for if we have tracked beyond limits. May want to put telescope in park if there is a large gap.
+            Assumes the camera rotator never needs to (or can't) do a slew over 180 degrees.
 
         Calculates the ``slew'' time necessary to get from current state
         to alt2/az2/filter2. The time returned is actually the time between
@@ -361,15 +366,33 @@ class Kinem_model(object):
                                                                                   self.current_dec_rad, mjd)
 
         deltaAlt = np.abs(alt_rad - starting_alt_rad)
-        deltaAz = np.abs(az_rad - starting_az_rad)
-        deltaAz = np.minimum(deltaAz, np.abs(deltaAz - 2 * np.pi))
+        delta_az_short = smallest_signed_angle(starting_az_rad, az_rad)
+        delta_az_long = delta_az_short - TwoPi
+        daslz = np.where(delta_az_short < 0)[0]
+        delta_az_long[daslz] = TwoPi + delta_az_short[daslz]
+        azlz = np.where(delta_az_short < 0)[0]
+        delta_az_long[azlz] = TwoPi + delta_az_short[azlz]
+        # So, for every position, we can get there by slewing long or short way
+        cummulative_az_short = delta_az_short + self.cumulative_azimuth_rad
+        oob = np.where((cummulative_az_short < self.telaz_minpos_rad) | (cummulative_az_short > self.telaz_maxpos_rad))[0]
+        # Set out of bounds azimuths to infinite distance
+        delta_az_short[oob] = np.inf
+        cummulative_az_long = delta_az_long + self.cumulative_azimuth_rad
+        oob = np.where((cummulative_az_long < self.telaz_minpos_rad) | (cummulative_az_long > self.telaz_maxpos_rad))[0]
+        delta_az_long[oob] = np.inf
+
+        # Taking minimum of abs, so only possible azimuths slews should show up. And deltaAz is signed properly.
+        stacked_az = np.vstack([delta_az_short, delta_az_long])
+        indx = np.argmin(np.abs(stacked_az), axis=0)
+        deltaAztel = np.take_along_axis(stacked_az, np.expand_dims(indx, axis=0), axis=0).squeeze(axis=0)
 
         # Calculate how long the telescope will take to slew to this position.
         telAltSlewTime = self._uamSlewTime(deltaAlt, self.telalt_maxspeed_rad,
                                            self.telalt_accel_rad)
-        telAzSlewTime = self._uamSlewTime(deltaAz, self.telaz_maxspeed_rad,
+        telAzSlewTime = self._uamSlewTime(np.abs(deltaAztel), self.telaz_maxspeed_rad,
                                           self.telaz_accel_rad)
         totTelTime = np.maximum(telAltSlewTime, telAzSlewTime)
+
         # Time for open loop optics correction
         olTime = deltaAlt / self.optics_ol_slope
         totTelTime += olTime
@@ -382,6 +405,9 @@ class Kinem_model(object):
             totTelTime = np.maximum(self.readtime, totTelTime)
 
         # now compute dome slew time
+        # I think the dome can spin all the way around, so we will let it go the shortest angle,
+        # even if the telescope has to unwind
+        deltaAz = np.abs(smallest_signed_angle(starting_az_rad, az_rad))
         if lax_dome:
             # model dome creep, dome slit, and no azimuth settle
             # if we can fit both exposures in the dome slit, do so
@@ -485,8 +511,7 @@ class Kinem_model(object):
             self.last_alt_rad = alt_rad
             self.last_pa_rad = pa
             # Track the cumulative azimuth
-            # XXX--change this to the slew distance that was used (large or small depending)
-            self.cumulative_azimuth_rad += smallest_signed_angle(self.cumulative_azimuth_rad, az_rad)
+            self.cumulative_azimuth_rad += deltaAztel
             self.current_filter = filtername
             self.last_mjd = mjd
 
