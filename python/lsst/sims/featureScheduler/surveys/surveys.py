@@ -50,10 +50,7 @@ class Greedy_survey(BaseMarkovDF_survey):
         # Let's find the best N from the fields
         order = np.argsort(self.reward)[::-1]
         # Crop off any NaNs
-        try:
-            order = order[~np.isnan(self.reward[order])]
-        except:
-            import pdb ; pdb.set_trace()
+        order = order[~np.isnan(self.reward[order])]
 
         iter = 0
         while True:
