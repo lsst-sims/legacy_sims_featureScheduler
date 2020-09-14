@@ -284,11 +284,11 @@ class Kinem_model(object):
 
     def slew_times(self, ra_rad, dec_rad, mjd, rotSkyPos=None, rotTelPos=None, filtername='r',
                    lax_dome=True, alt_rad=None, az_rad=None, starting_alt_rad=None, starting_az_rad=None,
-                   starting_pa_rad=None, update=False, include_readtime=True):
+                   starting_rotTelPos_rad=None, update_tracking=False, include_readtime=True):
         """Calculates ``slew'' time to a series of alt/az/filter positions from the current
         position (stored internally).
         Assumptions (currently):
-            assumes  we never max out cable wrap-around!
+            assumes  we never max out cable wrap-around!--For now--XXX to update
             Assumes we have been tracking on ra,dec,rotSkyPos position.
             Ignores the motion of the sky while we are slewing.
             No checks for if we have tracked beyond limits.
@@ -300,16 +300,39 @@ class Kinem_model(object):
 
         Parameters
         ----------
+        ra_rad : np.ndarray
+            The RA(s) of the location(s) we wish to slew to (radians)
+        dec_rad : np.ndarray
+            The declination(s) of the location(s) we wish to slew to (radians)
+        mjd : float
+            The current moodified julian date (days)
+        rotSkyPos : np.ndarray
+            The desired rotSkyPos(s) (radians). Angle between up on the chip and North. Note,
+            it is possible to set a rotSkyPos outside the allowed camera rotator range, in which case
+            the slewtime will be np.inf. If both rotSkyPos and rotTelPos are set, rotTelPos will be used.
+        rotTelPos : np.ndarray
+            The desired rotTelPos(s) (radians).
+        filtername : str
+            The filter(s) of the desired observations. Set to None to compute only telescope and dome motion times.
         alt_rad : np.ndarray
-            The altitude of the destination pointing in RADIANS.
+            The altitude(s) of the destination pointing(s) (radians). Will override ra_rad,dec_rad if provided.
         az_rad : np.ndarray
-            The azimuth of the destination pointing in RADIANS.
-        goal_filter : np.ndarray
-            The filter to be used in the destination observation.
+            The azimuth(s) of the destination pointing(s) (radians). Will override ra_rad,dec_rad if provided.
         lax_dome : boolean, default False
             If True, allow the dome to creep, model a dome slit, and don't
             require the dome to settle in azimuth. If False, adhere to the way
             SOCS calculates slew times (as of June 21 2017).
+        starting_alt_rad : float (None)
+            The starting altitude for the slew (radians). If None, will use internally stored last pointing.
+        starting_az_rad : float (None)
+            The starting azimuth for the slew (radians). If None, will use internally stored last pointing.
+        starting_rotTelPos_rad : float (None)
+            The starting camera rotation for the slew (radians). If None, will use internally stored last pointing.
+        update_tracking : bool (False)
+            If True, update the internal attributes to say we are tracking the specified RA,Dec,RotSkyPos position.
+        include_readtime : bool (True)
+            Assume the camera must be read before opening the shutter, and include that readtime in the returned slewtime.
+            Readtime will never be inclded if the telescope was parked before the slew.
 
         Returns
         -------
@@ -429,7 +452,6 @@ class Kinem_model(object):
                 rotTelPos = _getRotTelPos(pa, rotSkyPos)
             if rotSkyPos is None:
                 rotSkyPos = _getRotSkyPos(pa, rotTelPos)
-            deltaRotation = smallest_signed_angle(self.last_rot_tel_pos_rad, rotTelPos)
             # If the new rotation angle would move us out of the limits, return nan
             rotTelPos_ranged = rotTelPos+0
             over = np.where(rotTelPos > np.pi)[0]
@@ -447,7 +469,7 @@ class Kinem_model(object):
             slewTime = np.maximum(slewTime, rotator_time)
 
         # Update the internal attributes to note that we are now pointing at the requested RA,Dec,rotSkyPos
-        if update:
+        if update_tracking:
             self.current_RA_rad = ra_rad
             self.current_dec_rad = dec_rad
             self.current_rotSkyPos_rad = rotSkyPos
@@ -479,6 +501,6 @@ class Kinem_model(object):
         slewtime = self.slew_times(observation['RA'], observation['dec'],
                                    mjd, rotSkyPos=observation['rotSkyPos'],
                                    rotTelPos=rotTelPos,
-                                   filtername=observation['filter'], update=True)
+                                   filtername=observation['filter'], update_tracking=True)
         visit_time = self.visit_time(observation)
         return slewtime, visit_time

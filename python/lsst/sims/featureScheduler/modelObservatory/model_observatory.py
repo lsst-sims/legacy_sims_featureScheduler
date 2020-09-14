@@ -226,7 +226,7 @@ class Model_observatory(object):
         slewtimes.fill(np.nan)
         slewtimes[good] = self.observatory.slew_times(0., 0., self.mjd, alt_rad=alts[good], az_rad=azs[good],
                                                       filtername=self.observatory.current_filter,
-                                                      lax_dome=self.lax_dome, update=False)
+                                                      lax_dome=self.lax_dome, update_tracking=False)
         self.conditions.slewtime = slewtimes
 
         # Let's get the sun and moon
