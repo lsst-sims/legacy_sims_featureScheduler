@@ -69,6 +69,7 @@ class radec2altazpa(object):
     """
     def __init__(self, location):
         self.location = location
+
     def __call__(self, ra, dec, mjd):
         alt, az, pa = _approx_RaDec2AltAz(ra, dec, self.location.lat.rad, self.location.lon.rad, mjd)
         return alt, az, pa
@@ -224,19 +225,34 @@ class Kinem_model(object):
         self.optics_cl_altlimit = np.radians(cl_altlimit)
 
     def park(self):
-        # I'm going to ignore that the old model had the dome altitude at 90.
-        self.current_filter = self.park_filter
+        """Put the telescope in the park position.
+        """
+        # I'm going to ignore that the old model had the dome altitude at 90 and telescope altitude 86 for park.
+        # We should usually be dome az limited anyway, so this should be a negligible approximation.
+
         self.parked = True
-        # XXX--change to current_RA_rad, current_rotSkyPos.
-        self.current_coords = [None, None]
-        self.rotSkyPos = None
+
+        # We have no current position we are tracking
+        self.current_RA_rad = None
+        self.current_dec_rad = None
+        self.current_rotSkyPos_rad = None
+        self.current_filter = self.park_filter
         self.cumulative_azimuth_rad = 0
-        # Need to keep tabs on these because we could track a bit
-        # So, when we want to compute the cumulative, use these values, not the
-        # angles computed from converting self.current_coords to alt,az.
+
+        # The last position we were at (or the current if we are parked)
         self.last_az_rad = self.park_az_rad
         self.last_alt_rad = self.park_alt_rad
         self.last_rot_tel_pos_rad = 0
+
+    def current_alt_az(self, mjd):
+        """return the current alt az position that we have tracked to.
+        """
+        if self.parked:
+            return self.last_alt_rad, self.last_az_rad, self.last_rot_tel_pos_rad
+        else:
+            alt_rad, az_rad, pa = self.radec2altaz(self.current_RA_rad, self.current_dec_rad, mjd)
+            rotTelPos = _getRotTelPos(pa, self.last_rot_tel_pos_rad)
+            return alt_rad, az_rad, rotTelPos
 
     def _uamSlewTime(self, distance, vmax, accel):
         """Compute slew time delay assuming uniform acceleration (for any component).
@@ -270,7 +286,7 @@ class Kinem_model(object):
                    lax_dome=True, alt_rad=None, az_rad=None, starting_alt_rad=None, starting_az_rad=None,
                    starting_pa_rad=None, update=False, include_readtime=True):
         """Calculates ``slew'' time to a series of alt/az/filter positions from the current
-        position stored in self.current_coords and self.rotSkyPos.
+        position (stored internally).
         Assumptions (currently):
             assumes  we never max out cable wrap-around!
             Assumes we have been tracking on ra,dec,rotSkyPos position.
@@ -303,9 +319,12 @@ class Kinem_model(object):
         if filtername not in self.mounted_filters:
             return np.nan
 
-        # Don't trust folks to do pa calculation correctly
+        # Don't trust folks to do pa calculation correctly, if both rotations set, rotSkyPos wins
         if (rotTelPos is not None) & (rotSkyPos is not None):
-            rotSkyPos = None
+            if np.isfinite(rotTelPos):
+                rotSkyPos = None
+            else:
+                rotTelPos = None
 
         # alt,az not provided, calculate from RA,Dec
         if alt_rad is None:
@@ -315,8 +334,8 @@ class Kinem_model(object):
                 starting_alt_rad = self.park_alt_rad
                 starting_az_rad = self.park_az_rad
             else:
-                starting_alt_rad, starting_az_rad, starting_pa = self.radec2altaz(self.current_coords[0],
-                                                                                  self.current_coords[1], mjd)
+                starting_alt_rad, starting_az_rad, starting_pa = self.radec2altaz(self.current_RA_rad,
+                                                                                  self.current_dec_rad, mjd)
 
         deltaAlt = np.abs(alt_rad - starting_alt_rad)
         deltaAz = np.abs(az_rad - starting_az_rad)
@@ -417,26 +436,28 @@ class Kinem_model(object):
             rotTelPos_ranged[over] -= TwoPi
             if (rotTelPos_ranged < self.telrot_minpos_rad) | (rotTelPos_ranged > self.telrot_maxpos_rad):
                 return np.nan
-            # This implies we were parked
-            if self.rotSkyPos is None:
+            # If there is no current rotSkyPos, we were parked
+            if self.current_rotSkyPos_rad is None:
                 current_rotTelPos = self.last_rot_tel_pos_rad
             else:
                 # We have been tracking, so rotTelPos has changed
-                current_rotTelPos = _getRotTelPos(pa, self.rotSkyPos)
+                current_rotTelPos = _getRotTelPos(pa, self.current_rotSkyPos_rad)
             deltaRotation = np.abs(smallest_signed_angle(current_rotTelPos, rotTelPos))
             rotator_time = self._uamSlewTime(deltaRotation, self.telrot_maxspeed_rad, self.telrot_accel_rad)
             slewTime = np.maximum(slewTime, rotator_time)
 
         # Update the internal attributes to note that we are now pointing at the requested RA,Dec,rotSkyPos
         if update:
-            self.current_coords = [ra_rad, dec_rad]
-            self.rotSkyPos = rotSkyPos
+            self.current_RA_rad = ra_rad
+            self.current_dec_rad = dec_rad
+            self.current_rotSkyPos_rad = rotSkyPos
             self.parked = False
             self.last_rot_tel_pos_rad = rotTelPos
             self.last_az_rad = az_rad
             self.last_alt_rad = alt_rad
             self.last_pa_rad = pa
             # Track the cumulative azimuth
+            # XXX--change this to the slew distance that was used (large or small depending)
             self.cumulative_azimuth_rad += smallest_signed_angle(self.cumulative_azimuth_rad, az_rad)
             self.current_filter = filtername
             self.last_mjd = mjd
@@ -450,14 +471,14 @@ class Kinem_model(object):
             max(observation['nexp'] - 1, 0) * self.readtime
         return visit_time
 
-    def observe(self, observation, mjd):
+    def observe(self, observation, mjd, rotTelPos=None):
         """observe a target, and return the slewtime and visit time for the action
 
         If slew is not allowed, returns np.nan and does not update state.
         """
         slewtime = self.slew_times(observation['RA'], observation['dec'],
                                    mjd, rotSkyPos=observation['rotSkyPos'],
-                                   rotTelPos=observation['rotTelPos'],
+                                   rotTelPos=rotTelPos,
                                    filtername=observation['filter'], update=True)
         visit_time = self.visit_time(observation)
         return slewtime, visit_time

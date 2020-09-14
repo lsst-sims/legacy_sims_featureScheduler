@@ -134,7 +134,6 @@ class Model_observatory(object):
         self.conditions = Conditions(nside=self.nside, mjd_start=mjd_start,
                                      season_offset=season_offset, sun_RA_start=self.sun_RA_start)
 
-
         self.obsID_counter = 0
 
     def get_info(self):
@@ -247,8 +246,8 @@ class Model_observatory(object):
 
         self.conditions.lmst, last = calcLmstLast(self.mjd, self.site.longitude_rad)
 
-        self.conditions.telRA = self.observatory.current_coords[0]
-        self.conditions.telDec = self.observatory.current_coords[1]
+        self.conditions.telRA = self.observatory.current_RA_rad
+        self.conditions.telDec = self.observatory.current_dec_rad
         self.conditions.telAlt = self.observatory.last_alt_rad
         self.conditions.telAz = self.observatory.last_az_rad
 
@@ -371,7 +370,7 @@ class Model_observatory(object):
         # Maybe set this to a while loop to make sure we don't land on another cloudy time?
         # or just make this an entire recursive call?
         clouds = self.cloud_data(Time(mjd, format='mjd'))
-            
+
         if clouds > self.cloud_limit:
             passed = False
             while clouds > self.cloud_limit:
@@ -424,9 +423,11 @@ class Model_observatory(object):
         if np.isnan(observation['rotSkyPos']):
             observation = self._update_rotSkyPos(observation)
 
-        start_alt = self.observatory.last_alt_rad
-        start_az = self.observatory.last_az_rad
-        slewtime, visittime = self.observatory.observe(observation, self.mjd)
+        # Compute what alt,az we have tracked to (or are parked at)
+        start_alt, start_az, start_rotTelPos = self.observatory.current_alt_az(self.mjd)
+        # Slew to new position and execute observation. Use the requested rotTelPos position,
+        # obsevation['rotSkyPos'] will be ignored.
+        slewtime, visittime = self.observatory.observe(observation, self.mjd, rotTelPos=observation['rotTelPos'])
 
         # inf slewtime means the observation failed
         if ~np.all(np.isfinite(slewtime)):
@@ -450,7 +451,7 @@ class Model_observatory(object):
             observation['az'] = self.observatory.last_az_rad
             observation['pa'] = self.observatory.last_pa_rad
             observation['rotTelPos'] = self.observatory.last_rot_tel_pos_rad
-            observation['rotSkyPos'] = self.observatory.rotSkyPos
+            observation['rotSkyPos'] = self.observatory.current_rotSkyPos_rad
 
             # Metadata on observation is after slew and settle, so at start of exposure.
             result = self.observation_add_data(observation)
