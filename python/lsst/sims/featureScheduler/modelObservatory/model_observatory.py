@@ -26,7 +26,7 @@ class Model_observatory(object):
 
     def __init__(self, nside=None, mjd_start=59853.5, seed=42, quickTest=True,
                  alt_min=5., lax_dome=True, cloud_limit=0.3, sim_ToO=None,
-                 seeing_db=None):
+                 seeing_db=None, park_after=10.):
         """
         Parameters
         ----------
@@ -44,6 +44,8 @@ class Model_observatory(object):
             If one would like to inject simulated ToOs into the telemetry stream.
         seeing_db : filename of the seeing data database (None)
             If one would like to use an alternate seeing database
+        park_after : float (10)
+            Park the telescope after a gap longer than park_after (minutes)
         """
 
         if nside is None:
@@ -58,6 +60,8 @@ class Model_observatory(object):
         self.mjd_start = mjd_start
 
         self.sim_ToO = sim_ToO
+
+        self.park_after = park_after/60./24.  # To days
 
         # Create an astropy location
         self.site = Site('LSST')
@@ -111,7 +115,7 @@ class Model_observatory(object):
 
         self.sky_model = sb.SkyModelPre(speedLoad=quickTest)
 
-        self.observatory = Kinem_model()
+        self.observatory = Kinem_model(mjd0=mjd_start)
 
         self.filterlist = ['u', 'g', 'r', 'i', 'z', 'y']
         self.seeing_FWHMeff = {}
@@ -224,6 +228,10 @@ class Model_observatory(object):
         # Compute the slewtimes
         slewtimes = np.empty(alts.size, dtype=float)
         slewtimes.fill(np.nan)
+        # If there has been a gap, park the telescope
+        gap = self.mjd - self.observatory.last_mjd
+        if gap > self.park_after:
+            self.observatory.park()
         slewtimes[good] = self.observatory.slew_times(0., 0., self.mjd, alt_rad=alts[good], az_rad=azs[good],
                                                       filtername=self.observatory.current_filter,
                                                       lax_dome=self.lax_dome, update_tracking=False)
@@ -422,6 +430,11 @@ class Model_observatory(object):
 
         if np.isnan(observation['rotSkyPos']):
             observation = self._update_rotSkyPos(observation)
+
+        # If there has been a long gap, assume telescope stopped tracking and parked
+        gap = self.mjd - self.observatory.last_mjd
+        if gap > self.park_after:
+            self.observatory.park()
 
         # Compute what alt,az we have tracked to (or are parked at)
         start_alt, start_az, start_rotTelPos = self.observatory.current_alt_az(self.mjd)

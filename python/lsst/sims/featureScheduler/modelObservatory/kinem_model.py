@@ -1,6 +1,6 @@
 import numpy as np
 from astropy.coordinates import EarthLocation
-from lsst.sims.utils import Site, calcLmstLast
+from lsst.sims.utils import Site, calcLmstLast, _approx_altAz2RaDec
 import healpy as hp
 import matplotlib.pylab as plt
 from lsst.sims.featureScheduler.utils import approx_altaz2pa
@@ -116,16 +116,18 @@ class Kinem_model(object):
         The location of the telescope. If None, defaults to lsst.sims.utils.Site info
     park_alt : float (86.5)
         The altitude the telescope gets parked at (degrees)
-    park_filter : str ('r')
+    start_filter : str ('r')
         The filter that gets loaded when the telescope is parked
+    mjd0 : float (0)
+        The MJD to assume we are starting from
 
     Note there are additional parameters in the methods setup_camera, setup_dome, setup_telescope,
     and setup_optics. Just breaking it up a bit to make it more readable.
     """
-    def __init__(self, location=None, park_alt=86.5, park_az=0., park_filter='r'):
+    def __init__(self, location=None, park_alt=86.5, park_az=0., start_filter='r', mjd0=0):
         self.park_alt_rad = np.radians(park_alt)
         self.park_az_rad = np.radians(park_az)
-        self.park_filter = park_filter
+        self.current_filter = start_filter
         if location is None:
             self.site = Site('LSST')
             self.location = EarthLocation(lat=self.site.latitude, lon=self.site.longitude,
@@ -140,6 +142,7 @@ class Kinem_model(object):
 
         # Park the telescope
         self.park()
+        self.last_mjd = mjd0
 
     def mount_filters(self, filter_list):
         """Change which filters are mounted
@@ -240,7 +243,6 @@ class Kinem_model(object):
         self.current_RA_rad = None
         self.current_dec_rad = None
         self.current_rotSkyPos_rad = None
-        self.current_filter = self.park_filter
         self.cumulative_azimuth_rad = 0
 
         # The last position we were at (or the current if we are parked)
@@ -357,6 +359,11 @@ class Kinem_model(object):
         # alt,az not provided, calculate from RA,Dec
         if alt_rad is None:
             alt_rad, az_rad, pa = self.radec2altaz(ra_rad, dec_rad, mjd)
+        else:
+            pa = approx_altaz2pa(alt_rad, az_rad, self.location.lat.rad)
+            ra_rad, dec_rad = _approx_altAz2RaDec(alt_rad, az_rad, self.location.lat.rad,
+                                                  self.location.lon.rad, mjd)
+
         if starting_alt_rad is None:
             if self.parked:
                 starting_alt_rad = self.park_alt_rad
@@ -506,6 +513,7 @@ class Kinem_model(object):
             self.current_dec_rad = dec_rad
             self.current_rotSkyPos_rad = rotSkyPos
             self.parked = False
+            # Handy to keep as reference, but not used for any calculations
             self.last_rot_tel_pos_rad = rotTelPos
             self.last_az_rad = az_rad
             self.last_alt_rad = alt_rad
