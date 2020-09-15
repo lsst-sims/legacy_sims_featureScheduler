@@ -4,8 +4,7 @@ import numpy as np
 import healpy as hp
 from lsst.sims.utils import _hpid2RaDec
 from lsst.sims.featureScheduler.utils import hp_in_lsst_fov, set_default_nside, hp_in_comcam_fov, int_rounded
-from lsst.sims.utils import _approx_RaDec2AltAz
-from lsst.sims.featureScheduler.utils import approx_altaz2pa
+from lsst.sims.utils import _approx_RaDec2AltAz, _approx_altaz2pa
 
 
 import logging
@@ -179,7 +178,7 @@ class Core_scheduler(object):
             if self.rotator_limits is not None:
                 alt, az = _approx_RaDec2AltAz(observation['RA'], observation['dec'], self.conditions.site.latitude_rad,
                                               self.conditions.site.longitude_rad, mjd)
-                obs_pa = approx_altaz2pa(alt, az, self.conditions.site.latitude_rad)
+                obs_pa = _approx_altaz2pa(alt, az, self.conditions.site.latitude_rad)
                 rotTelPos_expected = (obs_pa - observation['rotSkyPos']) % (2.*np.pi)
                 if (int_rounded(rotTelPos_expected) > int_rounded(self.rotator_limits[0])) & (int_rounded(rotTelPos_expected) < int_rounded(self.rotator_limits[1])):
                     diff = np.abs(self.rotator_limits - rotTelPos_expected)

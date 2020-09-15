@@ -1,6 +1,6 @@
 import numpy as np
 from lsst.sims.utils import (_hpid2RaDec, _raDec2Hpid, Site, calcLmstLast,
-                             m5_flat_sed, _approx_RaDec2AltAz, _angularSeparation)
+                             m5_flat_sed, _approx_RaDec2AltAz, _angularSeparation, _approx_altaz2pa)
 import lsst.sims.skybrightness_pre as sb
 import healpy as hp
 from lsst.sims.downtimeModel import ScheduledDowntimeData, UnscheduledDowntimeData
@@ -8,7 +8,7 @@ import lsst.sims.downtimeModel as downtimeModel
 from lsst.sims.seeingModel import SeeingData, SeeingModel
 from lsst.sims.cloudModel import CloudData
 from lsst.sims.featureScheduler.features import Conditions
-from lsst.sims.featureScheduler.utils import set_default_nside, approx_altaz2pa, create_season_offset
+from lsst.sims.featureScheduler.utils import set_default_nside, create_season_offset
 from astropy.coordinates import EarthLocation
 from astropy.time import Time
 from lsst.sims.almanac import Almanac
@@ -409,7 +409,7 @@ class Model_observatory(object):
         """
         alt, az = _approx_RaDec2AltAz(observation['RA'], observation['dec'], self.site.latitude_rad,
                                       self.site.longitude_rad, self.mjd)
-        obs_pa = approx_altaz2pa(alt, az, self.site.latitude_rad)
+        obs_pa = _approx_altaz2pa(alt, az, self.site.latitude_rad)
         observation['rotSkyPos'] = (obs_pa + observation['rotTelPos']) % (2*np.pi)
         observation['rotTelPos'] = 0.
 

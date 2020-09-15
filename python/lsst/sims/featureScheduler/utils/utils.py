@@ -90,28 +90,6 @@ def set_default_nside(nside=None):
     return set_default_nside.nside
 
 
-def approx_altaz2pa(alt_rad, az_rad, latitude_rad):
-    """
-    A fast calculation of parallactic angle
-    XXX--could move this to lsst.sims.utils.approxCoordTransforms.py
-    Parameters
-    ----------
-    alt_rad : float
-        Altitude (radians)
-    az_rad : float
-        Azimuth (radians)
-    latitude_rad : float
-        The latitude of the observatory (radians)
-    """
-
-    y = np.sin(-az_rad)*np.cos(latitude_rad)
-    x = np.cos(alt_rad)*np.sin(latitude_rad) - np.sin(alt_rad)*np.cos(latitude_rad)*np.cos(-az_rad)
-    pa = np.arctan2(y, x)
-    # Make it run from 0-360 deg instead of of -180 to 180
-    pa = pa % (2.*np.pi)
-    return pa
-
-
 def int_binned_stat(ids, values, statistic=np.mean):
     """
     Like scipy.binned_statistic, but for unique int ids

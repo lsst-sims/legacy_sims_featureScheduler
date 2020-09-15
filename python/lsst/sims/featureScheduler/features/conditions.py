@@ -1,7 +1,7 @@
 import numpy as np
-from lsst.sims.utils import _approx_RaDec2AltAz, Site, _hpid2RaDec, m5_flat_sed
+from lsst.sims.utils import _approx_RaDec2AltAz, Site, _hpid2RaDec, m5_flat_sed, _approx_altaz2pa
 import healpy as hp
-from lsst.sims.featureScheduler.utils import set_default_nside, match_hp_resolution, approx_altaz2pa, season_calc
+from lsst.sims.featureScheduler.utils import set_default_nside, match_hp_resolution, season_calc
 
 __all__ = ['Conditions']
 
@@ -299,7 +299,7 @@ class Conditions(object):
         return self._pa
 
     def calc_pa(self):
-        self._pa = approx_altaz2pa(self.alt, self.az, self.site.latitude_rad)
+        self._pa = _approx_altaz2pa(self.alt, self.az, self.site.latitude_rad)
 
     @property
     def alt(self):

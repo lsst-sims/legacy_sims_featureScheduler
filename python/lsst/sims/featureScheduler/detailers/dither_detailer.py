@@ -1,7 +1,6 @@
 import numpy as np
 from lsst.sims.featureScheduler.detailers import Base_detailer
-from lsst.sims.utils import _approx_RaDec2AltAz
-from lsst.sims.featureScheduler.utils import approx_altaz2pa
+from lsst.sims.utils import _approx_RaDec2AltAz, _approx_altaz2pa
 
 
 __all__ = ["Dither_detailer", "Camera_rot_detailer"]
@@ -126,9 +125,8 @@ class Camera_rot_detailer(Base_detailer):
         for i, obs in enumerate(observation_list):
             alt, az = _approx_RaDec2AltAz(obs['RA'], obs['dec'], conditions.site.latitude_rad,
                                           conditions.site.longitude_rad, conditions.mjd)
-            obs_pa = approx_altaz2pa(alt, az, conditions.site.latitude_rad)
+            obs_pa = _approx_altaz2pa(alt, az, conditions.site.latitude_rad)
             obs['rotSkyPos'] = (offsets[i] - obs_pa) % (2.*np.pi)
             obs['rotTelPos'] = offsets[i]
-            
 
         return observation_list
