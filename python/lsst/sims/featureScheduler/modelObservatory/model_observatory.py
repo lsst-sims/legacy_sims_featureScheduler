@@ -433,6 +433,7 @@ class Model_observatory(object):
         if ~np.all(np.isfinite(slewtime)):
             result = None
             new_night = False
+            import pdb ; pdb.set_trace()
             raise ValueError("Slew failed")
 
         # Check if the mjd after slewtime and visitime is fine:
