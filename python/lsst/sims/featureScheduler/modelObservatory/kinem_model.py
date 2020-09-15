@@ -1,67 +1,11 @@
 import numpy as np
 from astropy.coordinates import EarthLocation
-from lsst.sims.utils import Site, calcLmstLast, _approx_altAz2RaDec
+from lsst.sims.utils import Site, calcLmstLast, _approx_altAz2RaDec, _approx_altaz2pa, _approx_RaDec2AltAz
 import healpy as hp
 import matplotlib.pylab as plt
-from lsst.sims.featureScheduler.utils import approx_altaz2pa
 
 __all__ = ["Kinem_model"]
 TwoPi = 2.*np.pi
-
-
-# Snagged from lsst.sims.utils for now to add in parallactic angle. Might want to update back there
-def _approx_RaDec2AltAz(ra, dec, lat, lon, mjd, lmst=None, return_pa=True):
-    """
-    Convert Ra,Dec to Altitude and Azimuth.
-
-    Coordinate transformation is killing performance. Just use simple equations to speed it up
-    and ignore aberration, precession, nutation, nutrition, etc.
-
-    Parameters
-    ----------
-    ra : array_like
-        RA, in radians.
-    dec : array_like
-        Dec, in radians. Must be same length as `ra`.
-    lat : float
-        Latitude of the observatory in radians.
-    lon : float
-        Longitude of the observatory in radians.
-    mjd : float
-        Modified Julian Date.
-    lmst : float (None)
-        The local mean sidereal time (computed if not given). (hours)
-
-    Returns
-    -------
-    alt : numpy.array
-        Altitude, same length as `ra` and `dec`. Radians.
-    az : numpy.array
-        Azimuth, same length as `ra` and `dec`. Radians.
-    """
-    if lmst is None:
-        lmst, last = calcLmstLast(mjd, lon)
-    lmst = lmst/12.*np.pi  # convert to rad
-    ha = lmst-ra
-    sindec = np.sin(dec)
-    sinlat = np.sin(lat)
-    coslat = np.cos(lat)
-    sinalt = sindec*sinlat+np.cos(dec)*coslat*np.cos(ha)
-    sinalt = np.clip(sinalt, -1, 1)
-    alt = np.arcsin(sinalt)
-    cosaz = (sindec-np.sin(alt)*sinlat)/(np.cos(alt)*coslat)
-    cosaz = np.clip(cosaz, -1, 1)
-    az = np.arccos(cosaz)
-    if np.size(ha) < 2:
-        if np.sin(ha) > 0:
-            az = 2.*np.pi-az
-    else:
-        signflip = np.where(np.sin(ha) > 0)
-        az[signflip] = 2.*np.pi-az[signflip]
-    if return_pa:
-        pa = approx_altaz2pa(alt, az, lat)
-        return alt, az, pa
-    return alt, az
 
 
 class radec2altazpa(object):
@@ -71,7 +15,8 @@ class radec2altazpa(object):
         self.location = location
 
     def __call__(self, ra, dec, mjd):
-        alt, az, pa = _approx_RaDec2AltAz(ra, dec, self.location.lat.rad, self.location.lon.rad, mjd)
+        alt, az, pa = _approx_RaDec2AltAz(ra, dec, self.location.lat.rad, self.location.lon.rad, mjd,
+                                          return_pa=True)
         return alt, az, pa
 
 
@@ -360,7 +305,7 @@ class Kinem_model(object):
         if alt_rad is None:
             alt_rad, az_rad, pa = self.radec2altaz(ra_rad, dec_rad, mjd)
         else:
-            pa = approx_altaz2pa(alt_rad, az_rad, self.location.lat.rad)
+            pa = _approx_altaz2pa(alt_rad, az_rad, self.location.lat.rad)
             ra_rad, dec_rad = _approx_altAz2RaDec(alt_rad, az_rad, self.location.lat.rad,
                                                   self.location.lon.rad, mjd)
 
