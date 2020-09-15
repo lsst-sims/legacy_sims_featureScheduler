@@ -429,14 +429,10 @@ class Model_observatory(object):
         # obsevation['rotSkyPos'] will be ignored.
         slewtime, visittime = self.observatory.observe(observation, self.mjd, rotTelPos=observation['rotTelPos'])
 
-        # inf slewtime means the observation failed
+        # inf slewtime means the observation failed (probably outsire alt limits)
         if ~np.all(np.isfinite(slewtime)):
-            result = None
-            new_night = False
-            import pdb ; pdb.set_trace()
-            raise ValueError("Slew failed")
+            return None, False
 
-        # Check if the mjd after slewtime and visitime is fine:
         observation_worked, new_mjd = self.check_mjd(self.mjd + (slewtime + visittime)/24./3600.)
 
         if observation_worked:
