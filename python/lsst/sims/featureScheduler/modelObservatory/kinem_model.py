@@ -47,7 +47,6 @@ def smallest_signed_angle(a1, a2):
     result = b+0
     alb = np.where(a < b)[0]
     result[alb] = -1.*a[alb]
-    #return -a if a < b else b
     return result
 
 
@@ -239,10 +238,9 @@ class Kinem_model(object):
         """Calculates ``slew'' time to a series of alt/az/filter positions from the current
         position (stored internally).
         Assumptions (currently):
-            assumes  we never max out cable wrap-around!--For now--XXX to update
             Assumes we have been tracking on ra,dec,rotSkyPos position.
             Ignores the motion of the sky while we are slewing (this approx should probably average out over time).
-            No checks for if we have tracked beyond limits. May want to put telescope in park if there is a large gap.
+            No checks for if we have tracked beyond limits. Assumes folks put telescope in park if there's a long gap.
             Assumes the camera rotator never needs to (or can't) do a slew over 180 degrees.
 
         Calculates the ``slew'' time necessary to get from current state
@@ -289,7 +287,7 @@ class Kinem_model(object):
         Returns
         -------
         np.ndarray
-            The number of seconds between the two specified exposures.
+            The number of seconds between the two specified exposures. Will be np.nan or np.inf if slew is not possible.
         """
         if filtername not in self.mounted_filters:
             return np.nan
