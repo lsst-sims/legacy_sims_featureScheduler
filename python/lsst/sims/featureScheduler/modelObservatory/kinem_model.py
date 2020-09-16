@@ -1,5 +1,4 @@
 import numpy as np
-from astropy.coordinates import EarthLocation
 from lsst.sims.utils import Site, calcLmstLast, _approx_altAz2RaDec, _approx_altaz2pa, _approx_RaDec2AltAz
 import healpy as hp
 import matplotlib.pylab as plt
@@ -15,7 +14,7 @@ class radec2altazpa(object):
         self.location = location
 
     def __call__(self, ra, dec, mjd):
-        alt, az, pa = _approx_RaDec2AltAz(ra, dec, self.location.lat.rad, self.location.lon.rad, mjd,
+        alt, az, pa = _approx_RaDec2AltAz(ra, dec, self.location.lat_rad, self.location.lon_rad, mjd,
                                           return_pa=True)
         return alt, az, pa
 
@@ -73,9 +72,9 @@ class Kinem_model(object):
         self.park_az_rad = np.radians(park_az)
         self.current_filter = start_filter
         if location is None:
-            self.site = Site('LSST')
-            self.location = EarthLocation(lat=self.site.latitude, lon=self.site.longitude,
-                                          height=self.site.height)
+            self.location = Site('LSST')
+            self.location.lat_rad = np.radians(self.location.latitude)
+            self.location.lon_rad = np.radians(self.location.longitude)
         # Our RA,Dec to Alt,Az converter
         self.radec2altaz = radec2altazpa(self.location)
 
@@ -303,9 +302,9 @@ class Kinem_model(object):
         if alt_rad is None:
             alt_rad, az_rad, pa = self.radec2altaz(ra_rad, dec_rad, mjd)
         else:
-            pa = _approx_altaz2pa(alt_rad, az_rad, self.location.lat.rad)
-            ra_rad, dec_rad = _approx_altAz2RaDec(alt_rad, az_rad, self.location.lat.rad,
-                                                  self.location.lon.rad, mjd)
+            pa = _approx_altaz2pa(alt_rad, az_rad, self.location.lat_rad)
+            ra_rad, dec_rad = _approx_altAz2RaDec(alt_rad, az_rad, self.location.lat_rad,
+                                                  self.location.lon_rad, mjd)
 
         if starting_alt_rad is None:
             if self.parked:
