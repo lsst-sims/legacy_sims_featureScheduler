@@ -1,7 +1,7 @@
 import numpy as np
-from lsst.sims.utils import _approx_RaDec2AltAz, Site, _hpid2RaDec, m5_flat_sed
+from lsst.sims.utils import _approx_RaDec2AltAz, Site, _hpid2RaDec, m5_flat_sed, _approx_altaz2pa
 import healpy as hp
-from lsst.sims.featureScheduler.utils import set_default_nside, match_hp_resolution, approx_altaz2pa, season_calc
+from lsst.sims.featureScheduler.utils import set_default_nside, match_hp_resolution, season_calc
 
 __all__ = ['Conditions']
 
@@ -46,7 +46,7 @@ class Conditions(object):
         dec : np.array
             A healpix array with the Dec of each healpixel center (radians). Automatically generated.
 
-        Attributes (to be set by user/telemetry stream)
+        Attributes (to be set by user/telemetry stream/scheduler)
         -------------------------------------------
         mjd : float
             Modified Julian Date (days).
@@ -124,6 +124,8 @@ class Conditions(object):
             targetoO objects.
         planet_positions : dict
             Dictionary of planet name and coordinate e.g., 'venus_RA', 'mars_dec'
+        scheduled_observations : np.array
+            A list of MJD times when there are scheduled observations. Defaults to empty array.
 
         Attributes (calculated on demand and cached)
         ------------------------------------------
@@ -142,7 +144,7 @@ class Conditions(object):
             the 5-sigma limiting depth healpix maps, keyed by filtername (mags). Will be recalculated
             if the skybrightness, seeing, or airmass are updated.
         HA : np.array
-            Healpix map of the hour angle of each healpixel (radians).
+            Healpix map of the hour angle of each healpixel (radians). Runs from 0 to 2pi.
         az_to_sun : np.array
             Healpix map of the azimuthal distance to the sun for each healpixel (radians)
 
@@ -186,6 +188,9 @@ class Conditions(object):
         self._FWHMeff = {}
         self._M5Depth = None
         self._airmass = None
+
+        # Upcomming scheduled observations
+        self.scheduled_observations = np.array([], dtype=float)
 
         # Attribute to hold the current observing queue
         self.queue = None
@@ -294,7 +299,7 @@ class Conditions(object):
         return self._pa
 
     def calc_pa(self):
-        self._pa = approx_altaz2pa(self.alt, self.az, self.site.latitude_rad)
+        self._pa = _approx_altaz2pa(self.alt, self.az, self.site.latitude_rad)
 
     @property
     def alt(self):

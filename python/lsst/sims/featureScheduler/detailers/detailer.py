@@ -1,6 +1,6 @@
-from lsst.sims.utils import _raDec2Hpid, _approx_RaDec2AltAz, _angularSeparation
+from lsst.sims.utils import _raDec2Hpid, _approx_RaDec2AltAz, _angularSeparation, _approx_altaz2pa
 import numpy as np
-from lsst.sims.featureScheduler.utils import approx_altaz2pa, int_rounded
+from lsst.sims.featureScheduler.utils import int_rounded
 import copy
 
 __all__ = ["Base_detailer", "Zero_rot_detailer", "Comcam_90rot_detailer", "Close_alt_detailer",
@@ -66,7 +66,7 @@ class Zero_rot_detailer(Base_detailer):
         for obs in observation_list:
             alt, az = _approx_RaDec2AltAz(obs['RA'], obs['dec'], conditions.site.latitude_rad,
                                           conditions.site.longitude_rad, conditions.mjd)
-            obs_pa = approx_altaz2pa(alt, az, conditions.site.latitude_rad)
+            obs_pa = _approx_altaz2pa(alt, az, conditions.site.latitude_rad)
             obs['rotSkyPos'] = obs_pa
 
         return observation_list
@@ -100,7 +100,7 @@ class Comcam_90rot_detailer(Base_detailer):
         obs_array =np.concatenate(observation_list)
         alt, az = _approx_RaDec2AltAz(obs_array['RA'], obs_array['dec'], conditions.site.latitude_rad,
                                       conditions.site.longitude_rad, conditions.mjd)
-        parallactic_angle = approx_altaz2pa(alt, az, conditions.site.latitude_rad)
+        parallactic_angle = _approx_altaz2pa(alt, az, conditions.site.latitude_rad)
         # If we set rotSkyPos to parallactic angle, rotTelPos will be zero. So, find the
         # favored rotSkyPos that is closest to PA to keep rotTelPos as close as possible to zero.
         ang_diff = np.abs(parallactic_angle - favored_rotSkyPos)
@@ -211,10 +211,3 @@ class Twilight_triple_detailer(Base_detailer):
             out_obs.extend(copy.deepcopy(observation_list))
 
         return out_obs
-
-
-
-
-
-
-

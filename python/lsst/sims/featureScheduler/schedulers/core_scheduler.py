@@ -4,8 +4,7 @@ import numpy as np
 import healpy as hp
 from lsst.sims.utils import _hpid2RaDec
 from lsst.sims.featureScheduler.utils import hp_in_lsst_fov, set_default_nside, hp_in_comcam_fov, int_rounded
-from lsst.sims.utils import _approx_RaDec2AltAz
-from lsst.sims.featureScheduler.utils import approx_altaz2pa
+from lsst.sims.utils import _approx_RaDec2AltAz, _approx_altaz2pa
 
 
 import logging
@@ -114,9 +113,24 @@ class Core_scheduler(object):
         # put the local queue in the conditions
         self.conditions.queue = self.queue
 
-        # XXX---TODO:  Could potentially put more complicated info from all
-        # the surveys in the conditions object here. e.g., when a DDF plans to next request
-        # observations.
+        # Check if any surveys have upcomming scheduled observations. Note that we are accumulating
+        # all of the possible scheduled observations, so it's up to the user to make sure things don't
+        # collide. The ideal implementation would be to have all the scheduled observations in a
+        # single survey objects, presumably at the highest tier of priority.
+
+        all_scheduled = []
+        for sl in self.survey_lists:
+            for sur in sl:
+                scheduled = sur.get_scheduled_obs()
+                if scheduled is not None:
+                    all_scheduled.append(scheduled)
+        if len(all_scheduled) == 0:
+            self.conditions.scheduled_observations = []
+        else:
+            all_scheduled = np.sort(np.concatenate(all_scheduled))
+            # In case the surveys have not been removing executed observations
+            all_scheduled = all_scheduled[np.where(all_scheduled >= self.conditions.mjd)]
+            self.conditions.scheduled_observations = all_scheduled
 
     def _check_queue_mjd_only(self, mjd):
         """
@@ -164,7 +178,7 @@ class Core_scheduler(object):
             if self.rotator_limits is not None:
                 alt, az = _approx_RaDec2AltAz(observation['RA'], observation['dec'], self.conditions.site.latitude_rad,
                                               self.conditions.site.longitude_rad, mjd)
-                obs_pa = approx_altaz2pa(alt, az, self.conditions.site.latitude_rad)
+                obs_pa = _approx_altaz2pa(alt, az, self.conditions.site.latitude_rad)
                 rotTelPos_expected = (obs_pa - observation['rotSkyPos']) % (2.*np.pi)
                 if (int_rounded(rotTelPos_expected) > int_rounded(self.rotator_limits[0])) & (int_rounded(rotTelPos_expected) < int_rounded(self.rotator_limits[1])):
                     diff = np.abs(self.rotator_limits - rotTelPos_expected)

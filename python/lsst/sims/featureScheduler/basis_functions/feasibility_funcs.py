@@ -12,7 +12,7 @@ __all__ = ['Filter_loaded_basis_function', 'Time_to_twilight_basis_function',
            'Rising_more_basis_function', 'Soft_delay_basis_function',
            'Look_ahead_ddf_basis_function', 'Sun_alt_limit_basis_function',
            'Time_in_twilight_basis_function', 'Night_modulo_basis_function',
-           'End_of_evening_basis_function']
+           'End_of_evening_basis_function', 'Time_to_scheduled_basis_function']
 
 
 class Filter_loaded_basis_function(Base_basis_function):
@@ -112,6 +112,28 @@ class Time_to_twilight_basis_function(Base_basis_function):
 
     def check_feasibility(self, conditions):
         available_time = getattr(conditions, 'sun_n' + self.alt_limit + '_rising') - conditions.mjd
+        result = available_time > self.time_needed
+        return result
+
+
+class Time_to_scheduled_basis_function(Base_basis_function):
+    """Make sure there is enough time before next scheduled observation. Useful
+    if you want to check before starting a long sequence of observations.
+
+    Parameters
+    ----------
+    time_needed : float (30.)
+        The time needed to run a survey (mintues).
+    """
+    def __init__(self, time_needed=30.):
+        super(Time_to_scheduled_basis_function, self).__init__()
+        self.time_needed = time_needed/60./24.  # To days
+
+    def check_feasibility(self, conditions):
+        if len(conditions.scheduled_observations) == 0:
+            return True
+
+        available_time = np.min(conditions.scheduled_observations) - conditions.mjd
         result = available_time > self.time_needed
         return result
 

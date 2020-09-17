@@ -74,10 +74,7 @@ def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, su
             # find out what filters we want mounted
             conditions = observatory.return_conditions()
             filters_needed = filter_scheduler(conditions)
-            swap_out = np.setdiff1d(conditions.mounted_filters, filters_needed)
-            for filtername in swap_out:
-                # ugh, "swap_filter" means "unmount filter"
-                observatory.observatory.swap_filter(filtername)
+            observatory.observatory.mount_filters(filters_needed)
 
         mjd = observatory.mjd + 0
         if verbose:

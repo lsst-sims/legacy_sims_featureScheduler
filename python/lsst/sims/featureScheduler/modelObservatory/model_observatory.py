@@ -1,271 +1,23 @@
 import numpy as np
 from lsst.sims.utils import (_hpid2RaDec, _raDec2Hpid, Site, calcLmstLast,
-                             m5_flat_sed, _approx_RaDec2AltAz, _angularSeparation)
+                             m5_flat_sed, _approx_RaDec2AltAz, _angularSeparation, _approx_altaz2pa)
 import lsst.sims.skybrightness_pre as sb
 import healpy as hp
-from datetime import datetime
 from lsst.sims.downtimeModel import ScheduledDowntimeData, UnscheduledDowntimeData
 import lsst.sims.downtimeModel as downtimeModel
 from lsst.sims.seeingModel import SeeingData, SeeingModel
 from lsst.sims.cloudModel import CloudData
 from lsst.sims.featureScheduler.features import Conditions
-from lsst.sims.featureScheduler.utils import set_default_nside, approx_altaz2pa, create_season_offset
-from lsst.ts.observatory.model import ObservatoryModel, Target
+from lsst.sims.featureScheduler.utils import set_default_nside, create_season_offset
 from astropy.coordinates import EarthLocation
 from astropy.time import Time
 from lsst.sims.almanac import Almanac
 import warnings
 import matplotlib.pylab as plt
-from lsst.ts.observatory.model import ObservatoryState
 from importlib import import_module
+from lsst.sims.featureScheduler.modelObservatory import Kinem_model
 
 __all__ = ['Model_observatory']
-
-
-class ExtendedObservatoryModel(ObservatoryModel):
-    """Add some functionality to ObservatoryModel
-    """
-
-    def expose(self, target):
-        # Break out the exposure command from observe method
-        visit_time = sum(target.exp_times) + \
-            target.num_exp * self.params.shuttertime + \
-            max(target.num_exp - 1, 0) * self.params.readouttime
-        self.update_state(self.current_state.time + visit_time)
-
-    def observe_times(self, target):
-        """observe a target, and return the slewtime and visit time for the action
-        Note, slew and expose will update the current_state
-        """
-        t1 = self.current_state.time + 0
-        # Note, this slew assumes there is a readout that needs to be done.
-        self.slew(target)
-        t2 = self.current_state.time + 0
-        self.expose(target)
-        t3 = self.current_state.time + 0
-        if not self.current_state.tracking:
-            ValueError('Telescope model stopped tracking, that seems bad.')
-        slewtime = t2 - t1
-        visitime = t3 - t2
-        return slewtime, visitime
-
-    #  Adding wrap_padding to make azimuth slews more intelligent
-    def get_closest_angle_distance(self, target_rad, current_abs_rad,
-                                   min_abs_rad=None, max_abs_rad=None,
-                                   wrap_padding=0.873):
-        """Calculate the closest angular distance including handling \
-           cable wrap if necessary.
-
-        Parameters
-        ----------
-        target_rad : float
-            The destination angle (radians).
-        current_abs_rad : float
-            The current angle (radians).
-        min_abs_rad : float, optional
-            The minimum constraint angle (radians).
-        max_abs_rad : float, optional
-            The maximum constraint angle (radians).
-        wrap_padding : float (0.873)
-            The amount of padding to use to make sure we don't track into limits (radians).
-
-
-        Returns
-        -------
-        tuple(float, float)
-            (accumulated angle in radians, distance angle in radians)
-        """
-        # if there are wrap limits, normalizes the target angle
-        TWOPI = 2 * np.pi
-        if min_abs_rad is not None:
-            norm_target_rad = divmod(target_rad - min_abs_rad, TWOPI)[1] + min_abs_rad
-            if max_abs_rad is not None:
-                # if the target angle is unreachable
-                # then sets an arbitrary value
-                if norm_target_rad > max_abs_rad:
-                    norm_target_rad = max(min_abs_rad, norm_target_rad - np.pi)
-        else:
-            norm_target_rad = target_rad
-
-        # computes the distance clockwise
-        distance_rad = divmod(norm_target_rad - current_abs_rad, TWOPI)[1]
-
-        # take the counter-clockwise distance if shorter
-        if distance_rad > np.pi:
-            distance_rad = distance_rad - TWOPI
-
-        # if there are wrap limits
-        if (min_abs_rad is not None) and (max_abs_rad is not None):
-            # compute accumulated angle
-            accum_abs_rad = current_abs_rad + distance_rad
-
-            # if limits reached chose the other direction
-            if accum_abs_rad > max_abs_rad - wrap_padding:
-                distance_rad = distance_rad - TWOPI
-            if accum_abs_rad < min_abs_rad + wrap_padding:
-                distance_rad = distance_rad + TWOPI
-
-        # compute final accumulated angle
-        final_abs_rad = current_abs_rad + distance_rad
-
-        return (final_abs_rad, distance_rad)
-
-    #  Put in wrap padding kwarg so it's not used on camera rotation.
-    def get_closest_state(self, targetposition, istracking=False):
-        """Find the closest observatory state for the given target position.
-
-        Parameters
-        ----------
-        targetposition : :class:`.ObservatoryPosition`
-            A target position instance.
-        istracking : bool, optional
-            Flag for saying if the observatory is tracking. Default is False.
-
-        Returns
-        -------
-        :class:`.ObservatoryState`
-            The state that is closest to the current observatory state.
-
-        Binary schema
-        -------------
-        The binary schema used to determine the state of a proposed target. A
-        value of 1 indicates that is it failing. A value of 0 indicates that the
-        state is passing.
-        ___  ___  ___  ___  ___  ___
-         |    |    |    |    |    |
-        rot  rot  az   az   alt  alt
-        max  min  max  min  max  min
-
-        For example, if a proposed target exceeds the rotators maximum value,
-        and is below the minimum azimuth we would have a binary value of;
-
-         0    1    0    1    0    0
-
-        If the target passed, then no limitations would occur;
-
-         0    0    0    0    0    0
-        """
-        TWOPI = 2 * np.pi
-
-        valid_state = True
-        fail_record = self.current_state.fail_record
-        self.current_state.fail_state = 0
-
-        if targetposition.alt_rad < self.params.telalt_minpos_rad:
-            telalt_rad = self.params.telalt_minpos_rad
-            domalt_rad = self.params.telalt_minpos_rad
-            valid_state = False
-
-            if "telalt_minpos_rad" in fail_record:
-                fail_record["telalt_minpos_rad"] += 1
-            else:
-                fail_record["telalt_minpos_rad"] = 1
-
-            self.current_state.fail_state = self.current_state.fail_state | \
-                                            self.current_state.fail_value_table["altEmin"]
-
-        elif targetposition.alt_rad > self.params.telalt_maxpos_rad:
-            telalt_rad = self.params.telalt_maxpos_rad
-            domalt_rad = self.params.telalt_maxpos_rad
-            valid_state = False
-            if "telalt_maxpos_rad" in fail_record:
-                fail_record["telalt_maxpos_rad"] += 1
-            else:
-                fail_record["telalt_maxpos_rad"] = 1
-
-            self.current_state.fail_state = self.current_state.fail_state | \
-                                            self.current_state.fail_value_table["altEmax"]
-
-        else:
-            telalt_rad = targetposition.alt_rad
-            domalt_rad = targetposition.alt_rad
-
-        if istracking:
-            (telaz_rad, delta) = self.get_closest_angle_distance(targetposition.az_rad,
-                                                                 self.current_state.telaz_rad)
-            if telaz_rad < self.params.telaz_minpos_rad:
-                telaz_rad = self.params.telaz_minpos_rad
-                valid_state = False
-                if "telaz_minpos_rad" in fail_record:
-                    fail_record["telaz_minpos_rad"] += 1
-                else:
-                    fail_record["telaz_minpos_rad"] = 1
-
-                self.current_state.fail_state = self.current_state.fail_state | \
-                                                self.current_state.fail_value_table["azEmin"]
-
-            elif telaz_rad > self.params.telaz_maxpos_rad:
-                telaz_rad = self.params.telaz_maxpos_rad
-                valid_state = False
-                if "telaz_maxpos_rad" in fail_record:
-                    fail_record["telaz_maxpos_rad"] += 1
-                else:
-                    fail_record["telaz_maxpos_rad"] = 1
-
-                self.current_state.fail_state = self.current_state.fail_state | \
-                                                self.current_state.fail_value_table["azEmax"]
-
-        else:
-            (telaz_rad, delta) = self.get_closest_angle_distance(targetposition.az_rad,
-                                                                 self.current_state.telaz_rad,
-                                                                 self.params.telaz_minpos_rad,
-                                                                 self.params.telaz_maxpos_rad)
-
-        (domaz_rad, delta) = self.get_closest_angle_distance(targetposition.az_rad,
-                                                             self.current_state.domaz_rad)
-
-        if istracking:
-            (telrot_rad, delta) = self.get_closest_angle_distance(targetposition.rot_rad,
-                                                                  self.current_state.telrot_rad,
-                                                                  wrap_padding=0.)
-            if telrot_rad < self.params.telrot_minpos_rad:
-                telrot_rad = self.params.telrot_minpos_rad
-                valid_state = False
-                if "telrot_minpos_rad" in fail_record:
-                    fail_record["telrot_minpos_rad"] += 1
-                else:
-                    fail_record["telrot_minpos_rad"] = 1
-
-                self.current_state.fail_state = self.current_state.fail_state | \
-                                                self.current_state.fail_value_table["rotEmin"]
-
-            elif telrot_rad > self.params.telrot_maxpos_rad:
-                telrot_rad = self.params.telrot_maxpos_rad
-                valid_state = False
-                if "telrot_maxpos_rad" in fail_record:
-                    fail_record["telrot_maxpos_rad"] += 1
-                else:
-                    fail_record["telrot_maxpos_rad"] = 1
-
-                self.current_state.fail_state = self.current_state.fail_state | \
-                                                self.current_state.fail_value_table["rotEmax"]
-        else:
-            # if the target rotator angle is unreachable
-            # then sets an arbitrary value (opposite)
-            norm_rot_rad = divmod(targetposition.rot_rad - self.params.telrot_minpos_rad, TWOPI)[1] \
-                + self.params.telrot_minpos_rad
-            if norm_rot_rad > self.params.telrot_maxpos_rad:
-                targetposition.rot_rad = norm_rot_rad - np.pi
-            (telrot_rad, delta) = self.get_closest_angle_distance(targetposition.rot_rad,
-                                                                  self.current_state.telrot_rad,
-                                                                  self.params.telrot_minpos_rad,
-                                                                  self.params.telrot_maxpos_rad,
-                                                                  wrap_padding=0.)
-        targetposition.ang_rad = divmod(targetposition.pa_rad - telrot_rad, TWOPI)[1]
-
-        targetstate = ObservatoryState()
-        targetstate.set_position(targetposition)
-        targetstate.telalt_rad = telalt_rad
-        targetstate.telaz_rad = telaz_rad
-        targetstate.telrot_rad = telrot_rad
-        targetstate.domalt_rad = domalt_rad
-        targetstate.domaz_rad = domaz_rad
-        if istracking:
-            targetstate.tracking = valid_state
-
-        self.current_state.fail_record = fail_record
-
-        return targetstate
 
 
 class Model_observatory(object):
@@ -274,7 +26,7 @@ class Model_observatory(object):
 
     def __init__(self, nside=None, mjd_start=59853.5, seed=42, quickTest=True,
                  alt_min=5., lax_dome=True, cloud_limit=0.3, sim_ToO=None,
-                 seeing_db=None):
+                 seeing_db=None, park_after=10.):
         """
         Parameters
         ----------
@@ -292,6 +44,8 @@ class Model_observatory(object):
             If one would like to inject simulated ToOs into the telemetry stream.
         seeing_db : filename of the seeing data database (None)
             If one would like to use an alternate seeing database
+        park_after : float (10)
+            Park the telescope after a gap longer than park_after (minutes)
         """
 
         if nside is None:
@@ -306,6 +60,8 @@ class Model_observatory(object):
         self.mjd_start = mjd_start
 
         self.sim_ToO = sim_ToO
+
+        self.park_after = park_after/60./24.  # To days
 
         # Create an astropy location
         self.site = Site('LSST')
@@ -359,10 +115,7 @@ class Model_observatory(object):
 
         self.sky_model = sb.SkyModelPre(speedLoad=quickTest)
 
-        self.observatory = ExtendedObservatoryModel()
-        self.observatory.configure_from_module()
-        # Make it so it respects my requested rotator angles
-        self.observatory.params.rotator_followsky = True
+        self.observatory = Kinem_model(mjd0=mjd_start)
 
         self.filterlist = ['u', 'g', 'r', 'i', 'z', 'y']
         self.seeing_FWHMeff = {}
@@ -384,7 +137,6 @@ class Model_observatory(object):
         # Conditions object to update and return on request
         self.conditions = Conditions(nside=self.nside, mjd_start=mjd_start,
                                      season_offset=season_offset, sun_RA_start=self.sun_RA_start)
-
 
         self.obsID_counter = 0
 
@@ -470,17 +222,19 @@ class Model_observatory(object):
                                                                   planet_mask=False,
                                                                   moon_mask=False, zenith_mask=False)
 
-        self.conditions.mounted_filters = self.observatory.current_state.mountedfilters
-        self.conditions.current_filter = self.observatory.current_state.filter[0]
+        self.conditions.mounted_filters = self.observatory.mounted_filters
+        self.conditions.current_filter = self.observatory.current_filter[0]
 
         # Compute the slewtimes
         slewtimes = np.empty(alts.size, dtype=float)
         slewtimes.fill(np.nan)
-        slewtimes[good] = self.observatory.get_approximate_slew_delay(alts[good], azs[good],
-                                                                      self.observatory.current_state.filter,
-                                                                      lax_dome=self.lax_dome)
-        # Mask out anything the slewtime says is out of bounds
-        slewtimes[np.where(slewtimes < 0)] = np.nan
+        # If there has been a gap, park the telescope
+        gap = self.mjd - self.observatory.last_mjd
+        if gap > self.park_after:
+            self.observatory.park()
+        slewtimes[good] = self.observatory.slew_times(0., 0., self.mjd, alt_rad=alts[good], az_rad=azs[good],
+                                                      filtername=self.observatory.current_filter,
+                                                      lax_dome=self.lax_dome, update_tracking=False)
         self.conditions.slewtime = slewtimes
 
         # Let's get the sun and moon
@@ -500,12 +254,12 @@ class Model_observatory(object):
 
         self.conditions.lmst, last = calcLmstLast(self.mjd, self.site.longitude_rad)
 
-        self.conditions.telRA = self.observatory.current_state.ra_rad
-        self.conditions.telDec = self.observatory.current_state.dec_rad
-        self.conditions.telAlt = self.observatory.current_state.alt_rad
-        self.conditions.telAz = self.observatory.current_state.az_rad
+        self.conditions.telRA = self.observatory.current_RA_rad
+        self.conditions.telDec = self.observatory.current_dec_rad
+        self.conditions.telAlt = self.observatory.last_alt_rad
+        self.conditions.telAz = self.observatory.last_az_rad
 
-        self.conditions.rotTelPos = self.observatory.current_state.rot_rad
+        self.conditions.rotTelPos = self.observatory.last_rot_tel_pos_rad
 
         # Add in the almanac information
         self.conditions.night = self.night
@@ -624,6 +378,7 @@ class Model_observatory(object):
         # Maybe set this to a while loop to make sure we don't land on another cloudy time?
         # or just make this an entire recursive call?
         clouds = self.cloud_data(Time(mjd, format='mjd'))
+
         if clouds > self.cloud_limit:
             passed = False
             while clouds > self.cloud_limit:
@@ -654,7 +409,7 @@ class Model_observatory(object):
         """
         alt, az = _approx_RaDec2AltAz(observation['RA'], observation['dec'], self.site.latitude_rad,
                                       self.site.longitude_rad, self.mjd)
-        obs_pa = approx_altaz2pa(alt, az, self.site.latitude_rad)
+        obs_pa = _approx_altaz2pa(alt, az, self.site.latitude_rad)
         observation['rotSkyPos'] = (obs_pa + observation['rotTelPos']) % (2*np.pi)
         observation['rotTelPos'] = 0.
 
@@ -673,36 +428,40 @@ class Model_observatory(object):
 
         start_night = self.night.copy()
 
-        # Make sure the kinematic model is set to the correct mjd
-        t = Time(self.mjd, format='mjd')
-        self.observatory.update_state(t.unix)
-
         if np.isnan(observation['rotSkyPos']):
             observation = self._update_rotSkyPos(observation)
 
-        target = Target(band_filter=observation['filter'], ra_rad=observation['RA'],
-                        dec_rad=observation['dec'], ang_rad=observation['rotSkyPos'],
-                        num_exp=observation['nexp'], exp_times=[observation['exptime']])
-        start_ra = self.observatory.current_state.ra_rad
-        start_dec = self.observatory.current_state.dec_rad
-        slewtime, visittime = self.observatory.observe_times(target)
+        # If there has been a long gap, assume telescope stopped tracking and parked
+        gap = self.mjd - self.observatory.last_mjd
+        if gap > self.park_after:
+            self.observatory.park()
 
-        # Check if the mjd after slewtime and visitime is fine:
+        # Compute what alt,az we have tracked to (or are parked at)
+        start_alt, start_az, start_rotTelPos = self.observatory.current_alt_az(self.mjd)
+        # Slew to new position and execute observation. Use the requested rotTelPos position,
+        # obsevation['rotSkyPos'] will be ignored.
+        slewtime, visittime = self.observatory.observe(observation, self.mjd, rotTelPos=observation['rotTelPos'])
+
+        # inf slewtime means the observation failed (probably outsire alt limits)
+        if ~np.all(np.isfinite(slewtime)):
+            return None, False
+
         observation_worked, new_mjd = self.check_mjd(self.mjd + (slewtime + visittime)/24./3600.)
+
         if observation_worked:
             observation['visittime'] = visittime
             observation['slewtime'] = slewtime
-            observation['slewdist'] = _angularSeparation(start_ra, start_dec,
-                                                         self.observatory.current_state.ra_rad,
-                                                         self.observatory.current_state.dec_rad)
+            observation['slewdist'] = _angularSeparation(start_az, start_alt,
+                                                         self.observatory.last_az_rad,
+                                                         self.observatory.last_alt_rad)
             self.mjd = self.mjd + slewtime/24./3600.
             # Reach into the observatory model to pull out the relevant data it has calculated
             # Note, this might be after the observation has been completed.
-            observation['alt'] = self.observatory.current_state.alt_rad
-            observation['az'] = self.observatory.current_state.az_rad
-            observation['pa'] = self.observatory.current_state.pa_rad
-            observation['rotTelPos'] = self.observatory.current_state.rot_rad
-            observation['rotSkyPos'] = self.observatory.current_state.ang_rad
+            observation['alt'] = self.observatory.last_alt_rad
+            observation['az'] = self.observatory.last_az_rad
+            observation['pa'] = self.observatory.last_pa_rad
+            observation['rotTelPos'] = self.observatory.last_rot_tel_pos_rad
+            observation['rotSkyPos'] = self.observatory.current_rotSkyPos_rad
 
             # Metadata on observation is after slew and settle, so at start of exposure.
             result = self.observation_add_data(observation)

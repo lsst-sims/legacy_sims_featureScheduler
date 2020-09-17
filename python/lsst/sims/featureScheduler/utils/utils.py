@@ -6,12 +6,9 @@ import numpy as np
 import healpy as hp
 import pandas as pd
 import matplotlib.path as mplPath
-import logging
 from lsst.sims.utils import _hpid2RaDec, xyz_angular_radius, _buildTree, _xyz_from_ra_dec
 from lsst.sims.featureScheduler import version
 from lsst.sims.survey.fields import FieldsDatabase
-
-log = logging.getLogger(__name__)
 
 
 class int_rounded(object):
@@ -91,28 +88,6 @@ def set_default_nside(nside=None):
     if nside is not None:
         set_default_nside.nside = nside
     return set_default_nside.nside
-
-
-def approx_altaz2pa(alt_rad, az_rad, latitude_rad):
-    """
-    A fast calculation of parallactic angle
-    XXX--could move this to lsst.sims.utils.approxCoordTransforms.py
-    Parameters
-    ----------
-    alt_rad : float
-        Altitude (radians)
-    az_rad : float
-        Azimuth (radians)
-    latitude_rad : float
-        The latitude of the observatory (radians)
-    """
-
-    y = np.sin(-az_rad)*np.cos(latitude_rad)
-    x = np.cos(alt_rad)*np.sin(latitude_rad) - np.sin(alt_rad)*np.cos(latitude_rad)*np.cos(-az_rad)
-    pa = np.arctan2(y, x)
-    # Make it run from 0-360 deg instead of of -180 to 180
-    pa = pa % (2.*np.pi)
-    return pa
 
 
 def int_binned_stat(ids, values, statistic=np.mean):
@@ -364,6 +339,25 @@ def empty_observation():
              float, float, float]
     result = np.zeros(1, dtype=list(zip(names, types)))
     return result
+
+
+def scheduled_observation():
+    """Make an array for pre-scheduling observations
+
+    mjd_tol : float
+        The tolerance on how early an observation can execute (days).
+
+    """
+
+    # Standard things from the usual observations
+    names = ['ID', 'RA', 'dec', 'mjd', 'flush_by_mjd', 'exptime', 'filter', 'rotSkyPos', 'nexp',
+             'note']
+    types = [int, float, float, float, float, float, 'U1', float, float, 'U40']
+    names += ['mjd_tol', 'dist_tol', 'alt_min', 'alt_max', 'HA_max', 'HA_min', 'observed']
+    types += [float, float, float, float, float, float, bool]
+    result = np.zeros(1, dtype=list(zip(names, types)))
+    return result
+
 
 
 def obs_to_fbsobs(obs):

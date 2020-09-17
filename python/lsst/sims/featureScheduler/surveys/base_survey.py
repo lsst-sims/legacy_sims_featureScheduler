@@ -26,9 +26,12 @@ class BaseSurvey(object):
         ignore it because 'mysurvey2' is a substring of 'mysurvey23'.
     detailers : list of lsst.sims.featureScheduler.detailers objects
         The detailers to apply to the list of observations.
+    scheduled_obs : np.array
+        An array of MJD values for when observations should execute.
     """
     def __init__(self, basis_functions, extra_features=None,
-                 ignore_obs=None, survey_name='', nside=None, detailers=None):
+                 ignore_obs=None, survey_name='', nside=None, detailers=None,
+                 scheduled_obs=None):
         if nside is None:
             nside = set_default_nside()
         if ignore_obs is None:
@@ -60,6 +63,12 @@ class BaseSurvey(object):
             self.detailers = [Zero_rot_detailer(nside=nside)]
         else:
             self.detailers = detailers
+
+        # Scheduled observations
+        self.scheduled_obs = scheduled_obs
+
+    def get_scheduled_obs(self):
+        return self.scheduled_obs
 
     def add_observation(self, observation, **kwargs):
         # Check each posible ignore string

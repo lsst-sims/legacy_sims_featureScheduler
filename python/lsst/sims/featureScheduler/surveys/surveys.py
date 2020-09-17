@@ -7,6 +7,7 @@ from lsst.sims.featureScheduler.utils import (int_binned_stat, int_rounded,
                                               gnomonic_project_toxy, tsp_convex)
 import copy
 from lsst.sims.utils import _angularSeparation, _hpid2RaDec, _approx_RaDec2AltAz, hp_grow_argsort
+import warnings
 
 __all__ = ['Greedy_survey', 'Blob_survey']
 
@@ -105,6 +106,10 @@ class Blob_survey(Greedy_survey):
         from lingering past when they should be executed. (minutes)
     twilight_scale : bool (True)
         Scale the block size to fill up to twilight. Set to False if running in twilight
+    in_twilight : bool (False)
+        Scale the block size to stay within twilight time. 
+    check_scheduled : bool (True)
+        Check if there are scheduled observations and scale blob size to match
     min_area : float (None)
         If set, demand the reward function have an area of so many square degrees before executing
     """
@@ -118,7 +123,7 @@ class Blob_survey(Greedy_survey):
                  smoothing_kernel=None, nside=None,
                  dither=True, seed=42, ignore_obs=None,
                  survey_note='blob', detailers=None, camera='LSST',
-                 twilight_scale=True, min_area=None):
+                 twilight_scale=True, in_twilight=False, check_scheduled=True, min_area=None):
 
         if nside is None:
             nside = set_default_nside()
@@ -136,7 +141,13 @@ class Blob_survey(Greedy_survey):
         self.read_approx = read_approx
         self.hpids = np.arange(hp.nside2npix(self.nside))
         self.twilight_scale = twilight_scale
+        self.in_twilight = in_twilight
+
+        if self.twilight_scale & self.in_twilight:
+            warnings.warn('Both twilight_scale and in_twilight are set to True. That is probably wrong.')
+
         self.min_area = min_area
+        self.check_scheduled = check_scheduled
         # If we are taking pairs in same filter, no need to add filter change time.
         if filtername1 == filtername2:
             filter_change_approx = 0
@@ -191,14 +202,37 @@ class Blob_survey(Greedy_survey):
 
     def _set_block_size(self, conditions):
         """
-        Update the block size if it's getting near the end of the night.
+        Update the block size if it's getting near a break point.
         """
+
+        # If we are trying to get things done before twilight
         if self.twilight_scale:
             available_time = conditions.sun_n18_rising - conditions.mjd
             available_time *= 24.*60.  # to minutes
             n_ideal_blocks = available_time / self.ideal_pair_time
         else:
             n_ideal_blocks = 4
+
+        # If we are trying to get things done before a scheduled simulation
+        if self.check_scheduled:
+            if len(conditions.scheduled_observations) > 0:
+                available_time = np.min(conditions.scheduled_observations) - conditions.mjd
+                available_time *= 24.*60.  # to minutes
+                n_blocks = available_time / self.ideal_pair_time
+                if n_blocks < n_ideal_blocks:
+                    n_ideal_blocks = n_blocks
+
+        # If we are trying to complete before twilight ends or the night ends
+        if self.in_twilight:
+            at1 = conditions.sun_n12_rising - conditions.mjd
+            at2 = conditions.sun_n18_setting - conditions.mjd
+            times = np.array([at1, at2])
+            times = times[np.where(times > 0)]
+            available_time = np.min(times)
+            available_time *= 24.*60.  # to minutes
+            n_blocks = available_time / self.ideal_pair_time
+            if n_blocks < n_ideal_blocks:
+                n_ideal_blocks = n_blocks
 
         if n_ideal_blocks >= 3:
             self.nvisit_block = int(np.floor(self.ideal_pair_time*60. / (self.slew_approx + self.exptime +
