@@ -260,6 +260,7 @@ class Model_observatory(object):
         self.conditions.telAz = self.observatory.last_az_rad
 
         self.conditions.rotTelPos = self.observatory.last_rot_tel_pos_rad
+        self.conditions.cumulative_azimuth_rad = self.observatory.cumulative_azimuth_rad
 
         # Add in the almanac information
         self.conditions.night = self.night
@@ -462,6 +463,7 @@ class Model_observatory(object):
             observation['pa'] = self.observatory.last_pa_rad
             observation['rotTelPos'] = self.observatory.last_rot_tel_pos_rad
             observation['rotSkyPos'] = self.observatory.current_rotSkyPos_rad
+            observation['cummTelAz'] = self.observatory.cumulative_azimuth_rad
 
             # Metadata on observation is after slew and settle, so at start of exposure.
             result = self.observation_add_data(observation)

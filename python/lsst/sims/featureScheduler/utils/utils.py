@@ -90,6 +90,61 @@ def set_default_nside(nside=None):
     return set_default_nside.nside
 
 
+def restore_scheduler(observationId, scheduler, observatory, filename, filter_sched=None):
+    """Put the scheduler and observatory in the state they were in. Handy for checking reward fucnction
+
+    Parameters
+    ----------
+    observationId : int
+        The ID of the last observation that should be completed
+    scheduler : lsst.sims.featureScheduler.scheduler object
+        Scheduler object.
+    observatory : lsst.sims.featureSchedler.observatory.Model_observatory
+        The observaotry object
+    filename : str
+        The output sqlite dayabase to use
+    filter_sched : lsst.sims.featureScheduler.scheduler object
+        The filter scheduler. Note that we don't look up the official end of the previous night,
+        so there is potential for the loaded filters to not match.
+    """
+    sc = schema_converter()
+    # load up the observations
+    observations = sc.opsim2obs(filename)
+    good_obs = np.where(observations['ID'] <= observationId)[0]
+    observations = observations[good_obs]
+
+    # replay the observations back into the scheduler
+    for obs in observations:
+        scheduler.add_observation(obs)
+        if filter_sched is not None:
+            filter_sched.add_observation(obs)
+
+    if filter_sched is not None:
+        # Make sure we have mounted the right filters for the night
+        # XXX--note, this might not be exact, but should work most of the time.
+        mjd_start_night = np.min(observations['mjd'][np.where(observations['night'] == obs['night'])])
+        observatory.mjd = mjd_start_night
+        conditions = observatory.return_conditions()
+        filters_needed = filter_sched(conditions)
+    else:
+        filters_needed = ['u','g','r','i','y']
+
+    # update the observatory
+    observatory.mjd = obs['mjd'] + observatory.observatory.visit_time(obs)/3600./24.
+    observatory.observatory.parked = False
+    observatory.observatory.current_RA_rad = obs['RA']
+    observatory.observatory.current_dec_rad = obs['dec']
+    observatory.observatory.current_rotSkyPos_rad = obs['rotSkyPos']
+    observatory.observatory.cumulative_azimuth_rad = obs['cummTelAz']
+    observatory.observatory.mounted_filters = filters_needed
+    # Note that we haven't updated last_az_rad, etc, but those values should be ignored.
+
+
+
+
+    return scheduler, observatory
+
+
 def int_binned_stat(ids, values, statistic=np.mean):
     """
     Like scipy.binned_statistic, but for unique int ids
@@ -224,7 +279,8 @@ class schema_converter(object):
         # angles to converts
         self.angles_rad2deg = ['fieldRA', 'fieldDec', 'altitude', 'azimuth', 'slewDistance',
                                'paraAngle', 'rotTelPos', 'rotSkyPos', 'moonRA', 'moonDec',
-                               'moonAlt', 'moonAz', 'moonDistance', 'sunAlt', 'sunAz', 'solarElong']
+                               'moonAlt', 'moonAz', 'moonDistance', 'sunAlt', 'sunAz', 'solarElong',
+                               'cummTelAz']
         # Put LMST into degrees too
         self.angles_hours2deg = ['observationStartLST']
 
@@ -320,6 +376,8 @@ def empty_observation():
         The night number of the observation (days)
     flush_by_mjd : float
         If we hit this MJD, we should flush the queue and refill it.
+    cummTelAz : float
+        The cummulative telescope rotation in azimuth
     """
 
     names = ['ID', 'RA', 'dec', 'mjd', 'flush_by_mjd', 'exptime', 'filter', 'rotSkyPos', 'nexp',
@@ -328,7 +386,7 @@ def empty_observation():
              'alt', 'az', 'pa', 'clouds', 'moonAlt', 'sunAlt', 'note',
              'field_id', 'survey_id', 'block_id',
              'lmst', 'rotTelPos', 'moonAz', 'sunAz', 'sunRA', 'sunDec', 'moonRA', 'moonDec',
-             'moonDist', 'solarElong', 'moonPhase']
+             'moonDist', 'solarElong', 'moonPhase', 'cummTelAz']
 
     types = [int, float, float, float, float, float, 'U1', float, int,
              float, float, float, float, float, int,
@@ -336,7 +394,7 @@ def empty_observation():
              float, float, float, float, float, float, 'U40',
              int, int, int,
              float, float, float, float, float, float, float, float,
-             float, float, float]
+             float, float, float, float]
     result = np.zeros(1, dtype=list(zip(names, types)))
     return result
 
@@ -355,55 +413,6 @@ def scheduled_observation():
     types = [int, float, float, float, float, float, 'U1', float, float, 'U40']
     names += ['mjd_tol', 'dist_tol', 'alt_min', 'alt_max', 'HA_max', 'HA_min', 'observed']
     types += [float, float, float, float, float, float, bool]
-    result = np.zeros(1, dtype=list(zip(names, types)))
-    return result
-
-
-
-def obs_to_fbsobs(obs):
-    """
-    converts an Observation from the Driver (which is a normal python class)
-    to an observation for the feature based scheduler (a numpy ndarray).
-    """
-
-    fbsobs = empty_observation()
-    fbsobs['RA'] = obs.ra_rad
-    fbsobs['dec'] = obs.dec_rad
-    log.debug('Observation MJD: %.4f', obs.observation_start_mjd)
-    fbsobs['mjd'] = obs.observation_start_mjd
-    fbsobs['exptime'] = obs.exp_time
-    fbsobs['filter'] = obs.filter
-    fbsobs['rotSkyPos'] = obs.ang_rad
-    fbsobs['nexp'] = obs.num_exp
-    fbsobs['airmass'] = obs.airmass
-    fbsobs['FWHMeff'] = obs.seeing_fwhm_eff
-    fbsobs['FWHM_geometric'] = obs.seeing_fwhm_geom
-    fbsobs['skybrightness'] = obs.sky_brightness
-    fbsobs['night'] = obs.night
-    fbsobs['slewtime'] = obs.slewtime
-    fbsobs['fivesigmadepth'] = obs.five_sigma_depth
-    fbsobs['alt'] = obs.alt_rad
-    fbsobs['az'] = obs.az_rad
-    fbsobs['clouds'] = obs.cloud
-    fbsobs['moonAlt'] = obs.moon_alt
-    fbsobs['sunAlt'] = obs.sun_alt
-    fbsobs['note'] = obs.note
-    fbsobs['field_id'] = obs.fieldid
-    fbsobs['survey_id'] = obs.propid_list[0]
-
-    return fbsobs
-
-
-def empty_scheduled_observation():
-    """
-    Same as empty observation, but with mjd_min, mjd_max columns
-    """
-    start = empty_observation()
-    names = start.dtype.names
-    types = start.dtype.types
-    names.extend(['mjd_min', 'mjd_max'])
-    types.extend([float, float])
-
     result = np.zeros(1, dtype=list(zip(names, types)))
     return result
 
