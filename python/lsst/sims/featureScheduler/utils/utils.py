@@ -127,7 +127,7 @@ def restore_scheduler(observationId, scheduler, observatory, filename, filter_sc
         conditions = observatory.return_conditions()
         filters_needed = filter_sched(conditions)
     else:
-        filters_needed = ['u','g','r','i','y']
+        filters_needed = ['u', 'g', 'r', 'i', 'y']
 
     # update the observatory
     observatory.mjd = obs['mjd'] + observatory.observatory.visit_time(obs)/3600./24.
@@ -138,9 +138,6 @@ def restore_scheduler(observationId, scheduler, observatory, filename, filter_sc
     observatory.observatory.cumulative_azimuth_rad = obs['cummTelAz']
     observatory.observatory.mounted_filters = filters_needed
     # Note that we haven't updated last_az_rad, etc, but those values should be ignored.
-
-
-
 
     return scheduler, observatory
 
