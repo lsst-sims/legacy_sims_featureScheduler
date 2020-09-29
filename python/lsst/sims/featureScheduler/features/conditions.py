@@ -94,6 +94,8 @@ class Conditions(object):
             The current telescope altitude (radians).
         telAz : float
             The current telescope azimuth (radians).
+        cumulative_azimuth_rad : float
+            The cummulative telescope azimuth (radians). For tracking cable wrap
         cloud_map : np.array
             A healpix map with the cloud coverage. XXX-expand, is this bool map? Transparency map?
         airmass : np.array
