@@ -17,7 +17,8 @@ __all__ = ['Base_basis_function', 'Constant_basis_function', 'Target_map_basis_f
            'Strict_filter_basis_function', 'Goal_Strict_filter_basis_function',
            'Filter_change_basis_function', 'Slewtime_basis_function',
            'Aggressive_Slewtime_basis_function', 'Skybrightness_limit_basis_function',
-           'CableWrap_unwrap_basis_function', 'Cadence_enhance_basis_function', 'Azimuth_basis_function',
+           'CableWrap_unwrap_basis_function', 'Cadence_enhance_basis_function',
+           'Cadence_enhance_trapezoid_basis_function', 'Azimuth_basis_function',
            'Az_modulo_basis_function', 'Dec_modulo_basis_function', 'Map_modulo_basis_function',
            'Template_generate_basis_function',
            'Footprint_nvis_basis_function', 'Third_observation_basis_function', 'Season_coverage_basis_function',
@@ -1121,6 +1122,103 @@ class Cadence_enhance_basis_function(Base_basis_function):
             to_enhance = np.where((int_rounded(mjd_diff) > int_rounded(self.enhance_window[0])) &
                                   (int_rounded(mjd_diff) < int_rounded(self.enhance_window[1])))
             result[ind[to_enhance]] = self.enhance_val
+        return result
+
+
+# https://docs.astropy.org/en/stable/_modules/astropy/modeling/functional_models.html#Trapezoid1D
+def trapezoid(x, amplitude, x_0, width, slope):
+    """One dimensional Trapezoid model function"""
+    # Compute the four points where the trapezoid changes slope
+    # x1 <= x2 <= x3 <= x4
+    x2 = x_0 - width / 2.
+    x3 = x_0 + width / 2.
+    x1 = x2 - amplitude / slope
+    x4 = x3 + amplitude / slope
+
+    result = x*0
+
+    # Compute model values in pieces between the change points
+    range_a = np.logical_and(x >= x1, x < x2)
+    range_b = np.logical_and(x >= x2, x < x3)
+    range_c = np.logical_and(x >= x3, x < x4)
+
+    result[range_a] = slope * (x[range_a] - x1)
+    result[range_b] = amplitude
+    result[range_c] = slope * (x4 - x[range_c])
+
+    return result
+
+
+class Cadence_enhance_trapezoid_basis_function(Base_basis_function):
+    """Drive a certain cadence, like Cadence_enhance_basis_function but with smooth transitions
+    Parameters
+    ----------
+    filtername : str ('gri')
+        The filter(s) that should be grouped together
+
+    XXX--fill out doc string!
+    """
+    def __init__(self, filtername='gri', nside=None,
+                 delay_width=2, delay_slope=2., delay_peak=0, delay_amp=0.5,
+                 enhance_width=3., enhance_slope=2., enhance_peak=4., enhance_amp=1.,
+                 apply_area=None, season_limit=None):
+        super(Cadence_enhance_trapezoid_basis_function, self).__init__(nside=nside, filtername=filtername)
+
+        self.delay_width = delay_width
+        self.delay_slope = delay_slope
+        self.delay_peak = delay_peak
+        self.delay_amp = delay_amp
+        self.enhance_width = enhance_width
+        self.enhance_slope = enhance_slope
+        self.enhance_peak = enhance_peak
+        self.enhance_amp = enhance_amp
+
+        self.season_limit = season_limit/12*np.pi  # To radians
+
+        self.survey_features = {}
+        self.survey_features['last_observed'] = features.Last_observed(filtername=filtername)
+
+        self.empty = np.zeros(hp.nside2npix(self.nside), dtype=float)
+        # No map, try to drive the whole area
+        if apply_area is None:
+            self.apply_indx = np.arange(self.empty.size)
+        else:
+            self.apply_indx = np.where(apply_area != 0)[0]
+
+    def suppress_enhance(self, x):
+        result = x*0
+        result -= trapezoid(x, self.delay_amp, self.delay_peak, self.delay_width, self.delay_slope)
+        result += trapezoid(x, self.enhance_amp, self.enhance_peak, self.enhance_width, self.enhance_slope)
+
+        return result
+
+    def season_calc(self, conditions):
+        ra_mid_season = (conditions.sunRA + np.pi) % (2.*np.pi)
+        angle_to_mid_season = np.abs(conditions.ra - ra_mid_season)
+        over = np.where(int_rounded(angle_to_mid_season) > int_rounded(np.pi))
+        angle_to_mid_season[over] = 2.*np.pi - angle_to_mid_season[over]
+
+        return angle_to_mid_season
+
+    def _calc_value(self, conditions, indx=None):
+        # copy an empty array
+        result = self.empty.copy()
+        if indx is not None:
+            ind = np.intersect1d(indx, self.apply_indx)
+        else:
+            ind = self.apply_indx
+        if np.size(ind) == 0:
+            result = 0
+        else:
+            mjd_diff = conditions.mjd - self.survey_features['last_observed'].feature[ind]
+            result[ind] += self.suppress_enhance(mjd_diff)
+
+        if self.season_limit is not None:
+            radians_to_midseason = self.season_calc(conditions)
+            outside_season = np.where(radians_to_midseason > self.season_limit)
+            result[outside_season] = 0
+
+
         return result
 
 

@@ -11,6 +11,21 @@ from lsst.sims.featureScheduler import version
 from lsst.sims.survey.fields import FieldsDatabase
 
 
+
+
+def smallest_signed_angle(a1, a2):
+    """
+    via https://stackoverflow.com/questions/1878907/the-smallest-difference-between-2-angles"""
+    TwoPi = 2.*np.pi
+    x = a1 % TwoPi
+    y = a2 % TwoPi
+    a = (x - y) % TwoPi
+    b = (y - x) % TwoPi
+    result = b+0
+    alb = np.where(a < b)[0]
+    result[alb] = -1.*a[alb]
+    return result
+
 class int_rounded(object):
     """
     Class to help force comparisons be made on scaled up integers,
