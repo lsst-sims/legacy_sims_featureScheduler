@@ -5,8 +5,6 @@ import healpy as hp
 from lsst.sims.utils import _hpid2RaDec
 from lsst.sims.featureScheduler.utils import hp_in_lsst_fov, set_default_nside, hp_in_comcam_fov, int_rounded
 from lsst.sims.utils import _approx_RaDec2AltAz, _approx_altaz2pa
-
-
 import logging
 
 
@@ -32,7 +30,7 @@ class Core_scheduler(object):
         generate a default if set to None.
     """
 
-    def __init__(self, surveys, nside=None, camera='LSST', rotator_limits=[85., 275.]):
+    def __init__(self, surveys, nside=None, camera='LSST', rotator_limits=[85., 275.], log=None):
         """
         Parameters
         ----------
@@ -50,7 +48,11 @@ class Core_scheduler(object):
         if nside is None:
             nside = set_default_nside()
 
-        self.log = logging.getLogger("Core_scheduler")
+        if log is None:
+            self.log = logging.getLogger(type(self).__name__)
+        else:
+            self.log = log.getChild(type(self).__name__)
+
         # initialize a queue of observations to request
         self.queue = []
         # The indices of self.survey_lists that provided the last addition(s) to the queue
