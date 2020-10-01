@@ -45,8 +45,14 @@ class Plan_ahead_survey(Blob_survey):
 
         # If there are going to be some observations at a given time
         if area > self.minimum_sky_area:
-            # Maybe just calculate the median RA, figure out when that RA is going through the meridian?
-            self.scheduled_obs = 0  # Should be some MJD
+            # Maybe just calculate the mean (with angles)
+            mean_RA = np.arctan2(np.sum(np.sin(conditions.ra[pix_to_obs])), np.sum(np.cos(conditions.dec[pix_to_obs])))
+
+            hour_angle = conditions.lmst - mean_RA*12./np.pi
+            if hour_angle < 0:
+                hour_angle += 24
+            # Now we are running from 0 to 24 hours
+            self.scheduled_obs = conditions.mjd + hour_angle/24.
             # Keep in mind that this could be getting called again, so as long as we're still close, it's fine.
         else:
             self.scheduled_obs = None
@@ -59,7 +65,7 @@ class Plan_ahead_survey(Blob_survey):
             self.night = conditions.night + 0
 
         # If there are scheduled observations, and we are in the correct time window
-        delta_mjd = conditions.mdj - self.scheduled_obs
+        delta_mjd = conditions.mjd - self.scheduled_obs
         # If we are past when we wanted to execute
         if delta_mjd > self.delta_mjd_tol:
             self.check_night(conditions)

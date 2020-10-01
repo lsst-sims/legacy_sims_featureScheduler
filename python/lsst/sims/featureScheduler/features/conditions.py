@@ -379,8 +379,9 @@ class Conditions(object):
                                                           self._airmass[good])
 
     def calc_az_to_sun(self):
-        diff = np.abs(self.ra - self.sunRA)
         self._az_to_sun = smallest_signed_angle(self.ra, self.sunRA)
+
+    def calc_az_to_antisun(self):
         self._az_to_antisun = smallest_signed_angle(self.ra+np.pi, self.sunRA)
 
     @property
@@ -391,8 +392,8 @@ class Conditions(object):
 
     @property
     def az_to_antisun(self):
-        if self.az_to_antisun is None:
-            self.calc_az_to_sun
+        if self._az_to_antisun is None:
+            self.calc_az_to_antisun()
         return self._az_to_antisun
 
     # XXX, there's probably an elegant decorator that could do this caching automatically
