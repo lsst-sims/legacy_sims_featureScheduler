@@ -361,12 +361,12 @@ class Last_observed(BaseSurveyFeature):
     Track when a pixel was last observed. Assumes observations are added in chronological
     order.
     """
-    def __init__(self, filtername='r', nside=None):
+    def __init__(self, filtername='r', nside=None, fill=np.nan):
         if nside is None:
             nside = utils.set_default_nside()
 
         self.filtername = filtername
-        self.feature = np.zeros(hp.nside2npix(nside), dtype=float)
+        self.feature = np.zeros(hp.nside2npix(nside), dtype=float) + fill
 
     def add_observation(self, observation, indx=None):
         if self.filtername is None:
