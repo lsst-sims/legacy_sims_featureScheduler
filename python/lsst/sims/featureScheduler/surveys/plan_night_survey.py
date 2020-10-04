@@ -103,5 +103,5 @@ class Plan_ahead_survey(Blob_survey):
         # self.check_night will get called again in case there's another blob that should be done
         # after this one completes
         self.scheduled_obs = None
-        #self.night = conditions.night - 1
+        self.night = conditions.night - 1
         return observations
