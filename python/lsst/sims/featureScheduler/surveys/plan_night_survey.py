@@ -29,7 +29,9 @@ class Plan_ahead_survey(Blob_survey):
     def __init__(self, basis_functions, basis_weights, delta_mjd_tol=0.3/24., minimum_sky_area=200.,
                  track_filters='g', in_season=2.5, cadence=9, **kwargs):
         super(Plan_ahead_survey, self).__init__(basis_functions, basis_weights, **kwargs)
-        self.night = -100
+        # note that self.night is already being used for tracking tesselation.
+        # So here's an attribute for seeing if the night has changed for cadence tracking
+        self.night_cad = -100
         self.scheduled_obs = None
         self.delta_mjd_tol = delta_mjd_tol
         self.minimum_sky_area = minimum_sky_area  # sq degrees
@@ -83,9 +85,9 @@ class Plan_ahead_survey(Blob_survey):
         # Only compute if we will want to observe sometime in the night
         self.reward = -np.inf
         if self._check_feasibility(conditions):
-            if self.night != conditions.night:
+            if self.night_cad != conditions.night:
                 self.check_night(conditions)
-                self.night = conditions.night + 0
+                self.night_cad = conditions.night + 0
 
             if self.scheduled_obs is not None:
                 # If there are scheduled observations, and we are in the correct time window
@@ -103,5 +105,5 @@ class Plan_ahead_survey(Blob_survey):
         # self.check_night will get called again in case there's another blob that should be done
         # after this one completes
         self.scheduled_obs = None
-        self.night = conditions.night - 1
+        self.night_cad = conditions.night - 1
         return observations
