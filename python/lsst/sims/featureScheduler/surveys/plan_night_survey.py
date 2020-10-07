@@ -1,5 +1,6 @@
 from lsst.sims.featureScheduler.surveys import Blob_survey
 from lsst.sims.featureScheduler import features
+import lsst.sims.featureScheduler.basis_functions as bfs
 import numpy as np
 from lsst.sims.featureScheduler.utils import (empty_observation, set_default_nside)
 import healpy as hp
@@ -37,6 +38,8 @@ class Plan_ahead_survey(Blob_survey):
         self.minimum_sky_area = minimum_sky_area  # sq degrees
         self.extra_features = {}
         self.extra_features['last_observed'] = features.Last_observed(filtername=track_filters)
+        self.extra_basis_functions = {}
+        self.extra_basis_functions['moon_mask'] = bfs.Moon_avoidance_basis_function()
         self.track_filters = track_filters
         self.in_season = in_season/12.*np.pi  # to radians
 
@@ -55,8 +58,11 @@ class Plan_ahead_survey(Blob_survey):
         """
         """
         delta_mjd = conditions.mjd - self.extra_features['last_observed'].feature
+        moon_mask = self.extra_basis_functions['moon_mask'](conditions)
 
-        pix_to_obs = np.where((delta_mjd > self.cadence) & (np.abs(conditions.az_to_antisun) < self.in_season))[0]
+        pix_to_obs = np.where((delta_mjd > self.cadence) &
+                              (np.abs(conditions.az_to_antisun) < self.in_season) &
+                              (moon_mask >= 0))[0]
 
         area = np.size(pix_to_obs)*self.pix_area
 
