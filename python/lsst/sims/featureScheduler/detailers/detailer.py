@@ -4,7 +4,7 @@ from lsst.sims.featureScheduler.utils import int_rounded
 import copy
 
 __all__ = ["Base_detailer", "Zero_rot_detailer", "Comcam_90rot_detailer", "Close_alt_detailer",
-           "Take_as_pairs_detailer", "Twilight_triple_detailer", "Spider_rot_detailer"]
+           "Take_as_pairs_detailer", "Twilight_triple_detailer", "Spider_rot_detailer", "Flush_for_sched_detailer"]
 
 
 class Base_detailer(object):
@@ -142,6 +142,27 @@ class Close_alt_detailer(Base_detailer):
         indx = in_band[good]
         result = observation_list[indx:] + observation_list[:indx]
         return result
+
+
+class Flush_for_sched_detailer(Base_detailer):
+    """Update the flush-by MJD to be before any scheduled observations
+
+    Parameters
+    ----------
+    tol : float
+         How much before to flush (minutes)
+    """
+    def __init__(self, tol=2.5):
+        super(Flush_for_sched_detailer, self).__init__()
+        self.tol = tol/24./60.  # To days
+
+    def __call__(self, observation_list, conditions):
+        if np.size(conditions.scheduled_observations) > 0:
+            new_flush = np.min(conditions.scheduled_observations) - self.tol
+            for obs in observation_list:
+                if obs['flush_by_mjd'] > new_flush:
+                    obs['flush_by_mjd'] = new_flush
+        return observation_list
 
 
 class Take_as_pairs_detailer(Base_detailer):
