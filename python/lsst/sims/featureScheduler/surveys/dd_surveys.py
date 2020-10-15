@@ -161,7 +161,7 @@ def dd_bfs(RA, dec, survey_name, ha_limits, frac_total=0.0185/2., aggressive_fra
     return bfs
 
 
-def generate_dd_surveys(nside=None, nexp=2, detailers=None, reward_value=100,
+def generate_dd_surveys(nside=None, nexp=2, detailers=None, euclid_detailers=None, reward_value=100,
                         frac_total=0.0185/2., aggressive_frac=0.011/2., exptime=30, u_exptime=30,
                         nvis_master=[8, 20, 10, 20, 26, 20], delays=[0., 0.5, 1.5]):
     """Utility to return a list of standard deep drilling field surveys.
@@ -169,6 +169,9 @@ def generate_dd_surveys(nside=None, nexp=2, detailers=None, reward_value=100,
     XXX-Someone double check that I got the coordinates right!
 
     """
+
+    if euclid_detailers is None:
+        euclid_detailers = detailers
 
     surveys = []
 
@@ -222,8 +225,9 @@ def generate_dd_surveys(nside=None, nexp=2, detailers=None, reward_value=100,
     nviss = nvis_master
     survey_name = 'DD:EDFS'
     # Note the sequences need to be in radians since they are using observation objects directly
-    RAs = np.radians([58.97, 63.6])
-    decs = np.radians([-49.28, -47.60])
+    # Coords from jc.cuillandre@cea.fr Oct 15, 2020
+    RAs = np.radians([58.90, 63.6])
+    decs = np.radians([-49.315, -47.60])
     sequence = []
 
     for filtername, nvis in zip(filters, nviss):
@@ -247,6 +251,6 @@ def generate_dd_surveys(nside=None, nexp=2, detailers=None, reward_value=100,
                  frac_total=frac_total, aggressive_frac=aggressive_frac, delays=delays)
     surveys.append(Deep_drilling_survey(bfs, RA, dec, sequence=sequence,
                                         survey_name=survey_name, reward_value=reward_value, nside=nside,
-                                        nexp=nexp, detailers=detailers))
+                                        nexp=nexp, detailers=euclid_detailers))
 
     return surveys
