@@ -228,10 +228,11 @@ def generate_dd_surveys(nside=None, nexp=2, detailers=None, euclid_detailers=Non
     # Coords from jc.cuillandre@cea.fr Oct 15, 2020
     RAs = np.radians([58.90, 63.6])
     decs = np.radians([-49.315, -47.60])
+    suffixes = [', a', ', b']
     sequence = []
 
     for filtername, nvis in zip(filters, nviss):
-        for ra, dec in zip(RAs, decs):
+        for ra, dec, suffix in zip(RAs, decs, suffixes):
             for num in range(nvis):
                 obs = empty_observation()
                 obs['filter'] = filtername
@@ -242,7 +243,7 @@ def generate_dd_surveys(nside=None, nexp=2, detailers=None, euclid_detailers=Non
                 obs['RA'] = ra
                 obs['dec'] = dec
                 obs['nexp'] = nexp
-                obs['note'] = survey_name
+                obs['note'] = survey_name + suffix
                 sequence.append(obs)
 
     ha_limits = ([0., 1.5], [22.5, 24.])
