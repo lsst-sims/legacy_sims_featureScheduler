@@ -149,7 +149,7 @@ class N_obs_survey(BaseSurveyFeature):
         if self.note is None:
             self.feature += 1
         else:
-            if self.note == observation['note']:
+            if self.note in observation['note']:
                 self.feature += 1
 
 
