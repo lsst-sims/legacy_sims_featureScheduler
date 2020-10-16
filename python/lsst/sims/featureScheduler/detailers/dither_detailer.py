@@ -108,6 +108,7 @@ class Euclid_dither_detailer(Base_detailer):
 
     Parameters
     ----------
+    XXX--fill in docstring
 
     """
     def __init__(self, dither_bearing_dir=[-0.5, 2], dither_bearing_perp=[-0.25, 0.25],
