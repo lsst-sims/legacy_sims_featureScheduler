@@ -80,19 +80,15 @@ class Dither_detailer(Base_detailer):
         return observation_list
 
 
-
-
-
 def bearing(lon1, lat1, lon2, lat2):
-    """a and b are n_vecs
-    https://www.movable-type.co.uk/scripts/latlong-vectors.html
+    """Bearing between two points
     """
 
     delta_l = lon2 - lon1
     X = np.cos(lat2) * np.sin(delta_l)
     Y = np.cos(lat1) * np.sin(lat2) - np.sin(lat1) * np.cos(lat2) * np.cos(delta_l)
     theta = np.arctan2(X, Y)
-   
+
     return theta
 
 
@@ -111,7 +107,7 @@ class Euclid_dither_detailer(Base_detailer):
     XXX--fill in docstring
 
     """
-    def __init__(self, dither_bearing_dir=[-0.5, 2], dither_bearing_perp=[-0.25, 0.25],
+    def __init__(self, dither_bearing_dir=[-0.25, 1], dither_bearing_perp=[-0.25, 0.25],
                  seed=42, per_night=True, ra_a=58.90,
                  dec_a=-49.315, ra_b=63.6, dec_b=-47.60):
         self.survey_features = {}
