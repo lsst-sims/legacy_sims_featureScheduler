@@ -1,7 +1,7 @@
 import numpy as np
 from lsst.sims.utils import _approx_RaDec2AltAz, Site, _hpid2RaDec, m5_flat_sed, _approx_altaz2pa
 import healpy as hp
-from lsst.sims.featureScheduler.utils import set_default_nside, match_hp_resolution, season_calc
+from lsst.sims.featureScheduler.utils import set_default_nside, match_hp_resolution, season_calc, smallest_signed_angle
 
 __all__ = ['Conditions']
 
@@ -149,6 +149,8 @@ class Conditions(object):
             Healpix map of the hour angle of each healpixel (radians). Runs from 0 to 2pi.
         az_to_sun : np.array
             Healpix map of the azimuthal distance to the sun for each healpixel (radians)
+        az_to_anitsun : np.array
+            Healpix map of the azimuthal distance to the anit-sun for each healpixel (radians)
 
         Attributes (set by the scheduler)
         -------------------------------
@@ -334,6 +336,7 @@ class Conditions(object):
         self._HA = None
         self._lmst = None
         self._az_to_sun = None
+        self._az_to_antisun = None
         self._season = None
 
     @property
@@ -376,15 +379,22 @@ class Conditions(object):
                                                           self._airmass[good])
 
     def calc_az_to_sun(self):
-        diff = np.abs(self.ra - self.sunRA)
-        self._az_to_sun = diff
-        self._az_to_sun[np.where(diff > np.pi)] = 2.*np.pi-diff[np.where(diff > np.pi)]
+        self._az_to_sun = smallest_signed_angle(self.ra, self.sunRA)
+
+    def calc_az_to_antisun(self):
+        self._az_to_antisun = smallest_signed_angle(self.ra+np.pi, self.sunRA)
 
     @property
     def az_to_sun(self):
         if self._az_to_sun is None:
             self.calc_az_to_sun()
         return self._az_to_sun
+
+    @property
+    def az_to_antisun(self):
+        if self._az_to_antisun is None:
+            self.calc_az_to_antisun()
+        return self._az_to_antisun
 
     # XXX, there's probably an elegant decorator that could do this caching automatically
     def season(self, modulo=None, max_season=None, season_length=365.25, floor=True):

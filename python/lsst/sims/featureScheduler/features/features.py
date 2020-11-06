@@ -11,7 +11,7 @@ __all__ = ['BaseFeature', 'BaseSurveyFeature', 'N_obs_count', 'N_obs_survey',
            'Last_observation', 'LastSequence_observation', 'LastFilterChange',
            'N_observations', 'Coadded_depth', 'Last_observed', 'N_obs_night', 'Pair_in_night',
            'Rotator_angle', 'N_observations_season', 'N_obs_count_season', 'N_observations_current_season',
-           'Last_N_obs_times']
+           'Last_N_obs_times', 'Survey_in_night']
 
 
 class BaseFeature(object):
@@ -40,6 +40,23 @@ class BaseSurveyFeature(object):
             The healpixel indices that the observation overlaps.
         """
         raise NotImplementedError
+
+
+class Survey_in_night(BaseSurveyFeature):
+    """Keep track of how many times a survey has executed in a night.
+    """
+    def __init__(self, survey_str=''):
+        self.feature = 0
+        self.survey_str = survey_str
+        self.night = -1
+
+    def add_observation(self, observation, indx=None):
+        if observation['night'] != self.night:
+            self.night = observation['night']
+            self.feature = 0
+
+        if self.survey_str in observation['note']:
+            self.feature += 1
 
 
 class N_obs_count(BaseSurveyFeature):
@@ -132,7 +149,7 @@ class N_obs_survey(BaseSurveyFeature):
         if self.note is None:
             self.feature += 1
         else:
-            if self.note == observation['note']:
+            if self.note in observation['note']:
                 self.feature += 1
 
 
@@ -361,12 +378,12 @@ class Last_observed(BaseSurveyFeature):
     Track when a pixel was last observed. Assumes observations are added in chronological
     order.
     """
-    def __init__(self, filtername='r', nside=None):
+    def __init__(self, filtername='r', nside=None, fill=np.nan):
         if nside is None:
             nside = utils.set_default_nside()
 
         self.filtername = filtername
-        self.feature = np.zeros(hp.nside2npix(nside), dtype=float)
+        self.feature = np.zeros(hp.nside2npix(nside), dtype=float) + fill
 
     def add_observation(self, observation, indx=None):
         if self.filtername is None:

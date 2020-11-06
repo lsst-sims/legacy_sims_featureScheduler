@@ -2,6 +2,7 @@ import numpy as np
 from lsst.sims.utils import Site, calcLmstLast, _approx_altAz2RaDec, _approx_altaz2pa, _approx_RaDec2AltAz
 import healpy as hp
 import matplotlib.pylab as plt
+from lsst.sims.featureScheduler.utils import smallest_signed_angle
 
 __all__ = ["Kinem_model"]
 TwoPi = 2.*np.pi
@@ -33,19 +34,6 @@ def _getRotTelPos(paRad, rotSkyRad):
     """Make it run from -180 to 180
     """
     result = (rotSkyRad + paRad) % TwoPi
-    return result
-
-
-def smallest_signed_angle(a1, a2):
-    """
-    via https://stackoverflow.com/questions/1878907/the-smallest-difference-between-2-angles"""
-    x = a1 % TwoPi
-    y = a2 % TwoPi
-    a = (x - y) % TwoPi
-    b = (y - x) % TwoPi
-    result = b+0
-    alb = np.where(a < b)[0]
-    result[alb] = -1.*a[alb]
     return result
 
 

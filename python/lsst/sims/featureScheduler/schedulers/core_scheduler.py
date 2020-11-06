@@ -129,7 +129,7 @@ class Core_scheduler(object):
         if len(all_scheduled) == 0:
             self.conditions.scheduled_observations = []
         else:
-            all_scheduled = np.sort(np.concatenate(all_scheduled))
+            all_scheduled = np.sort(np.array(all_scheduled).ravel())
             # In case the surveys have not been removing executed observations
             all_scheduled = all_scheduled[np.where(all_scheduled >= self.conditions.mjd)]
             self.conditions.scheduled_observations = all_scheduled
@@ -211,9 +211,9 @@ class Core_scheduler(object):
             # Take a min here, so the surveys will be executed in the order they are
             # entered if there is a tie.
             self.survey_index[1] = np.min(np.where(rewards == np.nanmax(rewards)))
-
             # Survey return list of observations
             result = self.survey_lists[self.survey_index[0]][self.survey_index[1]].generate_observations(self.conditions)
+
             self.queue = result
 
         if len(self.queue) == 0:

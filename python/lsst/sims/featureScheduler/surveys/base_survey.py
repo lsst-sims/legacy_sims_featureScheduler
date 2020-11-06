@@ -19,6 +19,8 @@ class BaseSurvey(object):
     extra_features : list XXX--should this be a dict for clarity?
         List of any additional features the survey may want to use
         e.g., for computing final dither positions.
+    extra_basis_functions : dict of lsst.sims.featureScheduler.basis_function objects
+        Extra basis function objects. Typically not psased in, but et in the __init__.
     ignore_obs : list of str (None)
         If an incoming observation has this string in the note, ignore it. Handy if
         one wants to ignore DD fields or observations requested by self. Take note,
@@ -29,7 +31,7 @@ class BaseSurvey(object):
     scheduled_obs : np.array
         An array of MJD values for when observations should execute.
     """
-    def __init__(self, basis_functions, extra_features=None,
+    def __init__(self, basis_functions, extra_features=None, extra_basis_functions=None,
                  ignore_obs=None, survey_name='', nside=None, detailers=None,
                  scheduled_obs=None):
         if nside is None:
@@ -53,6 +55,11 @@ class BaseSurvey(object):
             self.extra_features = {}
         else:
             self.extra_features = extra_features
+        if extra_basis_functions is None:
+            self.extra_basis_functions = {}
+        else:
+            self.extra_basis_functions = extra_basis_functions
+
         self.reward_checked = False
 
         # Attribute to track if the reward function is up-to-date.
@@ -77,6 +84,8 @@ class BaseSurvey(object):
         if all(checks):
             for feature in self.extra_features:
                 self.extra_features[feature].add_observation(observation, **kwargs)
+            for bf in self.extra_basis_functions:
+                self.extra_basis_functions[bf].add_observation(observation, **kwargs)
             for bf in self.basis_functions:
                 bf.add_observation(observation, **kwargs)
             for detailer in self.detailers:

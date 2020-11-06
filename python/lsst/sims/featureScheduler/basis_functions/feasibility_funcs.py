@@ -12,7 +12,8 @@ __all__ = ['Filter_loaded_basis_function', 'Time_to_twilight_basis_function',
            'Rising_more_basis_function', 'Soft_delay_basis_function',
            'Look_ahead_ddf_basis_function', 'Sun_alt_limit_basis_function',
            'Time_in_twilight_basis_function', 'Night_modulo_basis_function',
-           'End_of_evening_basis_function', 'Time_to_scheduled_basis_function']
+           'End_of_evening_basis_function', 'Time_to_scheduled_basis_function',
+           'Limit_obs_pnight_basis_function']
 
 
 class Filter_loaded_basis_function(Base_basis_function):
@@ -36,6 +37,21 @@ class Filter_loaded_basis_function(Base_basis_function):
             if result is False:
                 return result
         return result
+
+
+class Limit_obs_pnight_basis_function(Base_basis_function):
+    """
+    """
+    def __init__(self, survey_str='', nlimit=100.):
+        super(Limit_obs_pnight_basis_function, self).__init__()
+        self.nlimit = nlimit
+        self.survey_features['N_in_night'] = features.Survey_in_night(survey_str=survey_str)
+
+    def check_feasibility(self, conditions):
+        if self.survey_features['N_in_night'].feature >= self.nlimit:
+            return False
+        else:
+            return True
 
 
 class Night_modulo_basis_function(Base_basis_function):

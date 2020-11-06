@@ -112,6 +112,9 @@ class Blob_survey(Greedy_survey):
         Check if there are scheduled observations and scale blob size to match
     min_area : float (None)
         If set, demand the reward function have an area of so many square degrees before executing
+    grow_blob : bool (True)
+        If True, try to grow the blob from the global maximum. Otherwise, just use a simple sort.
+        Simple sort will not constrain the blob to be contiguous.
     """
     def __init__(self, basis_functions, basis_weights,
                  filtername1='r', filtername2='g',
@@ -123,7 +126,8 @@ class Blob_survey(Greedy_survey):
                  smoothing_kernel=None, nside=None,
                  dither=True, seed=42, ignore_obs=None,
                  survey_note='blob', detailers=None, camera='LSST',
-                 twilight_scale=True, in_twilight=False, check_scheduled=True, min_area=None):
+                 twilight_scale=True, in_twilight=False, check_scheduled=True, min_area=None,
+                 grow_blob=True):
 
         if nside is None:
             nside = set_default_nside()
@@ -142,6 +146,7 @@ class Blob_survey(Greedy_survey):
         self.hpids = np.arange(hp.nside2npix(self.nside))
         self.twilight_scale = twilight_scale
         self.in_twilight = in_twilight
+        self.grow_blob = grow_blob
 
         if self.twilight_scale & self.in_twilight:
             warnings.warn('Both twilight_scale and in_twilight are set to True. That is probably wrong.')
@@ -332,20 +337,23 @@ class Blob_survey(Greedy_survey):
             self._spin_fields()
             self.night = conditions.night.copy()
 
-        # Note, returns highest first
-        ordered_hp = hp_grow_argsort(self.reward)
-        ordered_fields = self.hp2fields[ordered_hp]
-        orig_order = np.arange(ordered_fields.size)
-        # Remove duplicate field pointings
-        _u_of, u_indx = np.unique(ordered_fields, return_index=True)
-        new_order = np.argsort(orig_order[u_indx])
-        best_fields = ordered_fields[u_indx[new_order]]
+        if self.grow_blob:
+            # Note, returns highest first
+            ordered_hp = hp_grow_argsort(self.reward)
+            ordered_fields = self.hp2fields[ordered_hp]
+            orig_order = np.arange(ordered_fields.size)
+            # Remove duplicate field pointings
+            _u_of, u_indx = np.unique(ordered_fields, return_index=True)
+            new_order = np.argsort(orig_order[u_indx])
+            best_fields = ordered_fields[u_indx[new_order]]
 
-        if np.size(best_fields) < self.nvisit_block:
-            # Let's fall back to the simple sort
-            self.simple_order_sort()
+            if np.size(best_fields) < self.nvisit_block:
+                # Let's fall back to the simple sort
+                self.simple_order_sort()
+            else:
+                self.best_fields = best_fields[0:self.nvisit_block]
         else:
-            self.best_fields = best_fields[0:self.nvisit_block]
+            self.simple_order_sort()
 
         if len(self.best_fields) == 0:
             # everything was nans, or self.nvisit_block was zero
