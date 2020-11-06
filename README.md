@@ -56,3 +56,4 @@ All values are for the center of the field of view (e.g., airmass, altitude, etc
  | sunRA |  degrees  |  RA of the sun | 
  | visitExposureTime |  seconds  |  Total exposure time of the visit | 
  | visitTime |  seconds  |  Total time of the visit (could be larger than `visitExposureTime` if the visit had multiple exposures with readout between them) | 
+ | cummTelAz |  degrees  |  The cumulative azimuth rotation of the telescope mount, should be +/- 270 degrees due to cable wrap limits.  | 
