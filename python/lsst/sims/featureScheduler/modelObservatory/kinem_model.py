@@ -291,8 +291,9 @@ class Kinem_model(object):
             alt_rad, az_rad, pa = self.radec2altaz(ra_rad, dec_rad, mjd)
         else:
             pa = _approx_altaz2pa(alt_rad, az_rad, self.location.lat_rad)
-            ra_rad, dec_rad = _approx_altAz2RaDec(alt_rad, az_rad, self.location.lat_rad,
-                                                  self.location.lon_rad, mjd)
+            if update_tracking:
+                ra_rad, dec_rad = _approx_altAz2RaDec(alt_rad, az_rad, self.location.lat_rad,
+                                                      self.location.lon_rad, mjd)
 
         if starting_alt_rad is None:
             if self.parked:
