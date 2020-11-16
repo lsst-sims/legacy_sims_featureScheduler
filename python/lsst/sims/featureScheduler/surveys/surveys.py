@@ -89,6 +89,11 @@ class Blob_survey(Greedy_survey):
     slew_approx : float (7.5)
         The approximate slewtime between neerby fields (seconds). Used to calculate
         how many observations can be taken in the desired time block.
+    nexp : int (2)
+        The number of exposures to take in a visit.
+    exp_dict : dict (None)
+        If set, should have keys of filtername and values of ints that are the nuber of exposures to take
+        per visit. For estimating block time, nexp is still used.
     filter_change_approx : float (140.)
          The approximate time it takes to change filters (seconds).
     ideal_pair_time : float (22.)
@@ -107,7 +112,7 @@ class Blob_survey(Greedy_survey):
     twilight_scale : bool (True)
         Scale the block size to fill up to twilight. Set to False if running in twilight
     in_twilight : bool (False)
-        Scale the block size to stay within twilight time. 
+        Scale the block size to stay within twilight time.
     check_scheduled : bool (True)
         Check if there are scheduled observations and scale blob size to match
     min_area : float (None)
@@ -119,7 +124,7 @@ class Blob_survey(Greedy_survey):
     def __init__(self, basis_functions, basis_weights,
                  filtername1='r', filtername2='g',
                  slew_approx=7.5, filter_change_approx=140.,
-                 read_approx=2., exptime=30., nexp=2,
+                 read_approx=2., exptime=30., nexp=2, nexp_dict=None,
                  ideal_pair_time=22., min_pair_time=15.,
                  search_radius=30., alt_max=85., az_range=90.,
                  flush_time=30.,
@@ -140,6 +145,7 @@ class Blob_survey(Greedy_survey):
                                           nside=nside, detailers=detailers, camera=camera)
         self.flush_time = flush_time/60./24.  # convert to days
         self.nexp = nexp
+        self.nexp_dict = nexp_dict
         self.exptime = exptime
         self.slew_approx = slew_approx
         self.read_approx = read_approx
@@ -406,7 +412,10 @@ class Blob_survey(Greedy_survey):
             obs['dec'] = self.fields['dec'][field]
             obs['rotSkyPos'] = 0.
             obs['filter'] = self.filtername1
-            obs['nexp'] = self.nexp
+            if self.nexp_dict is None:
+                obs['nexp'] = self.nexp
+            else:
+                obs['nexp'] = self.nexp_dict[self.filtername1]
             obs['exptime'] = self.exptime
             obs['field_id'] = -1
             obs['note'] = '%s' % (self.survey_note)
