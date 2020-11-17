@@ -166,12 +166,13 @@ class Flush_for_sched_detailer(Base_detailer):
 
 
 class Take_as_pairs_detailer(Base_detailer):
-    def __init__(self, filtername='r', exptime=None):
+    def __init__(self, filtername='r', exptime=None, nexp_dict=None):
         """
         """
         super(Take_as_pairs_detailer, self).__init__()
         self.filtername = filtername
         self.exptime = exptime
+        self.nexp_dict = nexp_dict
 
     def __call__(self, observation_list, conditions):
         paired = copy.deepcopy(observation_list)
@@ -180,6 +181,8 @@ class Take_as_pairs_detailer(Base_detailer):
                 obs['exptime'] = self.exptime
         for obs in paired:
             obs['filter'] = self.filtername
+            if self.nexp_dict is not None:
+                obs['nexp'] = self.nexp_dict[self.filtername]
         if conditions.current_filter == self.filtername:
             for obs in paired:
                 obs['note'] = obs['note'][0] + ', a'
