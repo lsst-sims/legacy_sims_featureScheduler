@@ -8,7 +8,32 @@ from lsst.sims.featureScheduler.utils import hp_in_lsst_fov, int_rounded
 
 __all__ = ['Zenith_mask_basis_function', 'Zenith_shadow_mask_basis_function',
            'Moon_avoidance_basis_function', 'Map_cloud_basis_function',
-           'Planet_mask_basis_function', 'Mask_azimuth_basis_function']
+           'Planet_mask_basis_function', 'Mask_azimuth_basis_function', 'Solar_elongation_mask_basis_function']
+
+
+class Solar_elongation_mask_basis_function(Base_basis_function):
+    """Mask things at various solar elongations
+
+    Parameters
+    ----------
+    min_elong : float (0)
+        The minimum solar elongation to consider (degrees).
+    max_elong : float (60.)
+        The maximum solar elongation to consider (degrees).
+    """
+
+    def __init__(self, min_elong=0., max_elong=60., nside=None):
+        super(Solar_elongation_mask_basis_function, self).__init__(nside=nside)
+        self.min_elong = np.radians(min_elong)
+        self.max_elong = np.radians(max_elong)
+        self.result = np.empty(hp.nside2npix(self.nside), dtype=float).fill(self.penalty)
+
+    def _calc_value(self, conditions, indx=None):
+        result = self.result.copy()
+        in_range = np.where((int_rounded(conditions.solar_elongation) >= int_rounded(self.min_elong)) &
+                            (int_rounded(conditions.solar_elongation) <= int_rounded(self.max_elong)))[0]
+        result[in_range] = 1
+        return result
 
 
 class Zenith_mask_basis_function(Base_basis_function):
@@ -21,8 +46,8 @@ class Zenith_mask_basis_function(Base_basis_function):
     max_alt : float (82.)
         The maximum allowed altitude (degrees)
     """
-    def __init__(self, min_alt=20., max_alt=82.):
-        super(Zenith_mask_basis_function, self).__init__()
+    def __init__(self, min_alt=20., max_alt=82., nside=None):
+        super(Zenith_mask_basis_function, self).__init__(nside=nside)
         self.update_on_newobs = False
         self.min_alt = np.radians(min_alt)
         self.max_alt = np.radians(max_alt)
