@@ -174,11 +174,13 @@ class BaseMarkovDF_survey(BaseSurvey):
         Random number seed, used for randomly orienting sky tessellation.
     camera : str ('LSST')
         Should be 'LSST' or 'comcam'
+    area_required : float (None)
+        The valid area that should be present in the reward function (square degrees).
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None,
                  smoothing_kernel=None,
                  ignore_obs=None, survey_name='', nside=None, seed=42,
-                 dither=True, detailers=None, camera='LSST'):
+                 dither=True, detailers=None, camera='LSST', area_required=None):
 
         super(BaseMarkovDF_survey, self).__init__(basis_functions=basis_functions,
                                                   extra_features=extra_features,
@@ -197,7 +199,7 @@ class BaseMarkovDF_survey(BaseSurvey):
         elif self.camera == 'comcam':
             self.fields_init = comcamTessellate()
         else:
-            ValueError('camera %s unknown, should be "LSST" or "comcam"' %camera)
+            ValueError('camera %s unknown, should be "LSST" or "comcam"' % camera)
         self.fields = self.fields_init.copy()
         self.hp2fields = np.array([])
         self._hp2fieldsetup(self.fields['RA'], self.fields['dec'])
@@ -206,6 +208,11 @@ class BaseMarkovDF_survey(BaseSurvey):
             self.smoothing_kernel = np.radians(smoothing_kernel)
         else:
             self.smoothing_kernel = None
+
+        if area_required is None:
+            self.area_required = area_required
+        else:
+            self.area_required = area_required * (np.pi/180.)**2  # To steradians
 
         # Start tracking the night
         self.night = -1
@@ -306,6 +313,12 @@ class BaseMarkovDF_survey(BaseSurvey):
             return self.reward
         if self.smoothing_kernel is not None:
             self.smooth_reward()
+
+        if self.area_required is not None:
+            good_area = np.where(np.abs(self.reward) >= 0)[0].size * hp.nside2pixarea(self.nside)
+            if good_area < self.area_required:
+                self.reward = -np.inf
+
 
         return self.reward
 
