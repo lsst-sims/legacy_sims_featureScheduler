@@ -88,7 +88,7 @@ def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, su
             if len(observations) == n_visit_limit:
                 break
         # XXX--handy place to interupt and debug
-        # if len(observations) > 3:
+        #if len(observations) > 25:
         #    import pdb ; pdb.set_trace()
     runtime = time.time() - t0
     print('Skipped %i observations' % nskip)

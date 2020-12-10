@@ -382,7 +382,7 @@ class Conditions(object):
                                                           self._airmass[good])
 
     def calc_solar_elongation(self):
-        self._solar_elongation = _angularSeparation(self.ra, self.dec, self.runRA, self.sunDec)
+        self._solar_elongation = _angularSeparation(self.ra, self.dec, self.sunRA, self.sunDec)
 
     @property
     def solar_elongation(self):

@@ -22,11 +22,13 @@ class Solar_elongation_mask_basis_function(Base_basis_function):
         The maximum solar elongation to consider (degrees).
     """
 
-    def __init__(self, min_elong=0., max_elong=60., nside=None):
+    def __init__(self, min_elong=0., max_elong=60., nside=None, penalty=np.nan):
         super(Solar_elongation_mask_basis_function, self).__init__(nside=nside)
         self.min_elong = np.radians(min_elong)
         self.max_elong = np.radians(max_elong)
-        self.result = np.empty(hp.nside2npix(self.nside), dtype=float).fill(self.penalty)
+        self.penalty = penalty
+        self.result = np.empty(hp.nside2npix(self.nside), dtype=float)
+        self.result.fill(self.penalty)
 
     def _calc_value(self, conditions, indx=None):
         result = self.result.copy()

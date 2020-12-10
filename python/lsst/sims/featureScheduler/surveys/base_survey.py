@@ -221,6 +221,22 @@ class BaseMarkovDF_survey(BaseSurvey):
         np.random.seed(seed)
         self.dither = dither
 
+    def _check_feasibility(self, conditions):
+        """
+        Check if the survey is feasable in the current conditions
+        """
+        for bf in self.basis_functions:
+            result = bf.check_feasibility(conditions)
+            if not result:
+                return result
+        if self.area_required is not None:
+            reward = self.calc_reward_function(conditions)
+            good_pix = np.where(np.isfinite(reward) == True)[0]
+            area = hp.nside2pixarea(self.nside) * np.size(good_pix)
+            if area < self.area_required:
+                return False
+        return result
+
     def _hp2fieldsetup(self, ra, dec, leafsize=100):
         """Map each healpixel to nearest field. This will only work if healpix
         resolution is higher than field resolution.
