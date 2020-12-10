@@ -69,6 +69,8 @@ def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, su
             observations.append(completed_obs)
             filter_scheduler.add_observation(completed_obs[0])
         else:
+            # XXX--note this can result in an infinite loop, where if a survey requests something bad
+            # say, outside the alt limits. The queue will flush and refill, potentially with bad observations again.
             scheduler.flush_queue()
         if new_night:
             # find out what filters we want mounted

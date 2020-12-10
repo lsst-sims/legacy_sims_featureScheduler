@@ -8,7 +8,41 @@ from lsst.sims.featureScheduler.utils import hp_in_lsst_fov, int_rounded
 
 __all__ = ['Zenith_mask_basis_function', 'Zenith_shadow_mask_basis_function',
            'Moon_avoidance_basis_function', 'Map_cloud_basis_function',
-           'Planet_mask_basis_function', 'Mask_azimuth_basis_function', 'Solar_elongation_mask_basis_function']
+           'Planet_mask_basis_function', 'Mask_azimuth_basis_function',
+           'Solar_elongation_mask_basis_function', 'Area_check_mask_basis_function']
+
+
+
+class Area_check_mask_basis_function(Base_basis_function):
+    """Take a list of other mask basis functions, and do an additional check for area available
+    """
+    def __init__(self, bf_list, nside=32, min_area=1000.):
+        super(Area_check_mask_basis_function, self).__init__(nside=nside)
+        self.bf_list = bf_list
+        self.result = np.zeros(hp.nside2npix(self.nside), dtype=float)
+        self.min_area = min_area
+
+    def check_feasibility(self, conditions):
+        result = True
+        for bf in self.bf_list:
+            if not bf.check_feasibility(conditions):
+                return False
+
+        area_map = self.result.copy()
+        for bf in self.bf_list:
+            area_map *= bf(conditions)
+
+        good_pix = np.where(area_map == 0)[0]
+        if hp.nside2pixarea(self.nside, degrees=True)*good_pix.size < self.min_area:
+            result = False
+        return result
+
+    def _calc_value(self, conditions, **kwargs):
+        result = self.result.copy()
+        for bf in self.bf_list:
+            result *= bf(conditions)
+        return result
+
 
 
 class Solar_elongation_mask_basis_function(Base_basis_function):

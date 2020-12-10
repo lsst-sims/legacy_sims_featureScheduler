@@ -74,7 +74,7 @@ class Base_basis_function(object):
         """
         return True
 
-    def _calc_value(self, conditions, **kwarge):
+    def _calc_value(self, conditions, **kwargs):
         self.value = 0
         # Update the last time we had an mjd
         self.mjd_last = conditions.mjd + 0
@@ -557,10 +557,11 @@ class Near_sun_twilight_basis_function(Base_basis_function):
         The maximum airmass to try and observe (unitless)
     """
 
-    def __init__(self, nside=None, max_airmass=2.5):
+    def __init__(self, nside=None, max_airmass=2.5, penalty=np.nan):
         super(Near_sun_twilight_basis_function, self).__init__(nside=nside)
         self.max_airmass = int_rounded(max_airmass)
-        self.result = np.zeros(hp.nside2npix(self.nside))
+        self.result = np.empty(hp.nside2npix(self.nside))
+        self.result.fill(penalty)
 
     def _calc_value(self, conditions, indx=None):
         result = self.result.copy()

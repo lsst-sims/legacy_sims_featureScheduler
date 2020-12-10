@@ -313,6 +313,9 @@ class Blob_survey(Greedy_survey):
             if good_area < self.area_required:
                 self.reward = -np.inf
 
+        #if ('twi' in self.survey_note) & (np.any(np.isfinite(self.reward))):
+        #    import pdb ; pdb.set_trace()
+
         self.reward_checked = True
         return self.reward
 

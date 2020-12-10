@@ -335,7 +335,6 @@ class BaseMarkovDF_survey(BaseSurvey):
             if good_area < self.area_required:
                 self.reward = -np.inf
 
-
         return self.reward
 
     def generate_observations_rough(self, conditions):
