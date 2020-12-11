@@ -52,6 +52,8 @@ def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, su
     nskip = 0
     new_night = False
 
+    mjd_last_flush = -1
+
     while mjd < end_mjd:
         if not scheduler._check_queue_mjd_only(observatory.mjd):
             scheduler.update_conditions(observatory.return_conditions())
@@ -69,9 +71,12 @@ def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, su
             observations.append(completed_obs)
             filter_scheduler.add_observation(completed_obs[0])
         else:
-            # XXX--note this can result in an infinite loop, where if a survey requests something bad
-            # say, outside the alt limits. The queue will flush and refill, potentially with bad observations again.
+            # An observation failed to execute, usually it was outside the altitude limits.
+            if observatory.mjd == mjd_last_flush:
+                raise RuntimeError("Scheduler has failed to provide a valid observation multiple times.")
+            # if this is a first offence, might just be that targets set. Flush queue and get some new targets.
             scheduler.flush_queue()
+            mjd_last_flush = observatory.mjd + 0
         if new_night:
             # find out what filters we want mounted
             conditions = observatory.return_conditions()
