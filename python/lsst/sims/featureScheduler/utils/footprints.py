@@ -22,7 +22,7 @@ __all__ = ['ra_dec_hp_map', 'generate_all_sky', 'get_dustmap',
            'WFD_healpixels', 'WFD_no_gp_healpixels', 'WFD_bigsky_healpixels', 'WFD_no_dust_healpixels',
            'SCP_healpixels', 'NES_healpixels',
            'galactic_plane_healpixels', #'low_lat_plane_healpixels', 'bulge_healpixels',
-           'magellanic_clouds_healpixels',
+           'magellanic_clouds_healpixels', 'Constant_footprint',
            'generate_goal_map', 'standard_goals',
            'calc_norm_factor', 'filter_count_ratios', 'Step_line', 'Footprints', 'Footprint',
            'Step_slopes']
@@ -174,6 +174,21 @@ class Footprint(object):
         #    return self.current_footprints
         #else:
         return self.arr2struc(self.current_footprints)
+
+
+class Constant_footprint(Footprint):
+    def __init__(self, nside=32,
+                 filters={'u': 0, 'g': 1, 'r': 2, 'i': 3, 'z': 4, 'y': 5}):
+        self.nside = nside
+        self.filters = filters
+        self.npix = hp.nside2npix(nside)
+        self.footprints = np.zeros((len(filters), self.npix), dtype=float)
+        self.out_dtype = list(zip(filters, [float]*len(filters)))
+        self.to_return = self.arr2struc(self.footprints)
+
+    def __call__(self, mjd, array=False):
+        return self.to_return
+
 
 
 class Footprints(Footprint):

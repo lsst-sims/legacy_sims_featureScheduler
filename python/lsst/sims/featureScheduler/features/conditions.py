@@ -1,5 +1,5 @@
 import numpy as np
-from lsst.sims.utils import _approx_RaDec2AltAz, Site, _hpid2RaDec, m5_flat_sed, _approx_altaz2pa
+from lsst.sims.utils import _approx_RaDec2AltAz, Site, _hpid2RaDec, m5_flat_sed, _approx_altaz2pa, _angularSeparation
 import healpy as hp
 from lsst.sims.featureScheduler.utils import set_default_nside, match_hp_resolution, season_calc, smallest_signed_angle
 
@@ -151,6 +151,8 @@ class Conditions(object):
             Healpix map of the azimuthal distance to the sun for each healpixel (radians)
         az_to_anitsun : np.array
             Healpix map of the azimuthal distance to the anit-sun for each healpixel (radians)
+        solar_elongation : np.array
+            Healpix map of the solar elongation (angular distance to the sun) for each healpixel (radians)
 
         Attributes (set by the scheduler)
         -------------------------------
@@ -338,6 +340,7 @@ class Conditions(object):
         self._az_to_sun = None
         self._az_to_antisun = None
         self._season = None
+        self._solar_elongation = None
 
     @property
     def skybrightness(self):
@@ -377,6 +380,15 @@ class Conditions(object):
                                                           self._FWHMeff[filtername][good],
                                                           self.exptime,
                                                           self._airmass[good])
+
+    def calc_solar_elongation(self):
+        self._solar_elongation = _angularSeparation(self.ra, self.dec, self.sunRA, self.sunDec)
+
+    @property
+    def solar_elongation(self):
+        if self._solar_elongation is None:
+            self.calc_solar_elongation()
+        return self._solar_elongation
 
     def calc_az_to_sun(self):
         self._az_to_sun = smallest_signed_angle(self.ra, self.sunRA)

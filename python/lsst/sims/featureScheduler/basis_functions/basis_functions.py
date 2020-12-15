@@ -74,7 +74,7 @@ class Base_basis_function(object):
         """
         return True
 
-    def _calc_value(self, conditions, **kwarge):
+    def _calc_value(self, conditions, **kwargs):
         self.value = 0
         # Update the last time we had an mjd
         self.mjd_last = conditions.mjd + 0
@@ -557,16 +557,18 @@ class Near_sun_twilight_basis_function(Base_basis_function):
         The maximum airmass to try and observe (unitless)
     """
 
-    def __init__(self, nside=None, max_airmass=2.5):
+    def __init__(self, nside=None, max_airmass=2.5, penalty=np.nan):
         super(Near_sun_twilight_basis_function, self).__init__(nside=nside)
         self.max_airmass = int_rounded(max_airmass)
-        self.result = np.zeros(hp.nside2npix(self.nside))
+        self.result = np.empty(hp.nside2npix(self.nside))
+        self.result.fill(penalty)
 
     def _calc_value(self, conditions, indx=None):
         result = self.result.copy()
-        good_pix = np.where((int_rounded(conditions.airmass) < self.max_airmass) &
-                            (int_rounded(conditions.az_to_sun) < int_rounded(np.pi/2.)))
-        result[good_pix] = conditions.airmass[good_pix] / self.max_airmass.value
+        good_pix = np.where((conditions.airmass >= 1.) & 
+                            (int_rounded(conditions.airmass) < self.max_airmass) &
+                            (int_rounded(np.abs(conditions.az_to_sun)) < int_rounded(np.pi/2.)))
+        result[good_pix] = conditions.airmass[good_pix] / self.max_airmass.initial
         return result
 
 

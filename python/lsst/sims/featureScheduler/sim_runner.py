@@ -52,6 +52,8 @@ def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, su
     nskip = 0
     new_night = False
 
+    mjd_last_flush = -1
+
     while mjd < end_mjd:
         if not scheduler._check_queue_mjd_only(observatory.mjd):
             scheduler.update_conditions(observatory.return_conditions())
@@ -69,7 +71,12 @@ def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, su
             observations.append(completed_obs)
             filter_scheduler.add_observation(completed_obs[0])
         else:
+            # An observation failed to execute, usually it was outside the altitude limits.
+            if observatory.mjd == mjd_last_flush:
+                raise RuntimeError("Scheduler has failed to provide a valid observation multiple times.")
+            # if this is a first offence, might just be that targets set. Flush queue and get some new targets.
             scheduler.flush_queue()
+            mjd_last_flush = observatory.mjd + 0
         if new_night:
             # find out what filters we want mounted
             conditions = observatory.return_conditions()
@@ -88,7 +95,7 @@ def sim_runner(observatory, scheduler, filter_scheduler=None, mjd_start=None, su
             if len(observations) == n_visit_limit:
                 break
         # XXX--handy place to interupt and debug
-        # if len(observations) > 3:
+        #if len(observations) > 25:
         #    import pdb ; pdb.set_trace()
     runtime = time.time() - t0
     print('Skipped %i observations' % nskip)

@@ -443,7 +443,7 @@ class Model_observatory(object):
         # obsevation['rotSkyPos'] will be ignored.
         slewtime, visittime = self.observatory.observe(observation, self.mjd, rotTelPos=observation['rotTelPos'])
 
-        # inf slewtime means the observation failed (probably outsire alt limits)
+        # inf slewtime means the observation failed (probably outside alt limits)
         if ~np.all(np.isfinite(slewtime)):
             return None, False
 

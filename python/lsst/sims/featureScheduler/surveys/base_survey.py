@@ -174,11 +174,13 @@ class BaseMarkovDF_survey(BaseSurvey):
         Random number seed, used for randomly orienting sky tessellation.
     camera : str ('LSST')
         Should be 'LSST' or 'comcam'
+    area_required : float (None)
+        The valid area that should be present in the reward function (square degrees).
     """
     def __init__(self, basis_functions, basis_weights, extra_features=None,
                  smoothing_kernel=None,
                  ignore_obs=None, survey_name='', nside=None, seed=42,
-                 dither=True, detailers=None, camera='LSST'):
+                 dither=True, detailers=None, camera='LSST', area_required=None):
 
         super(BaseMarkovDF_survey, self).__init__(basis_functions=basis_functions,
                                                   extra_features=extra_features,
@@ -197,7 +199,7 @@ class BaseMarkovDF_survey(BaseSurvey):
         elif self.camera == 'comcam':
             self.fields_init = comcamTessellate()
         else:
-            ValueError('camera %s unknown, should be "LSST" or "comcam"' %camera)
+            ValueError('camera %s unknown, should be "LSST" or "comcam"' % camera)
         self.fields = self.fields_init.copy()
         self.hp2fields = np.array([])
         self._hp2fieldsetup(self.fields['RA'], self.fields['dec'])
@@ -207,12 +209,33 @@ class BaseMarkovDF_survey(BaseSurvey):
         else:
             self.smoothing_kernel = None
 
+        if area_required is None:
+            self.area_required = area_required
+        else:
+            self.area_required = area_required * (np.pi/180.)**2  # To steradians
+
         # Start tracking the night
         self.night = -1
 
         # Set the seed
         np.random.seed(seed)
         self.dither = dither
+
+    def _check_feasibility(self, conditions):
+        """
+        Check if the survey is feasable in the current conditions
+        """
+        for bf in self.basis_functions:
+            result = bf.check_feasibility(conditions)
+            if not result:
+                return result
+        if self.area_required is not None:
+            reward = self.calc_reward_function(conditions)
+            good_pix = np.where(np.isfinite(reward) == True)[0]
+            area = hp.nside2pixarea(self.nside) * np.size(good_pix)
+            if area < self.area_required:
+                return False
+        return result
 
     def _hp2fieldsetup(self, ra, dec, leafsize=100):
         """Map each healpixel to nearest field. This will only work if healpix
@@ -306,6 +329,11 @@ class BaseMarkovDF_survey(BaseSurvey):
             return self.reward
         if self.smoothing_kernel is not None:
             self.smooth_reward()
+
+        if self.area_required is not None:
+            good_area = np.where(np.abs(self.reward) >= 0)[0].size * hp.nside2pixarea(self.nside)
+            if good_area < self.area_required:
+                self.reward = -np.inf
 
         return self.reward
 
