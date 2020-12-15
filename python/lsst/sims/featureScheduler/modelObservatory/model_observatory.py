@@ -1,7 +1,7 @@
 import numpy as np
 from lsst.sims.utils import (_hpid2RaDec, _raDec2Hpid, Site, calcLmstLast,
                              m5_flat_sed, _approx_RaDec2AltAz, _angularSeparation, _approx_altaz2pa)
-import lsst.sims.skybrightness_pre as sb
+import lsst.sims.skybrightness_pre.zernike as sb
 import healpy as hp
 from lsst.sims.downtimeModel import ScheduledDowntimeData, UnscheduledDowntimeData
 import lsst.sims.downtimeModel as downtimeModel
@@ -113,7 +113,7 @@ class Model_observatory(object):
 
         self.cloud_data = CloudData(mjd_start_time, offset_year=0)
 
-        self.sky_model = sb.SkyModelPre(speedLoad=quickTest)
+        self.sky_model = sb.SkyModelZernike()
 
         self.observatory = Kinem_model(mjd0=mjd_start)
 
@@ -218,9 +218,7 @@ class Model_observatory(object):
         self.conditions.FWHMeff = self.seeing_FWHMeff
 
         # sky brightness
-        self.conditions.skybrightness = self.sky_model.returnMags(self.mjd, airmass_mask=False,
-                                                                  planet_mask=False,
-                                                                  moon_mask=False, zenith_mask=False)
+        self.conditions.skybrightness = self.sky_model.returnMags(np.max(self.mjd))
 
         self.conditions.mounted_filters = self.observatory.mounted_filters
         self.conditions.current_filter = self.observatory.current_filter[0]
@@ -313,9 +311,8 @@ class Model_observatory(object):
         observation['mjd'] = self.mjd
 
         hpid = _raDec2Hpid(self.sky_model.nside, observation['RA'], observation['dec'])
-        observation['skybrightness'] = self.sky_model.returnMags(self.mjd,
-                                                                 indx=[hpid],
-                                                                 extrapolate=True)[observation['filter'][0]]
+        observation['skybrightness'] = self.sky_model.returnMags(np.max(self.mjd),
+                                                                 indx=[hpid])[observation['filter'][0]]
 
         observation['fivesigmadepth'] = m5_flat_sed(observation['filter'][0], observation['skybrightness'],
                                                     observation['FWHMeff'],
