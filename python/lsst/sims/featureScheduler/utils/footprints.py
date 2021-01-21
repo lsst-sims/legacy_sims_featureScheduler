@@ -25,7 +25,7 @@ __all__ = ['ra_dec_hp_map', 'generate_all_sky', 'get_dustmap',
            'magellanic_clouds_healpixels', 'Constant_footprint',
            'generate_goal_map', 'standard_goals',
            'calc_norm_factor', 'filter_count_ratios', 'Step_line', 'Footprints', 'Footprint',
-           'Step_slopes']
+           'Step_slopes', 'Base_pixel_evolution']
 
 
 class Base_pixel_evolution(object):
