@@ -417,9 +417,9 @@ class N_obs_night(BaseSurveyFeature):
         if observation['night'] != self.night:
             self.feature *= 0
             self.night = observation['night']
-        if observation['filter'][0] in self.filtername:
-            self.feature[indx] += 1
         if (self.filtername == '') | (self.filtername is None):
+            self.feature[indx] += 1
+        elif observation['filter'][0] in self.filtername:
             self.feature[indx] += 1
 
 
