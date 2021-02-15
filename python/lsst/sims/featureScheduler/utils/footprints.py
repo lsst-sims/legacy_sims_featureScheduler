@@ -75,7 +75,7 @@ class Step_slopes(Base_pixel_evolution):
         t = mjd_in+phase - self.t_start
         season = np.floor(t/(self.period))
         season = season.astype(int)
-        plateus = np.cumsum(steps)
+        plateus = np.cumsum(steps)-steps[0]
         result = plateus[season]
         tphased = t % self.period
         step_area = np.where(tphased > self.period/2.)[0]
@@ -133,9 +133,6 @@ class Footprint(object):
 
             norm_coverage = self.step_func(t_elapsed, self.phase)
             norm_coverage -= self.zero
-            max_coverage = np.max(norm_coverage)
-            if max_coverage != 0:
-                norm_coverage = norm_coverage/max_coverage
             self.current_footprints = self.footprints * norm_coverage
             c_sum = np.sum(self.current_footprints)
             if norm:
@@ -161,7 +158,7 @@ class Footprint(object):
         self.estimate = self.current_footprints * pix_per_visit * nvisits
         return self.arr2struc(self.estimate)
 
-    def __call__(self, mjd, array=False):
+    def __call__(self, mjd, array=False, norm=True):
         """
         Returns
         -------
@@ -169,7 +166,7 @@ class Footprint(object):
         Multiply by the number of HEALpix observations (all filters), to convert to the number of observations
         desired.
         """
-        self._update_mjd(mjd)
+        self._update_mjd(mjd, norm=norm)
         #if array:
         #    return self.current_footprints
         #else:
