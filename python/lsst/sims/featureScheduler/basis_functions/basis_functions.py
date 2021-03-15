@@ -24,7 +24,7 @@ __all__ = ['Base_basis_function', 'Constant_basis_function', 'Target_map_basis_f
            'Footprint_nvis_basis_function', 'Third_observation_basis_function', 'Season_coverage_basis_function',
            'N_obs_per_year_basis_function', 'Cadence_in_season_basis_function', 'Near_sun_twilight_basis_function',
            'N_obs_high_am_basis_function', 'Good_seeing_basis_function', 'Observed_twice_basis_function',
-           'Ecliptic_basis_function']
+           'Ecliptic_basis_function', 'Limit_repeat_basis_function']
 
 
 class Base_basis_function(object):
@@ -1407,6 +1407,26 @@ class Template_generate_basis_function(Base_basis_function):
         overdue = np.where((int_rounded(conditions.mjd - self.survey_features['Last_observed'].feature)) > int_rounded(self.day_gap))
         result[overdue] = 1
         result[self.out_of_bounds] = 0
+
+        return result
+
+
+class Limit_repeat_basis_function(Base_basis_function):
+    """Mask out pixels that haven't been observed in the night
+    """
+    def __init__(self, nside=None, filtername='r', n_limit=2):
+        super(Limit_repeat_basis_function, self).__init__(nside=nside)
+        self.filtername = filtername
+        self.n_limit = n_limit
+        self.survey_features = {}
+        self.survey_features['N_obs'] = features.N_obs_night(nside=nside, filtername=filtername)
+
+        self.result = np.zeros(hp.nside2npix(self.nside))
+
+    def _calc_value(self, conditions, **kwargs):
+        result = self.result.copy()
+        good_pix = np.where(self.survey_features['N_obs'].feature >= self.n_limit)[0]
+        result[good_pix] = 1
 
         return result
 
