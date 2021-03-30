@@ -157,6 +157,7 @@ def dd_bfs(RA, dec, survey_name, ha_limits, frac_total=0.0185/2., aggressive_fra
                                                              ha_limits=ha_limits))
     bfs.append(basis_functions.Soft_delay_basis_function(fractions=fractions, delays=delays,
                                                          survey_name=survey_name))
+    bfs.append(basis_functions.Time_to_scheduled_basis_function(time_needed=time_needed))
 
     return bfs
 
